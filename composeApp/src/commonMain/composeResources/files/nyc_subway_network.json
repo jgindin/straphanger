@@ -1,0 +1,6 @@
+{
+  "totalOfficialStations": 472,
+  "totalOfficialComplexes": 424,
+  "totalOfficialSystemMiles": 248.0,
+  "description": "Bundled NYC Subway GTFS-derived network metadata (stations, complexes, routes, and trunk corridors). Loaded via NycSubwayNetworkCatalog in commonMain."
+}
