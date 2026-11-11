@@ -403,15 +403,20 @@ class StraphangerViewModel(
         if (!state.isNetworkLoaded || timelineImporter == null) return emptyImportSummary()
         _uiState.update { it.copy(timelineImportInProgress = true) }
         try {
-            val summary = withContext(computeDispatcher) {
+            val existingRides = dao.getAllRides()
+            // Only parsing and resolving run on computeDispatcher; every DAO write stays on the VM dispatcher.
+            val resolved = withContext(computeDispatcher) {
                 val text = try {
                     bytes.decodeToString(throwOnInvalidSequence = true)
                 } catch (e: CharacterCodingException) {
                     return@withContext emptyImportSummary()
                 }
-                timelineImporter.importTimelineJson(text, dao)
+                timelineImporter.resolveTimelineJson(text, existingRides)
             }
+            dao.insertOrReplaceRides(resolved.importedRecords)
             val saved = dao.lastSaveSucceeded
+            // A failed save imported nothing, whatever was resolved.
+            val summary = if (saved) resolved else resolved.copy(ridesImported = 0, importedRecords = emptyList())
             _uiState.update {
                 it.copy(
                     lastImportSummary = summary.copy(importedRecords = emptyList()),

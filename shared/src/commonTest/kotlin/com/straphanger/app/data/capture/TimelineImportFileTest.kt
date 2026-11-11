@@ -1,6 +1,7 @@
 package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
+import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.SAMPLE_TIMELINE_JSON
 import com.straphanger.app.ui.StraphangerViewModel
@@ -10,6 +11,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import kotlin.concurrent.Volatile
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 
@@ -75,6 +79,76 @@ class TimelineImportFileTest {
 
         assertEquals(10_000, summary.ridesImported)
         assertEquals(10_000, vm.dao.getAllRides().size)
+    }
+
+    @Test
+    fun failedSaveDoesNotReportImportedRides() = runTest {
+        var failing = false
+        val inner = InMemoryPersistenceBackend()
+        val backend = object : RidePersistenceBackend {
+            override fun loadSnapshotJson() = inner.loadSnapshotJson()
+            override fun saveSnapshotJson(json: String) {
+                if (failing) throw IllegalStateException("disk full")
+                inner.saveSnapshotJson(json)
+            }
+        }
+        val vm = StraphangerViewModel(
+            backend = backend,
+            dispatcher = Dispatchers.Unconfined,
+            computeDispatcher = Dispatchers.Unconfined,
+            networkLoader = { TestNetwork.data }
+        )
+        failing = true
+
+        val summary = vm.importTimelineFile(SAMPLE_TIMELINE_JSON.encodeToByteArray())
+
+        assertEquals(0, summary.ridesImported)
+        assertEquals(0, vm.uiState.value.lastImportSummary?.ridesImported)
+        assertNotNull(vm.uiState.value.loadError)
+        assertTrue(vm.dao.getAllRides().isEmpty())
+    }
+
+    /** Runs work on Dispatchers.Default and records whether a block is currently running on it. */
+    private class MarkingDispatcher : CoroutineDispatcher() {
+        @Volatile
+        var running = false
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            Dispatchers.Default.dispatch(context, Runnable {
+                running = true
+                try {
+                    block.run()
+                } finally {
+                    running = false
+                }
+            })
+        }
+    }
+
+    @Test
+    fun ridesAreSavedOutsideTheComputeDispatcher() = runTest {
+        val compute = MarkingDispatcher()
+        val savedWhileComputing = mutableListOf<Boolean>()
+        val inner = InMemoryPersistenceBackend()
+        val backend = object : RidePersistenceBackend {
+            override fun loadSnapshotJson() = inner.loadSnapshotJson()
+            override fun saveSnapshotJson(json: String) {
+                savedWhileComputing.add(compute.running)
+                inner.saveSnapshotJson(json)
+            }
+        }
+        val vm = StraphangerViewModel(
+            backend = backend,
+            dispatcher = Dispatchers.Unconfined,
+            computeDispatcher = compute,
+            networkLoader = { TestNetwork.data }
+        )
+
+        val summary = vm.importTimelineFile(SAMPLE_TIMELINE_JSON.encodeToByteArray())
+
+        assertEquals(2, summary.ridesImported)
+        assertTrue(savedWhileComputing.isNotEmpty())
+        assertTrue(savedWhileComputing.none { it })
     }
 
     private fun iso(epochMs: Long): String =

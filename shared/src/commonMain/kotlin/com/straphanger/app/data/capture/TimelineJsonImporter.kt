@@ -53,6 +53,19 @@ class TimelineJsonImporter(
         rawJson: String,
         dao: SubwayDao? = null
     ): TimelineImportSummary {
+        val summary = resolveTimelineJson(rawJson, dao?.getAllRides().orEmpty())
+        dao?.insertOrReplaceRides(summary.importedRecords)
+        return summary
+    }
+
+    /**
+     * Parses and resolves a Timeline file without touching storage. Rides already in [existingRides]
+     * are skipped as duplicates; the caller saves [TimelineImportSummary.importedRecords].
+     */
+    fun resolveTimelineJson(
+        rawJson: String,
+        existingRides: List<CompleteRideRecord>
+    ): TimelineImportSummary {
         val rootElement = runCatching { json.parseToJsonElement(rawJson.trim()) }.getOrNull()
             ?: return TimelineImportSummary(0, 0, 0, 0, 0, emptyList())
 
@@ -155,7 +168,6 @@ class TimelineJsonImporter(
             groupedTrips.add(listOf(leg))
         }
 
-        val existingRides = dao?.getAllRides().orEmpty()
         var duplicateCount = 0
         val importedRecords = mutableListOf<CompleteRideRecord>()
 
@@ -224,8 +236,6 @@ class TimelineJsonImporter(
             )
             importedRecords.add(record)
         }
-
-        dao?.insertOrReplaceRides(importedRecords)
 
         return TimelineImportSummary(
             rawSegmentsFound = sortedRaw.size,
