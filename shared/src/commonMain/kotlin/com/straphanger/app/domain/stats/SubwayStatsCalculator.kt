@@ -6,7 +6,7 @@ import com.straphanger.app.data.gtfs.StopRole
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.SubwayRouteInfo
 import com.straphanger.app.data.local.CompleteRideRecord
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable

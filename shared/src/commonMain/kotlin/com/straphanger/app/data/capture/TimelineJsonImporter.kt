@@ -6,7 +6,7 @@ import com.straphanger.app.data.gtfs.TripLegRequest
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
