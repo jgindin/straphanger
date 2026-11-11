@@ -127,10 +127,18 @@ fun App(backend: RidePersistenceBackend) {
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                when (uiState.activeTab) {
+                val graphEngine = viewModel.graphEngine
+                if (!uiState.isNetworkLoaded || graphEngine == null) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().testTag("network_loading"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "Loading subway network", color = MtaColors.TextSecondary, fontSize = 13.sp)
+                    }
+                } else when (uiState.activeTab) {
                     AppTab.MAP -> SubwayMapScreen(
                         uiState = uiState,
-                        network = viewModel.graphEngine.network,
+                        network = graphEngine.network,
                         onColorModeChange = viewModel::setMapColorMode,
                         onRouteFilterSelect = viewModel::setRouteFilter,
                         onStationSelect = viewModel::selectStationOnMap,
@@ -150,7 +158,7 @@ fun App(backend: RidePersistenceBackend) {
                     )
                     AppTab.RIDES -> RidesHistoryAndLoggerScreen(
                         uiState = uiState,
-                        graphEngine = viewModel.graphEngine,
+                        graphEngine = graphEngine,
                         onUpdateLogForm = { orig, trans, dest, route, exp ->
                             viewModel.updateLogForm(orig, trans, dest, route, exp)
                         },

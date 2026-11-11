@@ -19,3 +19,6 @@ DerivedData/
 google-services.json
 GoogleService-Info.plist
 .kotlin/
+
+# Downloaded GTFS inputs for the network generator (not committed)
+/tools/gtfs-import/input/

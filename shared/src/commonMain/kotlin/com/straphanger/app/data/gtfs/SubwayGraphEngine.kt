@@ -8,12 +8,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 class SubwayGraphEngine(
-    val network: SubwayNetworkData = NycSubwayNetworkCatalog.defaultNetwork
+    val network: SubwayNetworkData
 ) {
     private val stationById: Map<String, SubwayStation> = network.stations.associateBy { it.id }
     private val stationsByComplex: Map<String, List<SubwayStation>> = network.stations.groupBy { it.complexId }
     private val routeById: Map<String, SubwayRouteInfo> = network.routes.associateBy { it.routeId }
     private val segmentById: Map<String, SubwaySegment> = network.segments.associateBy { it.segmentId }
+    private val routeOrder: Map<String, Int> = network.routes.withIndex().associate { (i, r) -> r.routeId to i }
 
     private data class AdjacencyEdge(
         val toStationId: String,
@@ -57,15 +58,21 @@ class SubwayGraphEngine(
         stationsByComplex[complexId].orEmpty()
 
     fun searchStations(query: String): List<SubwayStation> {
-        val q = query.trim().lowercase()
+        val q = normalizeStationName(query)
         if (q.isEmpty()) return network.stations
         return network.stations.filter {
-            it.name.lowercase().contains(q) ||
-                it.complexName.lowercase().contains(q) ||
+            normalizeStationName(it.name).contains(q) ||
+                normalizeStationName(it.complexName).contains(q) ||
                 it.borough.displayName.lowercase().contains(q) ||
                 it.daytimeRoutes.any { r -> r.lowercase() == q }
         }
     }
+
+    /** Lowercases and maps "Avenue"/"Ave" to "av" and "Street" to "st", as MTA station names spell them. */
+    private fun normalizeStationName(name: String): String =
+        name.trim().lowercase()
+            .replace(Regex("""\b(avenue|ave)\b"""), "av")
+            .replace(Regex("""\bstreet\b"""), "st")
 
     fun findNearestStation(
         lat: Double,
@@ -104,7 +111,7 @@ class SubwayGraphEngine(
 
     /**
      * Resolves an Origin -> Destination request, automatically inserting in-system transfers
-     * if the shortest path crosses multiple trunk lines.
+     * where no single route serves the whole shortest path.
      */
     fun resolveOriginToDestinationAuto(
         originStationId: String,
@@ -126,52 +133,54 @@ class SubwayGraphEngine(
             )
         }
 
-        // Split into contiguous trunk legs if the path crosses complexes onto a new trunk
+        // Split into legs wherever no single route serves the next segment, or the path walks
+        // between platforms of a station complex.
         val legRequests = mutableListOf<TripLegRequest>()
-        var currentTrunk = segmentsOnly.first().trunkId
-        var legStartStation = findEndpointStationForSegment(rawPath, 0, isStart = true)
-        var lastStationOnTrunk = findEndpointStationForSegment(rawPath, 0, isStart = false)
+        var legStart: String? = null
+        var legEnd: String? = null
+        var legRoutes: Set<String> = emptySet()
 
-        for (step in rawPath) {
-            val seg = step.segment ?: continue
-            if (seg.trunkId != currentTrunk) {
-                legRequests.add(
-                    TripLegRequest(
-                        fromStationId = legStartStation,
-                        toStationId = lastStationOnTrunk,
-                        preferredRouteId = preferredRouteId?.takeIf { it in segmentsOnly.first().routes },
-                        forceExpress = forceExpress
-                    )
+        fun closeLeg() {
+            val from = legStart ?: return
+            val to = legEnd ?: return
+            legRequests.add(
+                TripLegRequest(
+                    fromStationId = from,
+                    toStationId = to,
+                    preferredRouteId = preferredRouteId?.takeIf { it in legRoutes },
+                    forceExpress = forceExpress
                 )
-                currentTrunk = seg.trunkId
-                legStartStation = if (seg.fromStationId == step.toStationId) seg.toStationId else seg.fromStationId
-            }
-            lastStationOnTrunk = step.toStationId
+            )
+            legStart = null
+            legEnd = null
+            legRoutes = emptySet()
         }
 
-        legRequests.add(
-            TripLegRequest(
-                fromStationId = legStartStation,
-                toStationId = lastStationOnTrunk,
-                preferredRouteId = preferredRouteId,
-                forceExpress = forceExpress
-            )
-        )
+        for (step in rawPath) {
+            val seg = step.segment
+            if (seg == null) {
+                closeLeg()
+                continue
+            }
+            val shared = legRoutes intersect seg.routes.toSet()
+            if (legStart != null && shared.isEmpty()) {
+                closeLeg()
+            }
+            if (legStart == null) {
+                legStart = step.fromStationId
+                legRoutes = seg.routes.toSet()
+            } else {
+                legRoutes = shared
+            }
+            legEnd = step.toStationId
+        }
+        closeLeg()
 
         return resolveTrip(
             legs = legRequests,
             timestampEpochMs = timestampEpochMs,
             actualDurationMinutes = actualDurationMinutes
         )
-    }
-
-    private fun findEndpointStationForSegment(
-        steps: List<PathStep>,
-        firstSegIndex: Int,
-        isStart: Boolean
-    ): String {
-        val firstWithSeg = steps.first { it.segment != null }
-        return if (isStart) firstWithSeg.fromStationId else firstWithSeg.toStationId
     }
 
     /**
@@ -200,132 +209,89 @@ class SubwayGraphEngine(
                 orderedStations.add(ts.toStationId)
             }
 
-            val startStation = stationById[orderedStations.first()]
-            val endStation = stationById[orderedStations.last()]
             val candidateRoutesOnCorridor = segments
                 .map { it.routes.toSet() }
                 .reduceOrNull { acc, set -> acc.intersect(set) }
                 ?.toList()
                 .orEmpty()
                 .ifEmpty { segments.first().routes }
+                .sortedBy { routeOrder[it] ?: Int.MAX_VALUE }
 
             val legDistance = (segments.sumOf { it.distanceMiles } * 100.0).roundToInt() / 100.0
 
-            // Check if both Express and Local candidates exist on this leg
-            val expressRoutesForEnds = candidateRoutesOnCorridor.filter { r ->
-                val info = routeById[r]
-                val endSupportsExpress = startStation != null && endStation != null &&
-                    (r in startStation.expressRoutes || startStation.expressRoutes.isNotEmpty()) &&
-                    (r in endStation.expressRoutes || endStation.expressRoutes.isNotEmpty())
-                val lateNightForcedLocal = servicePeriod == ServicePeriod.LATE_NIGHT &&
-                    info?.lateNightBehavior == LateNightBehavior.EXPRESS_TO_LOCAL_LATE_NIGHT
-                info?.isExpressCapable == true && endSupportsExpress && !lateNightForcedLocal
-            }
+            val plans = candidateRoutesOnCorridor.associateWith { r -> stopPlan(r, servicePeriod, orderedStations) }
+            val expressRoutes = candidateRoutesOnCorridor.filter { plans.getValue(it).skipped.isNotEmpty() }
+            val localRoutes = candidateRoutesOnCorridor.filter { plans.getValue(it).skipped.isEmpty() }
+            val allStops = StopPlan(orderedStations, emptyList())
 
-            val localRoutesForEnds = candidateRoutesOnCorridor.filter { r ->
-                val info = routeById[r]
-                info?.isExpressCapable == false ||
-                    r in (startStation?.daytimeRoutes.orEmpty()) ||
-                    (servicePeriod == ServicePeriod.LATE_NIGHT && info?.lateNightBehavior == LateNightBehavior.EXPRESS_TO_LOCAL_LATE_NIGHT)
-            }.ifEmpty { candidateRoutesOnCorridor }
+            fun estimatedMinutes(stopCount: Int, express: Boolean): Double =
+                if (express) (legDistance / 24.0) * 60.0 + (stopCount - 1) * 0.45
+                else (legDistance / 15.5) * 60.0 + (stopCount - 1) * 0.55
 
-            val hasIntermediateLocalOnlyStations = orderedStations.drop(1).dropLast(1).any { stId ->
-                val st = stationById[stId]
-                st != null && st.expressRoutes.isEmpty()
-            }
-
-            val expressStopCount = orderedStations.count { stId ->
-                stId == orderedStations.first() ||
-                    stId == orderedStations.last() ||
-                    stationById[stId]?.expressRoutes?.isNotEmpty() == true
-            }
-            val localStopCount = orderedStations.size
-
-            val estExpressMinutes = ((legDistance / 24.0) * 60.0 + (expressStopCount - 1) * 0.45)
-            val estLocalMinutes = ((legDistance / 15.5) * 60.0 + (localStopCount - 1) * 0.55)
-
-            // Determine whether Express or Local was ridden
             val chosenRouteId: String
-            val chosenIsExpress: Boolean
+            val chosenPlan: StopPlan
 
             if (legReq.preferredRouteId != null && legReq.preferredRouteId in candidateRoutesOnCorridor) {
                 chosenRouteId = legReq.preferredRouteId
-                val rInfo = routeById[chosenRouteId]
-                val lateNightLocal = servicePeriod == ServicePeriod.LATE_NIGHT &&
-                    rInfo?.lateNightBehavior == LateNightBehavior.EXPRESS_TO_LOCAL_LATE_NIGHT
-                chosenIsExpress = legReq.forceExpress ?: (
-                    rInfo?.isExpressCapable == true &&
-                        !lateNightLocal &&
-                        chosenRouteId in expressRoutesForEnds &&
-                        hasIntermediateLocalOnlyStations
-                    )
+                chosenPlan = when (legReq.forceExpress) {
+                    false -> allStops
+                    true -> plans.getValue(chosenRouteId).takeIf { it.skipped.isNotEmpty() }
+                        ?: stopPlan(chosenRouteId, ServicePeriod.DAYTIME, orderedStations)
+                    null -> plans.getValue(chosenRouteId)
+                }
             } else if (legReq.forceExpress != null) {
-                chosenIsExpress = legReq.forceExpress && expressRoutesForEnds.isNotEmpty()
-                chosenRouteId = if (chosenIsExpress) {
-                    expressRoutesForEnds.first()
+                if (legReq.forceExpress && expressRoutes.isNotEmpty()) {
+                    chosenRouteId = expressRoutes.first()
+                    chosenPlan = plans.getValue(chosenRouteId)
                 } else {
-                    localRoutesForEnds.firstOrNull { routeById[it]?.isExpressCapable == false }
-                        ?: localRoutesForEnds.first()
+                    chosenRouteId = localRoutes.firstOrNull() ?: candidateRoutesOnCorridor.first()
+                    chosenPlan = allStops
+                }
+            } else if (expressRoutes.isNotEmpty() && localRoutes.isNotEmpty()) {
+                // Both an express and a local serve this stretch: use the ride's duration if known.
+                val expRoute = expressRoutes.first()
+                val locRoute = localRoutes.first()
+                val expPlan = plans.getValue(expRoute)
+                val estExpressMinutes = estimatedMinutes(expPlan.stopped.size, express = true)
+                val estLocalMinutes = estimatedMinutes(orderedStations.size, express = false)
+                if (legs.size == 1 && legReq.preferredRouteId == null) {
+                    anyAmbiguous = true
+                    allCandidates.add(
+                        AmbiguousRouteCandidate(
+                            routeId = expRoute,
+                            isExpress = true,
+                            label = "$expRoute Express",
+                            estimatedMinutes = (estExpressMinutes * 10.0).roundToInt() / 10.0,
+                            stoppedStationCount = expPlan.stopped.size
+                        )
+                    )
+                    allCandidates.add(
+                        AmbiguousRouteCandidate(
+                            routeId = locRoute,
+                            isExpress = false,
+                            label = "$locRoute Local",
+                            estimatedMinutes = (estLocalMinutes * 10.0).roundToInt() / 10.0,
+                            stoppedStationCount = orderedStations.size
+                        )
+                    )
+                }
+                val preferLocalByDuration = actualDurationMinutes != null &&
+                    abs(actualDurationMinutes - estLocalMinutes) < abs(actualDurationMinutes - estExpressMinutes)
+                if (preferLocalByDuration) {
+                    chosenRouteId = locRoute
+                    chosenPlan = allStops
+                } else {
+                    chosenRouteId = expRoute
+                    chosenPlan = expPlan
                 }
             } else {
-                // Auto-infer from actualDurationMinutes or default service period rules
-                if (expressRoutesForEnds.isNotEmpty() && hasIntermediateLocalOnlyStations) {
-                    if (legs.size == 1 && legReq.preferredRouteId == null) {
-                        anyAmbiguous = true
-                        val expRoute = expressRoutesForEnds.first()
-                        val locRoute = localRoutesForEnds.firstOrNull { routeById[it]?.isExpressCapable == false }
-                            ?: localRoutesForEnds.first()
-                        allCandidates.add(
-                            AmbiguousRouteCandidate(
-                                routeId = expRoute,
-                                isExpress = true,
-                                label = "$expRoute Express",
-                                estimatedMinutes = (estExpressMinutes * 10.0).roundToInt() / 10.0,
-                                stoppedStationCount = expressStopCount
-                            )
-                        )
-                        allCandidates.add(
-                            AmbiguousRouteCandidate(
-                                routeId = locRoute,
-                                isExpress = false,
-                                label = "$locRoute Local",
-                                estimatedMinutes = (estLocalMinutes * 10.0).roundToInt() / 10.0,
-                                stoppedStationCount = localStopCount
-                            )
-                        )
-                    }
-                    val preferLocalByDuration = actualDurationMinutes != null &&
-                        abs(actualDurationMinutes - estLocalMinutes) < abs(actualDurationMinutes - estExpressMinutes)
-                    if (preferLocalByDuration) {
-                        chosenIsExpress = false
-                        chosenRouteId = localRoutesForEnds.firstOrNull { routeById[it]?.isExpressCapable == false }
-                            ?: localRoutesForEnds.first()
-                    } else {
-                        chosenIsExpress = true
-                        chosenRouteId = expressRoutesForEnds.first()
-                    }
-                } else {
-                    chosenIsExpress = false
-                    chosenRouteId = localRoutesForEnds.first()
-                }
+                chosenRouteId = expressRoutes.firstOrNull() ?: localRoutes.firstOrNull() ?: candidateRoutesOnCorridor.first()
+                chosenPlan = plans[chosenRouteId] ?: allStops
             }
 
-            val stoppedStations = mutableListOf<String>()
-            val skippedStations = mutableListOf<String>()
-            for ((idx, stId) in orderedStations.withIndex()) {
-                val isEndpoint = idx == 0 || idx == orderedStations.lastIndex
-                val st = stationById[stId]
-                val stopsHere = if (isEndpoint || !chosenIsExpress) {
-                    true
-                } else {
-                    st != null && (chosenRouteId in st.expressRoutes || st.expressRoutes.isNotEmpty())
-                }
-                if (stopsHere) {
-                    stoppedStations.add(stId)
-                } else {
-                    skippedStations.add(stId)
-                }
-            }
+            val chosenIsExpress = chosenPlan.skipped.isNotEmpty()
+            val stoppedStations = chosenPlan.stopped
+            val skippedStations = chosenPlan.skipped
 
             resolvedLegs.add(
                 ResolvedLegPath(
@@ -375,6 +341,30 @@ class SubwayGraphEngine(
         )
     }
 
+    private data class StopPlan(val stopped: List<String>, val skipped: List<String>)
+
+    /**
+     * Which of [orderedStations] the route stops at in [period], from its GTFS stop pattern
+     * (falling back to the DAYTIME pattern). Endpoints are always stops. An intermediate station
+     * is skipped only when it is missing from the pattern while stations on both sides of it on
+     * this leg are in the pattern; stations off the pattern's stretch (another branch, say) count
+     * as stops.
+     */
+    private fun stopPlan(routeId: String, period: ServicePeriod, orderedStations: List<String>): StopPlan {
+        val pattern = routeById[routeId]?.stopsFor(period)?.toSet().orEmpty()
+        val inPattern = orderedStations.map { it in pattern }
+        val firstIn = inPattern.indexOfFirst { it }
+        val lastIn = inPattern.indexOfLast { it }
+        val stopped = mutableListOf<String>()
+        val skipped = mutableListOf<String>()
+        for ((idx, stId) in orderedStations.withIndex()) {
+            val isEndpoint = idx == 0 || idx == orderedStations.lastIndex
+            val skips = !isEndpoint && !inPattern[idx] && firstIn in 0 until idx && lastIn > idx
+            if (skips) skipped.add(stId) else stopped.add(stId)
+        }
+        return StopPlan(stopped, skipped)
+    }
+
     private data class PathStep(
         val fromStationId: String,
         val toStationId: String,
@@ -389,7 +379,6 @@ class SubwayGraphEngine(
         if (startStationId == endStationId) return emptyList()
         val dist = mutableMapOf<String, Double>().withDefault { Double.POSITIVE_INFINITY }
         val prev = mutableMapOf<String, PathStep>()
-        val prevTrunk = mutableMapOf<String, String?>()
         val visited = mutableSetOf<String>()
 
         dist[startStationId] = 0.0
@@ -402,28 +391,21 @@ class SubwayGraphEngine(
             if (!visited.add(current)) continue
 
             val currentCost = dist.getValue(current)
-            val currentTrunkId = prevTrunk[current]
 
             for (edge in adjacency[current].orEmpty()) {
                 if (edge.toStationId in visited) continue
                 val seg = edge.segment
-                val trunkSwitchPenalty = if (seg == null) {
-                    0.35 // In-complex platform transfer penalty so single-seat rides win
-                } else if (currentTrunkId != null && currentTrunkId != seg.trunkId) {
-                    0.35
-                } else {
-                    0.0
-                }
+                // In-complex platform transfer penalty so single-seat rides win
+                val transferPenalty = if (seg == null) 0.35 else 0.0
                 val routePenalty = if (preferredRouteId != null && seg != null && preferredRouteId !in seg.routes) {
                     0.25
                 } else {
                     0.0
                 }
-                val nextCost = currentCost + edge.costMiles + trunkSwitchPenalty + routePenalty
+                val nextCost = currentCost + edge.costMiles + transferPenalty + routePenalty
                 if (nextCost < dist.getValue(edge.toStationId)) {
                     dist[edge.toStationId] = nextCost
                     prev[edge.toStationId] = PathStep(current, edge.toStationId, seg)
-                    prevTrunk[edge.toStationId] = seg?.trunkId ?: currentTrunkId
                     if (edge.toStationId !in queue) {
                         queue.add(edge.toStationId)
                     }

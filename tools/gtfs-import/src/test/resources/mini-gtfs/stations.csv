@@ -1,0 +1,7 @@
+GTFS Stop ID,Station ID,Complex ID,Division,Line,Stop Name,Borough,Daytime Routes
+S1,1,101,IND,Trunk,Station 1,M,LOC EXP
+S2,2,102,IND,Trunk,Station 2,M,LOC
+S3,3,103,IND,Trunk,Station 3,M,LOC EXP
+S4,4,104,IND,Trunk,Station 4,Bk,LOC
+S5,5,105,IND,Trunk,Station 5,Bk,LOC EXP
+S6,6,106,IND,Trunk,Station 6,Bk,LOC EXP

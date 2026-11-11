@@ -1,11 +1,12 @@
 package com.straphanger.app.data.gtfs
 
+import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Instant
 
 class ServicePeriodTest {
-    private val engine = SubwayGraphEngine()
+    private val engine = TestNetwork.engine()
 
     private fun period(iso: String) =
         engine.inferServicePeriod(Instant.parse(iso).toEpochMilliseconds())

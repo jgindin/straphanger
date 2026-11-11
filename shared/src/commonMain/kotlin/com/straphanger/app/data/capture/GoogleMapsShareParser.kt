@@ -14,7 +14,10 @@ import kotlin.time.Clock
  * 1. Plain-text share summaries ("From 14 St-Union Sq to 86 St via 4 train")
  * 2. Live Google Maps Transit Navigation notifications ("GMAPS_NOTIFICATION: 4 Train | Board at 14 St-Union Sq • Exit at 86 St")
  * 3. Opaque maps.app.goo.gl short URLs by following HTTP 302 Location headers via Ktor
- * 4. iOS/Android deep links ("straphanger://share?from=L_BEDFORD&to=LEX_86&route=L")
+ * 4. iOS/Android deep links ("straphanger://share?from=L08&to=626&route=L", GTFS station IDs)
+ *
+ * A station name that matches stations in more than one complex (for example "86 St") is resolved
+ * using the named line when there is one; otherwise the ride is marked as needing review.
  */
 class GoogleMapsShareParser(
     private val graphEngine: SubwayGraphEngine,
@@ -23,7 +26,7 @@ class GoogleMapsShareParser(
 ) {
     private val shortUrlRegex = Regex("""https?://(?:maps\.app\.goo\.gl|goo\.gl/maps)/[A-Za-z0-9_-]+""")
     private val fromToViaRegex = Regex(
-        """(?i)(?:from|board\s+at)\s+([^•|\n]+?)\s+(?:to|•\s*exit\s+at)\s+([^•|\n]+?)(?:\s+via\s+([A-Z0-9]{1,3})(?:\s+train|\s+line)?)?$"""
+        """(?i)(?:(?:from|board\s+at)\s+)?([^\s•|][^•|\n]*?)\s+(?:to|•\s*exit\s+at)\s+([^•|\n]+?)(?:\s+via\s+([A-Z0-9]{1,3})(?:\s+train|\s+line)?)?$"""
     )
     private val dirUrlPathRegex = Regex("""/maps/dir/([^/]+)/([^/?#]+)""")
 
@@ -76,8 +79,10 @@ class GoogleMapsShareParser(
         if (dirMatch != null) {
             val rawOrigin = decodeUrlToken(dirMatch.groupValues[1])
             val rawDest = decodeUrlToken(dirMatch.groupValues[2])
-            val originId = resolveStationToken(rawOrigin)
-            val destId = resolveStationToken(rawDest)
+            val origin = resolveStation(rawOrigin)
+            val dest = resolveStation(rawDest)
+            val originId = origin?.stationId
+            val destId = dest?.stationId
             if (originId != null && destId != null && originId != destId) {
                 val resolved = graphEngine.resolveOriginToDestinationAuto(
                     originStationId = originId,
@@ -91,7 +96,8 @@ class GoogleMapsShareParser(
                         endTimeEpochMs = 0L,
                         source = source,
                         resolved = resolved,
-                        graphEngine = graphEngine
+                        graphEngine = graphEngine,
+                        forceNeedsReview = if (origin.isAmbiguous || dest.isAmbiguous) true else null
                     )
                 }
             }
@@ -112,8 +118,10 @@ class GoogleMapsShareParser(
             val destToken = m.groupValues[2].replace(shortUrlRegex, "").trim()
             val routeToken = m.groupValues.getOrNull(3)?.takeIf { it.isNotBlank() }?.uppercase() ?: headerRoute
 
-            val originId = resolveStationToken(originToken, routeToken)
-            val destId = resolveStationToken(destToken, routeToken)
+            val origin = resolveStation(originToken, routeToken)
+            val dest = resolveStation(destToken, routeToken)
+            val originId = origin?.stationId
+            val destId = dest?.stationId
             if (originId != null && destId != null && originId != destId) {
                 val resolved = graphEngine.resolveOriginToDestinationAuto(
                     originStationId = originId,
@@ -128,7 +136,8 @@ class GoogleMapsShareParser(
                         endTimeEpochMs = 0L,
                         source = source,
                         resolved = resolved,
-                        graphEngine = graphEngine
+                        graphEngine = graphEngine,
+                        forceNeedsReview = if (origin.isAmbiguous || dest.isAmbiguous) true else null
                     )
                 }
             }
@@ -143,10 +152,15 @@ class GoogleMapsShareParser(
         }.getOrNull()
     }
 
-    private fun resolveStationToken(token: String, preferredRoute: String? = null): String? {
+    private data class StationMatch(val stationId: String, val isAmbiguous: Boolean)
+
+    private fun resolveStationToken(token: String, preferredRoute: String? = null): String? =
+        resolveStation(token, preferredRoute)?.stationId
+
+    private fun resolveStation(token: String, preferredRoute: String? = null): StationMatch? {
         val trimmed = token.trim()
         // 1. Direct station ID match
-        graphEngine.getStation(trimmed)?.let { return it.id }
+        graphEngine.getStation(trimmed)?.let { return StationMatch(it.id, isAmbiguous = false) }
 
         // 2. Coordinate pair "40.7347,-73.9899"
         val parts = trimmed.split(",")
@@ -154,17 +168,22 @@ class GoogleMapsShareParser(
             val lat = parts[0].trim().toDoubleOrNull()
             val lng = parts[1].trim().toDoubleOrNull()
             if (lat != null && lng != null) {
-                return graphEngine.findNearestStation(lat, lng, preferredRouteId = preferredRoute)?.id
+                return graphEngine.findNearestStation(lat, lng, preferredRouteId = preferredRoute)
+                    ?.let { StationMatch(it.id, isAmbiguous = false) }
             }
         }
 
-        // 3. Station name search preferring station serving preferredRoute
-        val matches = graphEngine.searchStations(trimmed)
-        if (matches.isEmpty()) return null
+        // 3. Station name search: exact name matches first, then the station serving preferredRoute
+        val searched = graphEngine.searchStations(trimmed)
+        if (searched.isEmpty()) return null
+        val exact = searched.filter { it.name.equals(trimmed, ignoreCase = true) }
+        val matches = exact.ifEmpty { searched }
         if (preferredRoute != null) {
-            matches.firstOrNull { preferredRoute in it.daytimeRoutes }?.let { return it.id }
+            matches.firstOrNull { preferredRoute in it.daytimeRoutes }
+                ?.let { return StationMatch(it.id, isAmbiguous = false) }
         }
-        return matches.first().id
+        val first = matches.first()
+        return StationMatch(first.id, isAmbiguous = matches.any { it.complexId != first.complexId })
     }
 
     private fun parseQueryParams(query: String): Map<String, String> {

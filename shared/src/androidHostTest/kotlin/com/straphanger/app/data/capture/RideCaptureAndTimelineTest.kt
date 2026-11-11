@@ -1,6 +1,6 @@
 package com.straphanger.app.data.capture
 
-import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
 
 class RideCaptureAndTimelineTest {
 
-    private val engine = SubwayGraphEngine()
+    private val engine = BundledNetwork.engine()
     private val importer = TimelineJsonImporter(engine)
 
     @Test
@@ -173,6 +173,9 @@ class RideCaptureAndTimelineTest {
         )
         assertNotNull(redirectRecord)
         assertEquals(RideSource.GMAPS_SHARE, redirectRecord.ride.source)
-        assertEquals(2, redirectRecord.legs.size)
+        assertEquals("L08", redirectRecord.ride.originStationId, "Bedford Av (L)")
+        assertTrue(redirectRecord.legs.size >= 2, "Bedford Av to any 86 St needs a transfer")
+        // Several stations are named 86 St and the link names no line, so the ride needs review.
+        assertTrue(redirectRecord.ride.needsReview)
     }
 }

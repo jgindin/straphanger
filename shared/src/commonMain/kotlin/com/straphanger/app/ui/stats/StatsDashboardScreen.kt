@@ -98,7 +98,7 @@ fun StatsDashboardScreen(
             )
             StatHeroCard(
                 title = "Stations Visited",
-                value = "$displayedStationsCount / ${uiState.stationGroupingMode.officialTotal}",
+                value = "$displayedStationsCount / ${stats.getDisplayedStationTotal(uiState.stationGroupingMode)}",
                 subtitle = "${uiState.stationGroupingMode.label} • ${uiState.stationVisitFilterMode.label}",
                 accentColor = MtaColors.AccentGold,
                 testTag = "stat_card_stations_visited",
@@ -106,7 +106,7 @@ fun StatsDashboardScreen(
             )
         }
 
-        // Station Counting Rules Interactive Toggles (472 vs 424 & Stopped-At vs Boarded/Exited)
+        // Station counting toggles (stations vs complexes, stopped at vs boarded/exited)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -137,7 +137,7 @@ fun StatsDashboardScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = mode.label,
+                            text = "${stats.getDisplayedStationTotal(mode)} ${mode.label}",
                             color = if (active) Color.White else MtaColors.TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold

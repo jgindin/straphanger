@@ -1,16 +1,21 @@
 package com.straphanger.app.domain.stats
 
-import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.TripLegRequest
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
+import com.straphanger.app.data.local.CompleteRideRecord
+import com.straphanger.app.data.local.RideEntity
+import com.straphanger.app.data.local.RideSegmentEntity
+import com.straphanger.app.data.local.RideStationStopEntity
+import com.straphanger.app.data.gtfs.StopRole
+import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class SubwayStatsCalculatorTest {
 
-    private val engine = SubwayGraphEngine()
+    private val engine = TestNetwork.engine()
     private val calculator = SubwayStatsCalculator(engine)
     private val daytimeEpochMs = 1794250800000L
 
@@ -22,7 +27,7 @@ class SubwayStatsCalculatorTest {
             endTimeEpochMs = daytimeEpochMs + 10 * 60_000L,
             source = RideSource.MANUAL,
             resolved = engine.resolveTrip(
-                legs = listOf(TripLegRequest("IND8_14", "IND8_59_COL", preferredRouteId = "A")),
+                legs = listOf(TripLegRequest("A31", "A24", preferredRouteId = "A")),
                 timestampEpochMs = daytimeEpochMs
             ),
             graphEngine = engine
@@ -34,7 +39,7 @@ class SubwayStatsCalculatorTest {
             endTimeEpochMs = daytimeEpochMs + 3600_000L + 15 * 60_000L,
             source = RideSource.MANUAL,
             resolved = engine.resolveTrip(
-                legs = listOf(TripLegRequest("IND8_14", "IND8_59_COL", preferredRouteId = "C")),
+                legs = listOf(TripLegRequest("A31", "A24", preferredRouteId = "C")),
                 timestampEpochMs = daytimeEpochMs
             ),
             graphEngine = engine
@@ -61,11 +66,11 @@ class SubwayStatsCalculatorTest {
     }
 
     @Test
-    fun stationTogglesAccuratelySeparate472StationsVs424ComplexesAndStoppedAtVsBoardedExited() {
+    fun stationTogglesSeparateStationsVsComplexesAndStoppedAtVsBoardedExited() {
         // Bedford Ave (L) -> 14 St-Union Sq (transfer) -> 86 St (4 Express)
         val resolved = engine.resolveOriginToDestinationAuto(
-            originStationId = "L_BEDFORD",
-            destinationStationId = "LEX_86",
+            originStationId = "L08",
+            destinationStationId = "626",
             timestampEpochMs = daytimeEpochMs
         )
         val transferRide = SubwayDao.buildCompleteRideRecord(
@@ -80,31 +85,33 @@ class SubwayStatsCalculatorTest {
         val stats = calculator.computeStats(listOf(transferRide))
 
         assertEquals(1, stats.totalRides, "2-leg transfer must count as 1 Total Ride")
+        assertEquals(TestNetwork.data.stationCount, stats.getDisplayedStationTotal(StationGroupingMode.INDIVIDUAL_STATIONS))
+        assertEquals(TestNetwork.data.complexCount, stats.getDisplayedStationTotal(StationGroupingMode.STATION_COMPLEXES))
 
-        // Leg 0 (L): L_BEDFORD, L_1AVE, L_3AVE, L_14_USQ (4 stations)
-        // Leg 1 (4 Express): LEX_14_USQ, LEX_42_GCT, LEX_59, LEX_86 (4 stations)
-        // Total individual stopped stations = 8; complexes = 7 (since L_14_USQ and LEX_14_USQ share CPLX_UNION_SQ)
+        // Leg 0 (L): L08 Bedford Av, L06 1 Av, L05 3 Av, L03 14 St-Union Sq (4 stations)
+        // Leg 1 (4 Express): 635 14 St-Union Sq, 631 Grand Central, 629 59 St, 626 86 St (4 stations)
+        // Total individual stopped stations = 8; complexes = 7 (L03 and 635 share complex 602)
         assertEquals(
             8,
-            stats.getDisplayedStationCount(StationGroupingMode.INDIVIDUAL_472, StationVisitFilterMode.STOPPED_AT)
+            stats.getDisplayedStationCount(StationGroupingMode.INDIVIDUAL_STATIONS, StationVisitFilterMode.STOPPED_AT)
         )
         assertEquals(
             7,
-            stats.getDisplayedStationCount(StationGroupingMode.COMPLEXES_424, StationVisitFilterMode.STOPPED_AT)
+            stats.getDisplayedStationCount(StationGroupingMode.STATION_COMPLEXES, StationVisitFilterMode.STOPPED_AT)
         )
 
-        // Boarded/Transferred/Exited only: L_BEDFORD, L_14_USQ, LEX_14_USQ, LEX_86 = 4 individual stations, 3 complexes
+        // Boarded/Transferred/Exited only: L08, L03, 635, 626 = 4 individual stations, 3 complexes
         assertEquals(
             4,
             stats.getDisplayedStationCount(
-                StationGroupingMode.INDIVIDUAL_472,
+                StationGroupingMode.INDIVIDUAL_STATIONS,
                 StationVisitFilterMode.BOARDED_OR_EXITED_ONLY
             )
         )
         assertEquals(
             3,
             stats.getDisplayedStationCount(
-                StationGroupingMode.COMPLEXES_424,
+                StationGroupingMode.STATION_COMPLEXES,
                 StationVisitFilterMode.BOARDED_OR_EXITED_ONLY
             )
         )
@@ -118,7 +125,7 @@ class SubwayStatsCalculatorTest {
             endTimeEpochMs = daytimeEpochMs + 3 * 60_000L,
             source = RideSource.MANUAL,
             resolved = engine.resolveTrip(
-                legs = listOf(TripLegRequest("IRT7_42_TSQ", "LEX_42_GCT", preferredRouteId = "S")),
+                legs = listOf(TripLegRequest("902", "901", preferredRouteId = "GS")),
                 timestampEpochMs = daytimeEpochMs
             ),
             graphEngine = engine
@@ -130,5 +137,38 @@ class SubwayStatsCalculatorTest {
         assertTrue("FIRST_SWIPE" in unlockedIds)
         assertTrue("SHUTTLE_COLLECTOR" in unlockedIds)
         assertTrue("LINE_COMPLETIONIST" in unlockedIds)
+    }
+
+    @Test
+    fun ridesSavedWithStationAndSegmentIdsMissingFromTheNetworkAreSkipped() {
+        // A ride stored with the old hand-typed IDs, from before the GTFS network.
+        val legacy = CompleteRideRecord(
+            ride = RideEntity(
+                rideId = "legacy",
+                startTimeEpochMs = daytimeEpochMs,
+                endTimeEpochMs = daytimeEpochMs + 10 * 60_000L,
+                originStationId = "LEX_14_USQ",
+                destinationStationId = "LEX_86",
+                totalDistanceMiles = 3.4,
+                durationMinutes = 10.0,
+                source = RideSource.MANUAL
+            ),
+            legs = emptyList(),
+            segments = listOf(RideSegmentEntity("legacy", 0, "LEX_14_USQ-LEX_23", "4", 0.4)),
+            stationStops = listOf(
+                RideStationStopEntity("legacy", "LEX_14_USQ", "CPLX_UNION_SQ", StopRole.BOARDED, 0),
+                RideStationStopEntity("legacy", "LEX_86", "CPLX_86", StopRole.EXITED, 0)
+            )
+        )
+
+        val stats = calculator.computeStats(listOf(legacy))
+
+        assertEquals(1, stats.totalRides)
+        assertEquals(0, stats.getDisplayedStationCount(StationGroupingMode.INDIVIDUAL_STATIONS, StationVisitFilterMode.STOPPED_AT))
+        assertEquals(0, stats.getDisplayedStationCount(StationGroupingMode.STATION_COMPLEXES, StationVisitFilterMode.BOARDED_OR_EXITED_ONLY))
+        assertEquals(0.0, stats.uniqueCorridorMilesRidden)
+        assertTrue(stats.segmentRideCounts.isEmpty())
+        assertTrue(stats.topStations.isEmpty())
+        assertEquals("LEX_14_USQ", stats.topRoutePairs.single().originName)
     }
 }

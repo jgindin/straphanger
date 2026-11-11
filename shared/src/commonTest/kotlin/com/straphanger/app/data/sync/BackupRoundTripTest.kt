@@ -1,6 +1,6 @@
 package com.straphanger.app.data.sync
 
-import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.local.RideSource
@@ -16,7 +16,7 @@ import kotlin.time.Instant
 
 class BackupRoundTripTest {
 
-    private val engine = SubwayGraphEngine()
+    private val engine = TestNetwork.engine()
     private val sampleTime = 1794250800000L
     private val clock = FixedClock(Instant.fromEpochMilliseconds(sampleTime))
 
@@ -28,8 +28,8 @@ class BackupRoundTripTest {
             endTimeEpochMs = sampleTime + 25 * 60_000L,
             source = RideSource.MANUAL,
             resolved = engine.resolveOriginToDestinationAuto(
-                originStationId = "L_BEDFORD",
-                destinationStationId = "LEX_86",
+                originStationId = "L08",
+                destinationStationId = "626",
                 timestampEpochMs = sampleTime
             ),
             graphEngine = engine
@@ -40,8 +40,8 @@ class BackupRoundTripTest {
             endTimeEpochMs = sampleTime + 3_600_000L + 11 * 60_000L,
             source = RideSource.PASSIVE_GPS,
             resolved = engine.resolveOriginToDestinationAuto(
-                originStationId = "LEX_14_USQ",
-                destinationStationId = "LEX_86",
+                originStationId = "635",
+                destinationStationId = "626",
                 preferredRouteId = "4",
                 timestampEpochMs = sampleTime
             ),

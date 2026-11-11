@@ -4,6 +4,9 @@ import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.testutil.FixedClock
+import com.straphanger.app.testutil.TestNetwork
+import com.straphanger.app.data.gtfs.SubwayNetworkData
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlin.time.Instant
 import kotlin.test.Test
@@ -18,10 +21,13 @@ class StraphangerViewModelTest {
         val vm = StraphangerViewModel(
             backend = InMemoryPersistenceBackend(),
             dispatcher = Dispatchers.Unconfined,
-            seedInitialSampleRides = true
+            seedInitialSampleRides = true,
+            networkLoader = { TestNetwork.data }
         )
+        assertTrue(vm.uiState.value.isNetworkLoaded)
 
-        // Starter rides seeded (3 rides)
+        // Starter rides seeded (3 rides), each resolved to at least one leg
+        assertTrue(vm.uiState.value.rides.all { it.legs.isNotEmpty() })
         assertEquals(3, vm.uiState.value.stats.totalRides)
 
         // 1. Toggle map color mode & route filter
@@ -33,7 +39,7 @@ class StraphangerViewModelTest {
         assertEquals(null, vm.uiState.value.selectedRouteFilter)
 
         // 2. Simulate passive ambiguous ride (14 St-Union Sq -> 86 St)
-        val ambigRide = vm.simulateAmbiguousPassiveRide()
+        val ambigRide = vm.simulateAmbiguousPassiveRide()!!
         assertEquals(4, vm.uiState.value.stats.totalRides)
         assertEquals(1, vm.uiState.value.stats.pendingReviewCount)
         assertTrue(ambigRide.ride.needsReview)
@@ -43,15 +49,15 @@ class StraphangerViewModelTest {
         assertEquals(0, vm.uiState.value.stats.pendingReviewCount)
         assertFalse(vm.dao.getRideById(ambigRide.ride.rideId)!!.ride.needsReview)
 
-        // 4. Toggle 472 Stations vs 424 Complexes & Stopped-At vs Boarded/Exited
-        vm.setStationGroupingMode(StationGroupingMode.COMPLEXES_424)
+        // 4. Toggle stations vs complexes & Stopped-At vs Boarded/Exited
+        vm.setStationGroupingMode(StationGroupingMode.STATION_COMPLEXES)
         vm.setStationVisitFilterMode(StationVisitFilterMode.BOARDED_OR_EXITED_ONLY)
-        assertEquals(StationGroupingMode.COMPLEXES_424, vm.uiState.value.stationGroupingMode)
+        assertEquals(StationGroupingMode.STATION_COMPLEXES, vm.uiState.value.stationGroupingMode)
         assertEquals(StationVisitFilterMode.BOARDED_OR_EXITED_ONLY, vm.uiState.value.stationVisitFilterMode)
 
         // 5. Import sample Google Maps Timeline.json
         val imported = vm.importSampleGoogleMapsTimeline()
-        assertTrue(imported >= 1)
+        assertEquals(2, imported)
         assertTrue(vm.uiState.value.stats.totalRides >= 5)
     }
 
@@ -61,13 +67,49 @@ class StraphangerViewModelTest {
             backend = InMemoryPersistenceBackend(),
             dispatcher = Dispatchers.Unconfined,
             clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
-            seedInitialSampleRides = false
+            seedInitialSampleRides = false,
+            networkLoader = { TestNetwork.data }
         )
         val record = vm.submitQuickRide(
-            originStationId = "LEX_14_USQ",
+            originStationId = StationIds.UNION_SQ_LEX,
             transferStationId = null,
-            destinationStationId = "LEX_86"
+            destinationStationId = StationIds.EIGHTY_SIXTH_LEX
         )
         assertEquals(1794405600000L, record!!.ride.startTimeEpochMs)
+    }
+
+    @Test
+    fun defaultLogFormUsesGtfsStationIdsThatExistInTheNetwork() {
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
+            networkLoader = { TestNetwork.data }
+        )
+        val state = vm.uiState.value
+        val engine = vm.graphEngine!!
+        assertEquals("Bedford Av", engine.getStation(state.logOriginStationId)?.name)
+        assertEquals("14 St-Union Sq", engine.getStation(state.logTransferStationId!!)?.name)
+        assertEquals("86 St", engine.getStation(state.logDestinationStationId)?.name)
+        assertTrue(vm.submitQuickRide() != null)
+        assertEquals(TestNetwork.data.stationCount, vm.uiState.value.stats.totalStationsInNetwork)
+    }
+
+    @Test
+    fun actionsWaitForTheNetworkToLoad() {
+        val gate = CompletableDeferred<SubwayNetworkData>()
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
+            seedInitialSampleRides = true,
+            networkLoader = { gate.await() }
+        )
+        assertFalse(vm.uiState.value.isNetworkLoaded)
+        assertEquals(null, vm.submitQuickRide())
+        assertEquals(0, vm.uiState.value.stats.totalRides)
+
+        gate.complete(TestNetwork.data)
+
+        assertTrue(vm.uiState.value.isNetworkLoaded)
+        assertEquals(3, vm.uiState.value.stats.totalRides)
     }
 }

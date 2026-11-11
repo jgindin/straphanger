@@ -36,16 +36,26 @@ object MtaColors {
     fun routeColor(routeId: String): Color {
         return when (routeId.uppercase()) {
             "1", "2", "3" -> Color(0xFFEE352E)
-            "4", "5", "6" -> Color(0xFF00933C)
-            "7" -> Color(0xFFB933AD)
-            "A", "C", "E", "SIR" -> Color(0xFF0039A6)
-            "B", "D", "F", "M" -> Color(0xFFFF6319)
+            "4", "5", "6", "6X" -> Color(0xFF00933C)
+            "7", "7X" -> Color(0xFFB933AD)
+            "A", "C", "E", "SI", "SIR" -> Color(0xFF0039A6)
+            "B", "D", "F", "FX", "M" -> Color(0xFFFF6319)
             "G" -> Color(0xFF6CBE45)
             "J", "Z" -> Color(0xFF996633)
             "L" -> Color(0xFFA7A9AC)
             "N", "Q", "R", "W" -> Color(0xFFFCCC0A)
             else -> Color(0xFF808183)
         }
+    }
+
+    /** Text printed on a route bullet: GTFS IDs for shuttles and variants differ from the signage. */
+    fun routeLabel(routeId: String): String = when (routeId.uppercase()) {
+        "GS", "FS", "H" -> "S"
+        "6X" -> "6"
+        "7X" -> "7"
+        "FX" -> "F"
+        "SI" -> "SIR"
+        else -> routeId
     }
 
     fun routeTextColor(routeId: String): Color {
@@ -81,7 +91,7 @@ fun MtaRouteBullet(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = routeId,
+            text = MtaColors.routeLabel(routeId),
             color = MtaColors.routeTextColor(routeId),
             fontSize = fontSize,
             fontWeight = FontWeight.ExtraBold

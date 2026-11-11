@@ -1,0 +1,4 @@
+{
+  "LOC": { "trunkGroup": "TEST_TRUNK", "division": "IND", "name": "Trunk Local" },
+  "EXP": { "trunkGroup": "TEST_TRUNK", "division": "IND", "name": "Trunk Express" }
+}

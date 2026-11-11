@@ -340,7 +340,7 @@ fun SubwayMapScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Horizontal MTA Line Filter Bar
-            val filterRoutes = listOf("1", "2", "3", "4", "5", "6", "7", "A", "C", "E", "B", "D", "F", "M", "G", "J", "L", "N", "Q", "R", "S")
+            val filterRoutes = listOf("1", "2", "3", "4", "5", "6", "7", "A", "C", "E", "B", "D", "F", "M", "G", "J", "Z", "L", "N", "Q", "R", "W", "GS", "FS", "H", "SI")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

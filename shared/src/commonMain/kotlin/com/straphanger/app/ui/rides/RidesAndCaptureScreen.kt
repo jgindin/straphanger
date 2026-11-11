@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.StopRole
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.ui.StationIds
 import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
@@ -159,28 +160,28 @@ fun RidesHistoryAndLoggerScreen(
                     label = "Bedford (L) → 14 St → 86 St (4X)",
                     testTag = "preset_transfer_l_4",
                     onClick = {
-                        onUpdateLogForm("L_BEDFORD", "L_14_USQ", "LEX_86", "4", true)
+                        onUpdateLogForm(StationIds.BEDFORD_AV_L, StationIds.UNION_SQ_L, StationIds.EIGHTY_SIXTH_LEX, "4", true)
                     }
                 )
                 PresetChip(
                     label = "14 St → 86 St (6 Local)",
                     testTag = "preset_lex_6_local",
                     onClick = {
-                        onUpdateLogForm("LEX_14_USQ", null, "LEX_86", "6", false)
+                        onUpdateLogForm(StationIds.UNION_SQ_LEX, null, StationIds.EIGHTY_SIXTH_LEX, "6", false)
                     }
                 )
                 PresetChip(
                     label = "Times Sq →Grand Central (S Shuttle)",
                     testTag = "preset_42_shuttle",
                     onClick = {
-                        onUpdateLogForm("IRT7_42_TSQ", null, "LEX_42_GCT", "S", false)
+                        onUpdateLogForm(StationIds.TIMES_SQ_SHUTTLE, null, StationIds.GRAND_CENTRAL_SHUTTLE, "GS", false)
                     }
                 )
                 PresetChip(
                     label = "Yankee Stadium → Atlantic-Barclays (D)",
                     testTag = "preset_bronx_bk_d",
                     onClick = {
-                        onUpdateLogForm("IND6_161", null, "IND6_ATLANTIC", "D", true)
+                        onUpdateLogForm(StationIds.YANKEE_STADIUM_D, null, StationIds.ATLANTIC_AV_D, "D", true)
                     }
                 )
             }

@@ -33,3 +33,4 @@ dependencyResolutionManagement {
 
 include(":shared")
 include(":androidApp")
+include(":tools:gtfs-import")

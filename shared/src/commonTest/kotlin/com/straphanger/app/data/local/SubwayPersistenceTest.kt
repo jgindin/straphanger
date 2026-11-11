@@ -1,6 +1,6 @@
 package com.straphanger.app.data.local
 
-import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.data.sync.BackupExportManager
 import com.straphanger.app.testutil.FixedClock
 import kotlin.test.Test
@@ -11,7 +11,7 @@ import kotlin.time.Instant
 
 class SubwayPersistenceTest {
 
-    private val engine = SubwayGraphEngine()
+    private val engine = TestNetwork.engine()
     private val sampleTime = 1794250800000L
 
     @Test
@@ -19,8 +19,8 @@ class SubwayPersistenceTest {
         val backend = InMemoryPersistenceBackend()
         val dao = SubwayDao(backend)
         val resolved = engine.resolveOriginToDestinationAuto(
-            originStationId = "L_BEDFORD",
-            destinationStationId = "LEX_86",
+            originStationId = "L08",
+            destinationStationId = "626",
             timestampEpochMs = sampleTime
         )
 
@@ -62,8 +62,8 @@ class SubwayPersistenceTest {
     fun confirmAmbiguousRideUpdatesExpressOrLocalStopsAndClearsReviewFlag() {
         val dao = SubwayDao(InMemoryPersistenceBackend())
         val ambiguousResolved = engine.resolveOriginToDestinationAuto(
-            originStationId = "LEX_14_USQ",
-            destinationStationId = "LEX_86",
+            originStationId = "635",
+            destinationStationId = "626",
             preferredRouteId = null,
             timestampEpochMs = sampleTime,
             actualDurationMinutes = 10.0

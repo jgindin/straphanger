@@ -14,9 +14,9 @@ import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 
 @Serializable
-enum class StationGroupingMode(val label: String, val officialTotal: Int) {
-    INDIVIDUAL_472("472 Stations", 472),
-    COMPLEXES_424("424 Complexes", 424)
+enum class StationGroupingMode(val label: String) {
+    INDIVIDUAL_STATIONS("Stations"),
+    STATION_COMPLEXES("Complexes")
 }
 
 @Serializable
@@ -95,7 +95,11 @@ data class SubwayStatsSnapshot(
     val shortestRideMiles: Double,
     val pendingReviewCount: Int,
 
-    // Station counts for all 4 combinations of (472 vs 424) x (Stopped-At vs Boarded/Exited)
+    // Totals in the loaded network
+    val totalStationsInNetwork: Int,
+    val totalComplexesInNetwork: Int,
+
+    // Station counts for all 4 combinations of (stations vs complexes) x (Stopped-At vs Boarded/Exited)
     val stoppedAtIndividualStationsCount: Int,
     val stoppedAtComplexesCount: Int,
     val boardedExitedIndividualStationsCount: Int,
@@ -121,15 +125,20 @@ data class SubwayStatsSnapshot(
         visitFilterMode: StationVisitFilterMode
     ): Int {
         return when (groupingMode) {
-            StationGroupingMode.INDIVIDUAL_472 -> when (visitFilterMode) {
+            StationGroupingMode.INDIVIDUAL_STATIONS -> when (visitFilterMode) {
                 StationVisitFilterMode.STOPPED_AT -> stoppedAtIndividualStationsCount
                 StationVisitFilterMode.BOARDED_OR_EXITED_ONLY -> boardedExitedIndividualStationsCount
             }
-            StationGroupingMode.COMPLEXES_424 -> when (visitFilterMode) {
+            StationGroupingMode.STATION_COMPLEXES -> when (visitFilterMode) {
                 StationVisitFilterMode.STOPPED_AT -> stoppedAtComplexesCount
                 StationVisitFilterMode.BOARDED_OR_EXITED_ONLY -> boardedExitedComplexesCount
             }
         }
+    }
+
+    fun getDisplayedStationTotal(groupingMode: StationGroupingMode): Int = when (groupingMode) {
+        StationGroupingMode.INDIVIDUAL_STATIONS -> totalStationsInNetwork
+        StationGroupingMode.STATION_COMPLEXES -> totalComplexesInNetwork
     }
 }
 
@@ -156,7 +165,9 @@ class SubwayStatsCalculator(
         for (rec in rides) {
             // Count each segment once per ride for heatmap frequency
             val seenSegInRide = mutableSetOf<String>()
+            // Segments missing from the current network (rides saved against older data) are skipped.
             for (seg in rec.segments) {
+                if (graphEngine.getSegment(seg.segmentId) == null) continue
                 if (seenSegInRide.add(seg.segmentId)) {
                     segRideCounts[seg.segmentId] = (segRideCounts[seg.segmentId] ?: 0) + 1
                 }
@@ -189,11 +200,13 @@ class SubwayStatsCalculator(
 
         for (rec in rides) {
             for (stop in rec.stationStops) {
-                stoppedStationIds.add(stop.stationId)
-                stoppedComplexIds.add(stop.complexId)
+                // Station IDs missing from the current network (rides saved against older data) are skipped.
+                val station = graphEngine.getStation(stop.stationId) ?: continue
+                stoppedStationIds.add(station.id)
+                stoppedComplexIds.add(station.complexId)
                 if (stop.stopRole != StopRole.STOPPED_THROUGH) {
-                    boardedExitedStationIds.add(stop.stationId)
-                    boardedExitedComplexIds.add(stop.complexId)
+                    boardedExitedStationIds.add(station.id)
+                    boardedExitedComplexIds.add(station.complexId)
                     stationBoardExitCount[stop.stationId] = (stationBoardExitCount[stop.stationId] ?: 0) + 1
                 }
             }
@@ -203,19 +216,17 @@ class SubwayStatsCalculator(
         val lineStats = network.routes.map { routeInfo ->
             val rId = routeInfo.routeId
             val routeSegmentsInGraph = network.segments.filter { rId in it.routes }
-            val routeAvailableMiles = round2(
-                routeSegmentsInGraph.sumOf { it.distanceMiles }.coerceAtLeast(0.5)
-            )
+            val routeAvailableMiles = round2(routeSegmentsInGraph.sumOf { it.distanceMiles })
             val legsOnRoute = rides.flatMap { it.legs }.filter { it.routeId == rId }
             val totalMilesOnRoute = round2(legsOnRoute.sumOf { it.distanceMiles })
             val uniqueSegIdsOnRoute = rides.flatMap { it.segments }
-                .filter { it.routeId == rId }
+                .filter { it.routeId == rId && graphEngine.getSegment(it.segmentId) != null }
                 .map { it.segmentId }
                 .toSet()
             val uniqueMilesOnRoute = round2(
                 uniqueSegIdsOnRoute.sumOf { graphEngine.getSegment(it)?.distanceMiles ?: 0.0 }
             )
-            val routeCompletionPct = round2(
+            val routeCompletionPct = if (routeAvailableMiles <= 0.0) 0.0 else round2(
                 ((uniqueMilesOnRoute / routeAvailableMiles) * 100.0).coerceIn(0.0, 100.0)
             )
 
@@ -300,6 +311,7 @@ class SubwayStatsCalculator(
             val ym = "${dt.year}-${dt.month.number.toString().padStart(2, '0')}"
             var newlyUnlockedMiles = 0.0
             for (seg in rec.segments) {
+                if (graphEngine.getSegment(seg.segmentId) == null) continue
                 if (seenSegmentsEver.add(seg.segmentId)) {
                     newlyUnlockedMiles += seg.distanceMiles
                 }
@@ -340,6 +352,8 @@ class SubwayStatsCalculator(
             longestRideMiles = longestRide,
             shortestRideMiles = shortestRide,
             pendingReviewCount = pendingReviews,
+            totalStationsInNetwork = network.stationCount,
+            totalComplexesInNetwork = network.complexCount,
             stoppedAtIndividualStationsCount = stoppedStationIds.size,
             stoppedAtComplexesCount = stoppedComplexIds.size,
             boardedExitedIndividualStationsCount = boardedExitedStationIds.size,
@@ -362,6 +376,9 @@ class SubwayStatsCalculator(
 }
 
 object AchievementEngine {
+    /** GTFS route IDs of the 42 St, Franklin Av and Rockaway Park shuttles. */
+    val SHUTTLE_ROUTE_IDS = setOf("GS", "FS", "H")
+
     fun evaluateAchievements(
         rides: List<CompleteRideRecord>,
         uniqueCorridorMiles: Double,
@@ -376,7 +393,7 @@ object AchievementEngine {
         val expressLegs = rides.flatMap { it.legs }.count { it.isExpress }.toDouble()
         val completedLines = lineStats.count { it.completionPercent >= 99.0 }.toDouble()
         val shuttleRides = rides.flatMap { it.legs }
-            .count { it.routeId in setOf("S", "SF", "SR") }
+            .count { it.routeId in SHUTTLE_ROUTE_IDS }
             .toDouble()
         val rushPeakRides = rides.count { rec ->
             rec.legs.any { it.servicePeriod == ServicePeriod.RUSH_PEAK }

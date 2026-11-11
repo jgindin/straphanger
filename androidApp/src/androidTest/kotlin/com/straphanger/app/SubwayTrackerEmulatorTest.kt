@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithText
@@ -18,8 +19,16 @@ class SubwayTrackerEmulatorTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
+    /** The subway network loads in the background; tabs show once it has. */
+    private fun waitForNetwork() {
+        composeTestRule.waitUntil(timeoutMillis = 15_000) {
+            composeTestRule.onAllNodesWithTag("network_loading").fetchSemanticsNodes().isEmpty()
+        }
+    }
+
     @Test
     fun mapScreenRendersAndTogglesBetweenMtaColorsAndFrequencyHeatmap() {
+        waitForNetwork()
         composeTestRule.onNodeWithTag("straphanger_root").assertIsDisplayed()
         composeTestRule.onNodeWithTag("subway_map_screen").assertIsDisplayed()
         composeTestRule.onNodeWithTag("subway_map_canvas").assertIsDisplayed()
@@ -35,6 +44,7 @@ class SubwayTrackerEmulatorTest {
 
     @Test
     fun loggingRideAndConfirmingPassiveAmbiguousRideUpdatesStatsAndToggles() {
+        waitForNetwork()
         // 1. Navigate to Rides & Log tab
         composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
         composeTestRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
@@ -50,15 +60,15 @@ class SubwayTrackerEmulatorTest {
         // 4. Confirm 4 Express and verify the review banner clears
         composeTestRule.onNodeWithTag("confirm_express_btn").performClick()
 
-        // 5. Navigate to Statistics tab and toggle 472 Stations vs 424 Complexes & Stopped-At vs Boarded/Exited
+        // 5. Navigate to Statistics tab and toggle stations vs complexes & Stopped-At vs Boarded/Exited
         composeTestRule.onNodeWithTag("nav_tab_STATS").performClick()
         composeTestRule.onNodeWithTag("stats_dashboard_screen").assertIsDisplayed()
         composeTestRule.onNodeWithTag("stat_card_total_rides").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithTag("stat_card_unique_miles").performScrollTo().assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("toggle_grouping_COMPLEXES_424").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("toggle_grouping_STATION_COMPLEXES").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("toggle_visit_BOARDED_OR_EXITED_ONLY").performScrollTo().performClick()
-        composeTestRule.onNodeWithTag("toggle_grouping_INDIVIDUAL_472").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("toggle_grouping_INDIVIDUAL_STATIONS").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("toggle_visit_STOPPED_AT").performScrollTo().performClick()
 
         // 6. Navigate to Google Maps & Backup tab and import Timeline.json sample
@@ -75,6 +85,7 @@ class SubwayTrackerEmulatorTest {
 
     @Test
     fun rideSurvivesActivityRecreation() {
+        waitForNetwork()
         composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
         val before = headerRideCount()
         composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
@@ -84,6 +95,7 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.activityRule.scenario.recreate()
 
         composeTestRule.waitForIdle()
+        waitForNetwork()
         assertEquals(before + 1, headerRideCount())
     }
 }

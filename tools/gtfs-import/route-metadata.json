@@ -1,0 +1,147 @@
+{
+  "1": {
+    "trunkGroup": "IRT_BROADWAY_7AV",
+    "division": "IRT",
+    "name": "Broadway-7 Av Local"
+  },
+  "2": {
+    "trunkGroup": "IRT_BROADWAY_7AV",
+    "division": "IRT",
+    "name": "7 Av Express"
+  },
+  "3": {
+    "trunkGroup": "IRT_BROADWAY_7AV",
+    "division": "IRT",
+    "name": "7 Av Express"
+  },
+  "4": {
+    "trunkGroup": "IRT_LEXINGTON",
+    "division": "IRT",
+    "name": "Lexington Av Express"
+  },
+  "5": {
+    "trunkGroup": "IRT_LEXINGTON",
+    "division": "IRT",
+    "name": "Lexington Av Express"
+  },
+  "6": {
+    "trunkGroup": "IRT_LEXINGTON",
+    "division": "IRT",
+    "name": "Lexington Av Local"
+  },
+  "6X": {
+    "trunkGroup": "IRT_LEXINGTON",
+    "division": "IRT",
+    "name": "Pelham Bay Park Express"
+  },
+  "7": {
+    "trunkGroup": "IRT_FLUSHING",
+    "division": "IRT",
+    "name": "Flushing Local"
+  },
+  "7X": {
+    "trunkGroup": "IRT_FLUSHING",
+    "division": "IRT",
+    "name": "Flushing Express"
+  },
+  "GS": {
+    "trunkGroup": "IRT_42ST_SHUTTLE",
+    "division": "IRT",
+    "name": "42 St Shuttle"
+  },
+  "A": {
+    "trunkGroup": "IND_8AV",
+    "division": "IND",
+    "name": "8 Av Express"
+  },
+  "C": {
+    "trunkGroup": "IND_8AV",
+    "division": "IND",
+    "name": "8 Av Local"
+  },
+  "E": {
+    "trunkGroup": "IND_8AV",
+    "division": "IND",
+    "name": "8 Av Local"
+  },
+  "B": {
+    "trunkGroup": "IND_6AV",
+    "division": "IND",
+    "name": "6 Av Express"
+  },
+  "D": {
+    "trunkGroup": "IND_6AV",
+    "division": "IND",
+    "name": "6 Av Express"
+  },
+  "F": {
+    "trunkGroup": "IND_6AV",
+    "division": "IND",
+    "name": "Queens Blvd Express / 6 Av Local"
+  },
+  "FX": {
+    "trunkGroup": "IND_6AV",
+    "division": "IND",
+    "name": "Brooklyn F Express"
+  },
+  "M": {
+    "trunkGroup": "IND_6AV",
+    "division": "IND",
+    "name": "Queens Blvd Local / 6 Av Local"
+  },
+  "G": {
+    "trunkGroup": "IND_CROSSTOWN",
+    "division": "IND",
+    "name": "Brooklyn-Queens Crosstown"
+  },
+  "H": {
+    "trunkGroup": "IND_ROCKAWAY_SHUTTLE",
+    "division": "IND",
+    "name": "Rockaway Park Shuttle"
+  },
+  "J": {
+    "trunkGroup": "BMT_NASSAU",
+    "division": "BMT",
+    "name": "Nassau St Local"
+  },
+  "Z": {
+    "trunkGroup": "BMT_NASSAU",
+    "division": "BMT",
+    "name": "Nassau St Express"
+  },
+  "L": {
+    "trunkGroup": "BMT_CANARSIE",
+    "division": "BMT",
+    "name": "14 St-Canarsie Local"
+  },
+  "N": {
+    "trunkGroup": "BMT_BROADWAY",
+    "division": "BMT",
+    "name": "Broadway Local"
+  },
+  "Q": {
+    "trunkGroup": "BMT_BROADWAY",
+    "division": "BMT",
+    "name": "Broadway Express"
+  },
+  "R": {
+    "trunkGroup": "BMT_BROADWAY",
+    "division": "BMT",
+    "name": "Broadway Local"
+  },
+  "W": {
+    "trunkGroup": "BMT_BROADWAY",
+    "division": "BMT",
+    "name": "Broadway Local"
+  },
+  "FS": {
+    "trunkGroup": "BMT_FRANKLIN_SHUTTLE",
+    "division": "BMT",
+    "name": "Franklin Av Shuttle"
+  },
+  "SI": {
+    "trunkGroup": "SIR",
+    "division": "SIR",
+    "name": "Staten Island Railway"
+  }
+}

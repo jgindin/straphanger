@@ -1,5 +1,6 @@
 package com.straphanger.app.data.gtfs
 
+import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -7,7 +8,7 @@ import kotlin.test.assertTrue
 
 class SubwayGraphEngineTest {
 
-    private val engine = SubwayGraphEngine()
+    private val engine = TestNetwork.engine()
 
     // 2026-11-09 14:00:00 EST (19:00 UTC) -> Weekday Daytime
     private val daytimeEpochMs = 1794250800000L
@@ -20,8 +21,8 @@ class SubwayGraphEngineTest {
         val expressTrip = engine.resolveTrip(
             legs = listOf(
                 TripLegRequest(
-                    fromStationId = "LEX_14_USQ",
-                    toStationId = "LEX_86",
+                    fromStationId = "635",
+                    toStationId = "626",
                     preferredRouteId = "4"
                 )
             ),
@@ -31,8 +32,8 @@ class SubwayGraphEngineTest {
         val localTrip = engine.resolveTrip(
             legs = listOf(
                 TripLegRequest(
-                    fromStationId = "LEX_14_USQ",
-                    toStationId = "LEX_86",
+                    fromStationId = "635",
+                    toStationId = "626",
                     preferredRouteId = "6"
                 )
             ),
@@ -49,13 +50,13 @@ class SubwayGraphEngineTest {
         assertEquals(locLeg.segmentIds, expLeg.segmentIds)
         assertEquals(locLeg.distanceMiles, expLeg.distanceMiles)
 
-        // 4 Express stops only at 14 St, 42 St-GCT, 59 St, 86 St
+        // 4 Express stops only at 14 St, Grand Central-42 St, 59 St, 86 St (its GTFS DAYTIME pattern)
         assertEquals(
-            listOf("LEX_14_USQ", "LEX_42_GCT", "LEX_59", "LEX_86"),
+            listOf("635", "631", "629", "626"),
             expLeg.stoppedStationIds
         )
         assertEquals(
-            listOf("LEX_23", "LEX_28", "LEX_33", "LEX_51", "LEX_68", "LEX_77"),
+            listOf("634", "633", "632", "630", "628", "627"),
             expLeg.skippedLocalStationIds
         )
 
@@ -69,8 +70,8 @@ class SubwayGraphEngineTest {
         val daytimeATrip = engine.resolveTrip(
             legs = listOf(
                 TripLegRequest(
-                    fromStationId = "IND8_59_COL",
-                    toStationId = "IND8_125",
+                    fromStationId = "A31",
+                    toStationId = "A15",
                     preferredRouteId = "A"
                 )
             ),
@@ -80,8 +81,8 @@ class SubwayGraphEngineTest {
         val lateNightATrip = engine.resolveTrip(
             legs = listOf(
                 TripLegRequest(
-                    fromStationId = "IND8_59_COL",
-                    toStationId = "IND8_125",
+                    fromStationId = "A31",
+                    toStationId = "A15",
                     preferredRouteId = "A"
                 )
             ),
@@ -91,45 +92,45 @@ class SubwayGraphEngineTest {
         val dayLeg = daytimeATrip.legs.single()
         val nightLeg = lateNightATrip.legs.single()
 
-        assertTrue(dayLeg.isExpress, "Daytime A train from 59 St to 125 St runs Express")
-        assertEquals(listOf("IND8_59_COL", "IND8_125"), dayLeg.stoppedStationIds)
-        assertEquals(6, dayLeg.skippedLocalStationIds.size)
+        assertTrue(dayLeg.isExpress, "Daytime A train from 14 St to 125 St runs Express")
+        assertEquals(listOf("A31", "A28", "A27", "A24", "A15"), dayLeg.stoppedStationIds)
+        assertEquals(9, dayLeg.skippedLocalStationIds.size)
 
         assertEquals(ServicePeriod.LATE_NIGHT, nightLeg.servicePeriod)
         assertFalse(nightLeg.isExpress, "Late night A train (1:30 AM) runs Local in Manhattan")
-        assertEquals(8, nightLeg.stoppedStationIds.size)
+        assertEquals(14, nightLeg.stoppedStationIds.size)
         assertTrue(nightLeg.skippedLocalStationIds.isEmpty())
     }
 
     @Test
     fun autoTransferSplitsCrossTrunkTripIntoMultipleLegs() {
-        // Bedford Ave (L) in Brooklyn -> 86 St (4/5/6) in Manhattan via 14 St-Union Sq complex
+        // Bedford Av (L) in Brooklyn -> 86 St (4/6) in Manhattan via the 14 St-Union Sq complex (602)
         val transferTrip = engine.resolveOriginToDestinationAuto(
-            originStationId = "L_BEDFORD",
-            destinationStationId = "LEX_86",
+            originStationId = "L08",
+            destinationStationId = "626",
             timestampEpochMs = daytimeEpochMs
         )
 
         assertEquals(2, transferTrip.legs.size, "Cross-trunk trip should split into 2 legs")
         assertEquals("L", transferTrip.legs[0].routeId)
-        assertEquals("L_BEDFORD", transferTrip.legs[0].fromStationId)
-        assertEquals("L_14_USQ", transferTrip.legs[0].toStationId)
+        assertEquals("L08", transferTrip.legs[0].fromStationId)
+        assertEquals("L03", transferTrip.legs[0].toStationId)
 
         assertEquals("4", transferTrip.legs[1].routeId)
-        assertEquals("LEX_14_USQ", transferTrip.legs[1].fromStationId)
-        assertEquals("LEX_86", transferTrip.legs[1].toStationId)
+        assertEquals("635", transferTrip.legs[1].fromStationId)
+        assertEquals("626", transferTrip.legs[1].toStationId)
 
         // Verify BOARDED, TRANSFERRED, EXITED stop roles
         assertEquals(StopRole.BOARDED, transferTrip.stationStops.first().role)
         assertEquals(StopRole.EXITED, transferTrip.stationStops.last().role)
-        assertTrue(transferTrip.stationStops.any { it.complexId == "CPLX_UNION_SQ" && it.role == StopRole.TRANSFERRED })
+        assertTrue(transferTrip.stationStops.any { it.complexId == "602" && it.role == StopRole.TRANSFERRED })
     }
 
     @Test
     fun passiveAmbiguousRideDetectsExpressVsLocalAndUsesDuration() {
         val fastPassiveTrip = engine.resolveOriginToDestinationAuto(
-            originStationId = "LEX_14_USQ",
-            destinationStationId = "LEX_86",
+            originStationId = "635",
+            destinationStationId = "626",
             preferredRouteId = null,
             timestampEpochMs = daytimeEpochMs,
             actualDurationMinutes = 9.5
@@ -140,8 +141,8 @@ class SubwayGraphEngineTest {
         assertTrue(fastPassiveTrip.legs.single().isExpress, "Fast 9.5 min duration should match 4 Express")
 
         val slowPassiveTrip = engine.resolveOriginToDestinationAuto(
-            originStationId = "LEX_14_USQ",
-            destinationStationId = "LEX_86",
+            originStationId = "635",
+            destinationStationId = "626",
             preferredRouteId = null,
             timestampEpochMs = daytimeEpochMs,
             actualDurationMinutes = 19.0
@@ -150,5 +151,28 @@ class SubwayGraphEngineTest {
         assertTrue(slowPassiveTrip.isAmbiguous)
         assertFalse(slowPassiveTrip.legs.single().isExpress, "Slow 19 min duration should match 6 Local")
         assertEquals("6", slowPassiveTrip.legs.single().routeId)
+    }
+
+    @Test
+    fun routeWithoutPatternForPeriodFallsBackToDaytime() {
+        // 2026-11-09 08:30 EST is RUSH_PEAK; the 4 has no RUSH_PEAK pattern, so its DAYTIME one applies.
+        val rushEpochMs = 1794231000000L
+        assertEquals(ServicePeriod.RUSH_PEAK, engine.inferServicePeriod(rushEpochMs))
+        val leg = engine.resolveTrip(
+            legs = listOf(TripLegRequest("635", "626", preferredRouteId = "4")),
+            timestampEpochMs = rushEpochMs
+        ).legs.single()
+        assertTrue(leg.isExpress)
+        assertEquals(listOf("635", "631", "629", "626"), leg.stoppedStationIds)
+    }
+
+    @Test
+    fun unknownStationIdsResolveToNoLegs() {
+        val result = engine.resolveOriginToDestinationAuto(
+            originStationId = "LEX_14_USQ",
+            destinationStationId = "LEX_86",
+            timestampEpochMs = daytimeEpochMs
+        )
+        assertTrue(result.legs.isEmpty())
     }
 }

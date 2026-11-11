@@ -1,0 +1,3 @@
+route_id,agency_id,route_short_name,route_long_name,route_desc,route_type,route_url,route_color,route_text_color,route_sort_order
+LOC,TEST,LOC,"Trunk Local, all stops","Stops everywhere",1,,FF0000,FFFFFF,1
+EXP,TEST,EXP,Trunk Express,,1,,00FF00,000000,2

@@ -20,14 +20,6 @@ enum class ServicePeriod {
 }
 
 @Serializable
-enum class LateNightBehavior {
-    LOCAL_ALL_NIGHT,
-    EXPRESS_TO_LOCAL_LATE_NIGHT,
-    SHUTTLE_LATE_NIGHT,
-    NO_LATE_NIGHT_SERVICE
-}
-
-@Serializable
 enum class StopRole {
     BOARDED,
     TRANSFERRED,
@@ -50,9 +42,16 @@ data class SubwayRouteInfo(
     val trunkGroup: String,
     val division: String,
     val isExpressCapable: Boolean,
-    val lateNightBehavior: LateNightBehavior,
-    val totalRouteMiles: Double
-)
+    val totalRouteMiles: Double,
+    /**
+     * Ordered stops of the route's most common pattern in each period, from GTFS. A period with
+     * no entry has no pattern of its own; callers fall back to [ServicePeriod.DAYTIME].
+     */
+    val stopsAt: Map<ServicePeriod, List<String>> = emptyMap()
+) {
+    fun stopsFor(period: ServicePeriod): List<String> =
+        stopsAt[period] ?: stopsAt[ServicePeriod.DAYTIME].orEmpty()
+}
 
 @Serializable
 data class SubwayStation(
@@ -65,7 +64,6 @@ data class SubwayStation(
     val lng: Double,
     val daytimeRoutes: List<String>,
     val lateNightRoutes: List<String>,
-    val expressRoutes: List<String> = emptyList(),
     val isTransferHub: Boolean = false
 )
 
@@ -82,13 +80,21 @@ data class SubwaySegment(
 
 @Serializable
 data class SubwayNetworkData(
-    val totalOfficialStations: Int = 472,
-    val totalOfficialComplexes: Int = 424,
-    val totalOfficialSystemMiles: Double = 248.0,
+    /** Date of the MTA GTFS download the network was generated from (YYYY-MM-DD). */
+    val sourceDate: String,
     val routes: List<SubwayRouteInfo>,
     val stations: List<SubwayStation>,
     val segments: List<SubwaySegment>
-)
+) {
+    val stationCount: Int get() = stations.size
+    val complexCount: Int get() = stations.distinctBy { it.complexId }.size
+    val systemMiles: Double get() = segments.sumOf { it.distanceMiles }
+
+    companion object {
+        /** Placeholder used before the bundled network has loaded. */
+        val EMPTY = SubwayNetworkData(sourceDate = "", routes = emptyList(), stations = emptyList(), segments = emptyList())
+    }
+}
 
 @Serializable
 data class TripLegRequest(

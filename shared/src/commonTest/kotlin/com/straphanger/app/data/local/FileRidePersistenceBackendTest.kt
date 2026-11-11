@@ -1,6 +1,6 @@
 package com.straphanger.app.data.local
 
-import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +21,7 @@ import kotlin.time.Instant
 
 class FileRidePersistenceBackendTest {
 
-    private val engine = SubwayGraphEngine()
+    private val engine = TestNetwork.engine()
     private val sampleTime = 1794250800000L
     private val clock = FixedClock(Instant.fromEpochMilliseconds(sampleTime))
 
@@ -38,8 +38,8 @@ class FileRidePersistenceBackendTest {
             endTimeEpochMs = sampleTime + offsetMs + 11 * 60_000L,
             source = RideSource.MANUAL,
             resolved = engine.resolveOriginToDestinationAuto(
-                originStationId = "LEX_14_USQ",
-                destinationStationId = "LEX_86",
+                originStationId = "635",
+                destinationStationId = "626",
                 preferredRouteId = "4",
                 timestampEpochMs = sampleTime
             ),
@@ -119,14 +119,14 @@ class FileRidePersistenceBackendTest {
 
     @Test
     fun viewModelDoesNotSeedByDefault() {
-        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), dispatcher = Dispatchers.Unconfined)
+        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), dispatcher = Dispatchers.Unconfined, networkLoader = { TestNetwork.data })
 
         assertTrue(vm.uiState.value.rides.isEmpty())
     }
 
     @Test
     fun loadDemoRidesAddsSampleRides() {
-        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), clock, dispatcher = Dispatchers.Unconfined)
+        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), clock, dispatcher = Dispatchers.Unconfined, networkLoader = { TestNetwork.data })
 
         vm.loadDemoRides()
 
@@ -144,7 +144,7 @@ class FileRidePersistenceBackendTest {
                 stored = json
             }
         }
-        val vm = StraphangerViewModel(backend, clock, dispatcher = Dispatchers.Unconfined)
+        val vm = StraphangerViewModel(backend, clock, dispatcher = Dispatchers.Unconfined, networkLoader = { TestNetwork.data })
         assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime))
         val before = vm.dao.getAllRides()
 
