@@ -94,8 +94,13 @@ data class CaptureAccessState(
     val locationGranted: Boolean = false,
     /** "Allow all the time"; Android 10 and later need it for geofences. */
     val backgroundLocationGranted: Boolean = false,
-    /** The device location setting is on. */
-    val locationServicesEnabled: Boolean = false,
+    /** The device location setting is on. Unknown counts as on. */
+    val locationServicesEnabled: Boolean = true,
+    /**
+     * Times the platform reported that it dropped every geofence (e.g. GEOFENCE_NOT_AVAILABLE).
+     * A new count means the geofences must be registered again.
+     */
+    val geofencesDroppedCount: Int = 0,
     val notificationAccessEnabled: Boolean = false,
     /** The user's saved choice for passive capture; when false no geofences are registered. */
     val passiveCaptureTurnedOn: Boolean = true,
@@ -169,6 +174,7 @@ class StraphangerViewModel(
     private var services: NetworkServices? = null
     private var passiveCapture: PassiveCaptureCoordinator? = null
     private var captureAccess = CaptureAccessState()
+    private var handledGeofencesDroppedCount = 0
 
     /** The loaded network's engine, or null while the network is loading. */
     val graphEngine: SubwayGraphEngine? get() = services?.graphEngine
@@ -248,7 +254,11 @@ class StraphangerViewModel(
         val registrar = geofenceRegistrar ?: return
         val coordinator = PassiveCaptureCoordinator(
             windowManager = loaded.geofenceManager,
-            reconstructor = PassiveRideReconstructor(loaded.graphEngine, dao),
+            reconstructor = PassiveRideReconstructor(
+                loaded.graphEngine,
+                dao,
+                stationRadiusMeters = loaded.geofenceManager.stationRadiusMeters
+            ),
             registrar = registrar,
             events = geofenceEvents,
             scope = viewModelScope,
@@ -265,7 +275,7 @@ class StraphangerViewModel(
                     it.copy(
                         passiveGeofenceEnabled = status.running && status.registeredCount > 0,
                         activeGeofenceCount = status.registeredCount,
-                        passiveCaptureError = status.error ?: missingLocationPermissionError(),
+                        passiveCaptureError = status.error ?: captureBlockedReason(),
                         statusMessage = if (newRide != null) {
                             val origin = loaded.graphEngine.getStation(newRide.ride.originStationId)?.name
                             val destination = loaded.graphEngine.getStation(newRide.ride.destinationStationId)?.name
@@ -285,27 +295,36 @@ class StraphangerViewModel(
         applyCaptureAccess()
     }
 
-    private fun missingLocationPermissionError(): String? =
-        if (captureAccess.locationGranted || !captureAccess.passiveCaptureTurnedOn) null
-        else "Location permission is needed"
+    /** Why passive capture cannot run with the current access state, or null. */
+    private fun captureBlockedReason(): String? = when {
+        !captureAccess.passiveCaptureTurnedOn -> null
+        !captureAccess.locationGranted -> "Location permission is needed"
+        !captureAccess.locationServicesEnabled -> "Device location is off"
+        else -> null
+    }
 
     private fun applyCaptureAccess() {
         val coordinator = passiveCapture ?: return
         _uiState.update {
-            it.copy(passiveCaptureError = coordinator.status.value.error ?: missingLocationPermissionError())
+            it.copy(passiveCaptureError = coordinator.status.value.error ?: captureBlockedReason())
         }
-        if (!captureAccess.locationGranted) {
+        val canRun = captureAccess.passiveCaptureTurnedOn &&
+            captureAccess.locationGranted &&
+            captureAccess.locationServicesEnabled
+        if (!canRun) {
+            // With device location off, Play services has already dropped the geofences.
             if (coordinator.status.value.running) coordinator.stop()
             return
         }
-        if (!captureAccess.passiveCaptureTurnedOn) {
-            if (coordinator.status.value.running) coordinator.stop()
-            return
-        }
+        val wasRunning = coordinator.status.value.running
         coordinator.start(
             captureAccess.lastKnownLat ?: DEFAULT_WINDOW_LAT,
             captureAccess.lastKnownLng ?: DEFAULT_WINDOW_LNG
         )
+        if (captureAccess.geofencesDroppedCount != handledGeofencesDroppedCount) {
+            handledGeofencesDroppedCount = captureAccess.geofencesDroppedCount
+            if (wasRunning) coordinator.reregister()
+        }
     }
 
     private companion object {

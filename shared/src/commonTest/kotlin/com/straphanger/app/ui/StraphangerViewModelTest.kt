@@ -217,6 +217,44 @@ class StraphangerViewModelTest {
     }
 
     @Test
+    fun deviceLocationOffStopsCaptureAndTurningItOnRegistersAgain() {
+        val registrar = FakeGeofenceRegistrar()
+        val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
+        val granted = CaptureAccessState(locationGranted = true, backgroundLocationGranted = true, locationServicesEnabled = true)
+        vm.updateCaptureAccess(granted)
+        assertEquals(1, registrar.replaceAllCalls.size)
+        assertTrue(vm.uiState.value.passiveGeofenceEnabled)
+
+        // Play services drops every geofence when device location is turned off.
+        vm.updateCaptureAccess(granted.copy(locationServicesEnabled = false))
+        assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+        assertEquals(0, vm.uiState.value.activeGeofenceCount)
+        assertEquals("Device location is off", vm.uiState.value.passiveCaptureError)
+
+        vm.updateCaptureAccess(granted)
+        assertEquals(2, registrar.replaceAllCalls.size)
+        assertTrue(vm.uiState.value.passiveGeofenceEnabled)
+        assertEquals(null, vm.uiState.value.passiveCaptureError)
+    }
+
+    @Test
+    fun geofencesReportedUnavailableAreRegisteredAgain() {
+        val registrar = FakeGeofenceRegistrar()
+        val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
+        val granted = CaptureAccessState(locationGranted = true, locationServicesEnabled = true)
+        vm.updateCaptureAccess(granted)
+        assertEquals(1, registrar.replaceAllCalls.size)
+
+        // The receiver saw GEOFENCE_NOT_AVAILABLE; the platform reports it on the next resume.
+        vm.updateCaptureAccess(granted.copy(geofencesDroppedCount = 1))
+        assertEquals(2, registrar.replaceAllCalls.size)
+        // The same report again does not register again.
+        vm.updateCaptureAccess(granted.copy(geofencesDroppedCount = 1, notificationAccessEnabled = true))
+        assertEquals(2, registrar.replaceAllCalls.size)
+        assertTrue(vm.uiState.value.passiveGeofenceEnabled)
+    }
+
+    @Test
     fun refusedRegistrationLeavesTheToggleOffAndShowsWhy() {
         val registrar = FakeGeofenceRegistrar(failure = GeofenceRegistrationException("Location permission is needed"))
         val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))

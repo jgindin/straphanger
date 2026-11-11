@@ -173,6 +173,32 @@ class PassiveCaptureCoordinatorTest {
     }
 
     @Test
+    fun walkingBetweenFacingGeofenceEdgesRecordsNothing() = runTest {
+        val h = startedHarness()
+        // 14 St-Union Sq (602) and 23 St-Baruch College (405) are about 0.41 miles apart centre to centre.
+        // A walker is detected at the facing edges of their 160 m geofences, so covers only about 0.21
+        // miles; 4 minutes between entries reads as 6.2 mph centre to centre.
+        val north = 160.0 / 111_320.0 // 160 m of latitude
+        deliver(h, GeofenceEvent.Entered(stationGeofence("602"), t0, 40.734789 + north, -73.99073))
+        deliver(h, GeofenceEvent.Entered(stationGeofence("405"), t0 + 4 * minute, 40.739864 - north, -73.986599))
+        assertEquals("405", h.reconstructor.chainLastComplexId) // the hop check still extends the chain
+        silence(15)
+        assertEquals(0, h.dao.getAllRides().size)
+    }
+
+    @Test
+    fun twoStopRideStillRecorded() = runTest {
+        val h = startedHarness()
+        // 14 St-Union Sq (602) to 28 St (404), two stops on the 6: about 0.67 miles in 3 minutes.
+        deliver(h, entered("602", 0.0))
+        deliver(h, entered("404", 3.0))
+        silence(15)
+        val ride = h.dao.getAllRides().single().ride
+        assertEquals("635", ride.originStationId)
+        assertEquals("633", ride.destinationStationId)
+    }
+
+    @Test
     fun continuousGpsAlongLineRecordsOneRide() = runTest {
         val h = startedHarness()
         // GPS works between stations: every Lexington Av stop from 14 St to Grand Central, 1.5 minutes apart.

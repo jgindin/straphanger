@@ -21,6 +21,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) {
             Log.w(TAG, "Geofence error: ${GeofenceStatusCodes.getStatusCodeString(event.errorCode)}")
+            // Play services drops every geofence when device location is turned off.
+            if (event.errorCode == GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE) {
+                PassiveCaptureStorage.recordGeofencesDropped(context)
+            }
             return
         }
         val location = event.triggeringLocation ?: return

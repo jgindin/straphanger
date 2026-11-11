@@ -76,6 +76,12 @@ class PassiveCaptureCoordinator(
         }
     }
 
+    /** Registers the window again at the last point, e.g. after the platform dropped the geofences. */
+    fun reregister() {
+        val running = job ?: return
+        if (running.isActive) scope.launch { register(lastLat, lastLng) }
+    }
+
     /** Stops handling transitions and removes the registered geofences. The open chain stays in [pendingEvents]. */
     fun stop() {
         job?.cancel()

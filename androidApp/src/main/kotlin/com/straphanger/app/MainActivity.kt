@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
             locationServicesEnabled = locationManager != null && LocationManagerCompat.isLocationEnabled(locationManager),
             notificationAccessEnabled = NotificationAccess.isEnabled(this),
             passiveCaptureTurnedOn = PassiveCaptureStorage.isTurnedOn(this),
+            geofencesDroppedCount = PassiveCaptureStorage.geofencesDroppedCount(this),
             lastKnownLat = captureAccess.value.lastKnownLat,
             lastKnownLng = captureAccess.value.lastKnownLng
         )

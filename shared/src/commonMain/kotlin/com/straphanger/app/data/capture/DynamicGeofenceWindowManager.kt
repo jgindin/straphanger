@@ -121,13 +121,20 @@ class DynamicGeofenceWindowManager(
  * [idleCloseMs] passes with no new station entry ([closeIfIdle], or the next entry).
  *
  * Closing records a ride from origin to last only if they are different complexes, the trip took 2
- * to 120 minutes, and the straight-line speed from origin to last is at least 6 mph.
+ * to 120 minutes, and the effective distance is at least 0.3 miles and at least 6 mph. The effective
+ * distance is the straight-line distance between the stations less two geofence radii, because a
+ * walker is detected at the facing edges of the two geofences. The hop check uses the plain
+ * centre-to-centre distance.
  */
 class PassiveRideReconstructor(
     private val graphEngine: SubwayGraphEngine,
     private val dao: SubwayDao,
-    val idleCloseMs: Long = DEFAULT_IDLE_CLOSE_MS
+    val idleCloseMs: Long = DEFAULT_IDLE_CLOSE_MS,
+    /** Radius of the station geofences; [DynamicGeofenceWindowManager.stationRadiusMeters]. */
+    stationRadiusMeters: Double = 160.0
 ) {
+    private val stationRadiusMiles = stationRadiusMeters / METERS_PER_MILE
+
     private class Visit(val complexId: String, val timeMs: Long)
 
     private var origin: Visit? = null
@@ -188,18 +195,25 @@ class PassiveRideReconstructor(
         val durationMs = to.timeMs - from.timeMs
         val durationMin = durationMs / 60_000.0
         if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
-        val overallMph = mph(from.complexId, to.complexId, durationMs) ?: return null
-        if (overallMph < MIN_SPEED_MPH) return null
+        val centreMiles = miles(from.complexId, to.complexId) ?: return null
+        val effectiveMiles = maxOf(0.0, centreMiles - 2 * stationRadiusMiles)
+        if (effectiveMiles < MIN_EFFECTIVE_MILES) return null
+        if (effectiveMiles / (durationMs / 3_600_000.0) < MIN_SPEED_MPH) return null
         val record = buildRide(from, to, durationMin) ?: return null
         dao.insertOrReplaceRide(record)
         return if (dao.lastSaveSucceeded) record else null
     }
 
-    /** Straight-line speed between the complexes' first stations; null for an unknown complex. */
-    private fun mph(fromComplex: String, toComplex: String, durationMs: Long): Double? {
+    /** Straight-line miles between the complexes' first stations; null for an unknown complex. */
+    private fun miles(fromComplex: String, toComplex: String): Double? {
         val a = graphEngine.getStationsInComplex(fromComplex).firstOrNull() ?: return null
         val b = graphEngine.getStationsInComplex(toComplex).firstOrNull() ?: return null
-        val miles = NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
+        return NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
+    }
+
+    /** Centre-to-centre speed between the complexes; null for an unknown complex. */
+    private fun mph(fromComplex: String, toComplex: String, durationMs: Long): Double? {
+        val miles = miles(fromComplex, toComplex) ?: return null
         if (durationMs <= 0) return Double.POSITIVE_INFINITY
         return miles / (durationMs / 3_600_000.0)
     }
@@ -236,6 +250,8 @@ class PassiveRideReconstructor(
         const val MIN_RIDE_MINUTES = 2.0
         const val MAX_RIDE_MINUTES = 120.0
         const val MIN_SPEED_MPH = 6.0
+        const val MIN_EFFECTIVE_MILES = 0.3
+        private const val METERS_PER_MILE = 1609.344
         const val MAX_HOP_MS = 30 * 60_000L
         const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
     }
