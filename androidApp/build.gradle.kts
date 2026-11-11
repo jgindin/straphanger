@@ -129,7 +129,10 @@ val checkReleaseSigning = tasks.register("checkReleaseSigning") {
     }
 }
 tasks.matching {
-    it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle", "assembleReleaseTest", "packageReleaseTest")
+    it.name in setOf(
+        "assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle",
+        "assembleReleaseTest", "bundleReleaseTest", "packageReleaseTest", "packageReleaseTestBundle"
+    )
 }.configureEach { dependsOn(checkReleaseSigning) }
 
 // Listing text and graphics live in androidApp/src/main/play. Credentials are never committed;

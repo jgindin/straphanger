@@ -41,12 +41,12 @@ jobs:
           echo "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
           echo "STRAPHANGER_UPLOAD_STORE_FILE=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
 
-      - name: Run tests and build the release bundle
+      - name: Run tests and lint, then build the release bundle
         env:
           STRAPHANGER_UPLOAD_STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
           STRAPHANGER_UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
           STRAPHANGER_UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
-        run: ./gradlew :shared:testAndroidHostTest :androidApp:bundleRelease --stacktrace
+        run: ./gradlew :shared:testAndroidHostTest :androidApp:lintRelease :androidApp:bundleRelease --stacktrace
 
       - name: Publish to the internal testing track
         env:

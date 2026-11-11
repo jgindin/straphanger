@@ -27,6 +27,8 @@ GoogleService-Info.plist
 keystore.properties
 *.jks
 *.keystore
+*.p12
+*.pfx
 play-service-account*.json
 
 # play-policy-insights scratch output
