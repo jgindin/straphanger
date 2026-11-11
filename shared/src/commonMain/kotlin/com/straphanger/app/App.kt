@@ -180,7 +180,7 @@ fun App(backend: RidePersistenceBackend) {
                     AppTab.SOURCES -> DataSourcesAndSyncScreen(
                         uiState = uiState,
                         onImportSampleTimeline = { viewModel.importSampleGoogleMapsTimeline() },
-                        onImportCustomTimelineJson = { viewModel.importCustomTimelineJson(it) },
+                        onImportTimelineFile = { viewModel.importTimelineFile(it) },
                         suggestedBackupName = viewModel.suggestedBackupName(),
                         onExportBackup = { viewModel.exportBackup() },
                         onBackupExported = viewModel::reportBackupExported,

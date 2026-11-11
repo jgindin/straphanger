@@ -3,6 +3,7 @@ package com.straphanger.app.ui
 import com.straphanger.app.SharedRouteInbox
 import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.GoogleMapsShareParser
+import com.straphanger.app.data.capture.TimelineImportSummary
 import com.straphanger.app.data.capture.TimelineJsonImporter
 import com.straphanger.app.data.gtfs.NycSubwayNetworkCatalog
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
@@ -29,8 +30,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class MapColorMode(val label: String) {
     OFFICIAL_MTA_COLORS("MTA Line Colors"),
@@ -67,7 +70,10 @@ data class StraphangerUiState(
     val loadError: String? = null,
     val isNetworkLoaded: Boolean = false,
     /** Set when the bundled subway network could not be loaded; the app cannot work without it. */
-    val networkLoadError: String? = null
+    val networkLoadError: String? = null,
+    val timelineImportInProgress: Boolean = false,
+    /** Counts from the most recent Timeline file import, without the imported records. */
+    val lastImportSummary: TimelineImportSummary? = null
 )
 
 /** GTFS parent-station IDs used by the log form defaults, presets and sample rides. */
@@ -85,11 +91,38 @@ object StationIds {
     const val ATLANTIC_AV_D = "R31"
 }
 
+/** Two subway rides in Android Timeline.json format: 6 from 86 St to 14 St-Union Sq, then A from 125 St to 59 St-Columbus Circle. */
+internal const val SAMPLE_TIMELINE_JSON = """
+    {
+      "semanticSegments": [
+        {
+          "startTime": "2026-11-05T08:30:00.000-05:00",
+          "endTime": "2026-11-05T08:48:00.000-05:00",
+          "activity": {
+            "start": { "latLng": "40.7795°, -73.9556°" },
+            "end": { "latLng": "40.7347°, -73.9900°" },
+            "topCandidate": { "type": "IN_SUBWAY", "transitLine": "6 Train" }
+          }
+        },
+        {
+          "startTime": "2026-11-06T18:15:00.000-05:00",
+          "endTime": "2026-11-06T18:27:00.000-05:00",
+          "activity": {
+            "start": { "latLng": "40.8111°, -73.9523°" },
+            "end": { "latLng": "40.7683°, -73.9817°" },
+            "topCandidate": { "type": "IN_SUBWAY", "transitLine": "A Express" }
+          }
+        }
+      ]
+    }
+"""
+
 class StraphangerViewModel(
     backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
     private val clock: Clock = Clock.System,
     seedInitialSampleRides: Boolean = false,
     dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main.immediate,
+    private val computeDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
     networkLoader: suspend () -> SubwayNetworkData = { NycSubwayNetworkCatalog.loadBundled() }
 ) : ViewModel(CoroutineScope(SupervisorJob() + dispatcher)) {
 
@@ -350,31 +383,7 @@ class StraphangerViewModel(
     fun importSampleGoogleMapsTimeline(): Int {
         val timelineImporter = services?.timelineImporter ?: return 0
         // 6 from 86 St to 14 St-Union Sq, then A from 125 St to 59 St-Columbus Circle.
-        val sampleTimelineJson = """
-            {
-              "semanticSegments": [
-                {
-                  "startTime": "2026-11-05T08:30:00.000-05:00",
-                  "endTime": "2026-11-05T08:48:00.000-05:00",
-                  "activity": {
-                    "start": { "latLng": "40.7795°, -73.9556°" },
-                    "end": { "latLng": "40.7347°, -73.9900°" },
-                    "topCandidate": { "type": "IN_SUBWAY", "transitLine": "6 Train" }
-                  }
-                },
-                {
-                  "startTime": "2026-11-06T18:15:00.000-05:00",
-                  "endTime": "2026-11-06T18:27:00.000-05:00",
-                  "activity": {
-                    "start": { "latLng": "40.8111°, -73.9523°" },
-                    "end": { "latLng": "40.7683°, -73.9817°" },
-                    "topCandidate": { "type": "IN_SUBWAY", "transitLine": "A Express" }
-                  }
-                }
-              ]
-            }
-        """.trimIndent()
-        val summary = timelineImporter.importTimelineJson(sampleTimelineJson, dao)
+        val summary = timelineImporter.importTimelineJson(SAMPLE_TIMELINE_JSON, dao)
         if (!dao.lastSaveSucceeded) return 0
         _uiState.update {
             it.copy(
@@ -384,17 +393,44 @@ class StraphangerViewModel(
         return summary.ridesImported
     }
 
-    fun importCustomTimelineJson(rawJson: String): Int {
-        val timelineImporter = services?.timelineImporter ?: return 0
-        val summary = timelineImporter.importTimelineJson(rawJson, dao)
-        if (!dao.lastSaveSucceeded) return 0
-        _uiState.update {
-            it.copy(
-                statusMessage = "Timeline JSON imported ${summary.ridesImported} ride(s) (${summary.multiLegRidesMerged} transfer(s) merged)"
-            )
+    /**
+     * Imports a Google Maps Timeline file. Parsing and ride resolution run on [computeDispatcher] so a
+     * large file does not block the UI. A file with no importable rides returns a summary of zeros.
+     */
+    suspend fun importTimelineFile(bytes: ByteArray): TimelineImportSummary {
+        val state = _uiState.first { it.isNetworkLoaded || it.networkLoadError != null }
+        val timelineImporter = services?.timelineImporter
+        if (!state.isNetworkLoaded || timelineImporter == null) return emptyImportSummary()
+        _uiState.update { it.copy(timelineImportInProgress = true) }
+        try {
+            val summary = withContext(computeDispatcher) {
+                val text = try {
+                    bytes.decodeToString(throwOnInvalidSequence = true)
+                } catch (e: CharacterCodingException) {
+                    return@withContext emptyImportSummary()
+                }
+                timelineImporter.importTimelineJson(text, dao)
+            }
+            val saved = dao.lastSaveSucceeded
+            _uiState.update {
+                it.copy(
+                    lastImportSummary = summary.copy(importedRecords = emptyList()),
+                    statusMessage = when {
+                        !saved -> it.statusMessage
+                        summary.rawSegmentsFound == 0 -> "No subway rides found in that file"
+                        else -> "Timeline file: imported ${summary.ridesImported} ride(s), " +
+                            "skipped ${summary.duplicatesSkipped} duplicate(s), " +
+                            "${summary.multiLegRidesMerged} transfer(s) merged"
+                    }
+                )
+            }
+            return summary
+        } finally {
+            _uiState.update { it.copy(timelineImportInProgress = false) }
         }
-        return summary.ridesImported
     }
+
+    private fun emptyImportSummary() = TimelineImportSummary(0, 0, 0, 0, 0, emptyList())
 
     /** Returns the backup file contents (JSON) for all rides on this device. */
     suspend fun exportBackup(): String = backupManager.exportToJson()

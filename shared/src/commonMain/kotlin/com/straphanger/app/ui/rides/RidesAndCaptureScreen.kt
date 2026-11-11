@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -293,7 +294,7 @@ fun RidesHistoryAndLoggerScreen(
 fun DataSourcesAndSyncScreen(
     uiState: StraphangerUiState,
     onImportSampleTimeline: () -> Unit,
-    onImportCustomTimelineJson: (String) -> Unit,
+    onImportTimelineFile: suspend (ByteArray) -> Unit,
     suggestedBackupName: String,
     onExportBackup: suspend () -> String,
     onBackupExported: (fileName: String?) -> String,
@@ -303,8 +304,29 @@ fun DataSourcesAndSyncScreen(
     onBackupRestored: (Result<Int>) -> String,
     onBackupMessage: (String) -> Unit
 ) {
-    var customTimelineText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val timelineLauncher = rememberFilePickerLauncher(
+        type = FileKitType.File(listOf("json")),
+        onError = { failure -> onBackupMessage("Could not open the file picker: ${failure.message ?: "unknown error"}") }
+    ) { file ->
+        if (file != null) {
+            scope.launch {
+                val bytes = try {
+                    file.readBytes()
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    onBackupMessage("Could not read the file: ${e.message ?: "unknown error"}")
+                    return@launch
+                }
+                try {
+                    onImportTimelineFile(bytes)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    onBackupMessage("Could not import the file: ${e.message ?: "unknown error"}")
+                }
+            }
+        }
+    }
     val restoreLauncher = rememberFilePickerLauncher(
         type = FileKitType.File(listOf("json")),
         onError = { failure -> onBackupMessage("Could not open the file picker: ${failure.message ?: "unknown error"}") }
@@ -392,22 +414,35 @@ fun DataSourcesAndSyncScreen(
                 Text("Import Google Maps Timeline.json Sample", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
 
-            OutlinedTextField(
-                value = customTimelineText,
-                onValueChange = { customTimelineText = it },
-                label = { Text("Paste Timeline.json payload (optional)", color = MtaColors.TextSecondary, fontSize = 11.sp) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(90.dp)
-                    .testTag("custom_timeline_input")
-            )
-            if (customTimelineText.isNotBlank()) {
-                Button(
-                    onClick = { onImportCustomTimelineJson(customTimelineText) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00933C))
+            Button(
+                onClick = { timelineLauncher.launch() },
+                enabled = !uiState.timelineImportInProgress,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00933C)),
+                modifier = Modifier.testTag("pick_timeline_file_btn")
+            ) {
+                Text("Choose Timeline file…", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            if (uiState.timelineImportInProgress) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.testTag("timeline_import_progress")
                 ) {
-                    Text("Parse & Import Custom Timeline JSON", fontSize = 12.sp)
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("Importing…", color = MtaColors.TextSecondary, fontSize = 12.sp)
                 }
+            }
+            uiState.lastImportSummary?.let { summary ->
+                Text(
+                    text = "Last import: ${summary.rawSegmentsFound} subway segment(s) found, " +
+                        "${summary.ridesImported} ride(s) imported, " +
+                        "${summary.multiLegRidesMerged} transfer(s) merged, " +
+                        "${summary.duplicatesSkipped} duplicate(s) skipped, " +
+                        "${summary.unmatchedSegmentsSkipped} not matched to stations",
+                    color = MtaColors.TextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.testTag("timeline_import_summary")
+                )
             }
         }
 
