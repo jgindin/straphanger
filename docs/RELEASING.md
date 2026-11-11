@@ -31,10 +31,11 @@ R8 minification and resource shrinking are on for release. Keep `androidApp/buil
 
 ## Checks
 
-- Instrumented tests against the minified app (clear app data first):
+- Instrumented tests against the minified app:
 
-      adb shell pm clear com.straphanger.app
       ./gradlew :androidApp:connectedReleaseTestAndroidTest -PtestBuildType=releaseTest -Pstraphanger.allowDebugSignedRelease=true
+
+  Each build type installs under its own package: `com.straphanger.app` (release), `com.straphanger.app.debug` (debug) and `com.straphanger.app.releasetest` (releaseTest), so tests never touch an installed release build's rides. The tests run under the AndroidX Test Orchestrator with `clearPackageData`, so every test starts with empty app data and no manual `pm clear` is needed. To clear a test install by hand: `adb shell pm clear com.straphanger.app.releasetest` (or `.debug`).
 
   The tests run against the `releaseTest` build type: the release R8 configuration plus the keeps in `androidApp/proguard-test-rules.pro` that the separately minified test APK needs. This is not the exact shipping R8 graph, and the `release` build type never references the test rules. Never upload a `releaseTest` build.
   The tests cover ride logging, the sample Timeline import, and decoding `rides.json` in a fresh ViewModel. Backup export/import needs the system file picker and is not automated, so check it by hand on a release build before shipping.

@@ -57,7 +57,12 @@ android {
         versionCode = versionCodeFor(appVersionName)
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Each test starts with empty app data (see testOptions).
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
         testProguardFiles("proguard-test-apk-rules.pro")
+    }
+    testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
     packaging {
         resources {
@@ -82,7 +87,11 @@ android {
     }
     buildTypes {
         // Developer tools fabricate rides; only the shipping release build hides them.
-        getByName("debug") { buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true") }
+        // Debug and releaseTest install beside the release app, so tests never touch its rides.
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true")
+        }
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -95,6 +104,7 @@ android {
         create("releaseTest") {
             initWith(getByName("release"))
             matchingFallbacks += "release"
+            applicationIdSuffix = ".releasetest"
             proguardFiles("proguard-test-rules.pro")
             buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true")
         }
@@ -119,6 +129,8 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestUtil(libs.androidx.test.orchestrator)
 }
 
 // Fail at execution time (not configuration time) so debug builds and sync keep working.

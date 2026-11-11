@@ -9,17 +9,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
 
 /**
  * Exercises kotlinx-serialization decoding/encoding of rides.json against the (minified) app.
- * Each test starts from an empty rides file and manages its own activity.
+ * Each test manages its own activity. The test orchestrator clears app data before every test
+ * (clearPackageData), so each starts with no rides file.
  */
 class RidePersistenceEmulatorTest {
 
@@ -27,13 +25,6 @@ class RidePersistenceEmulatorTest {
     val composeTestRule = createEmptyComposeRule()
 
     private var scenario: ActivityScenario<MainActivity>? = null
-
-    @Before
-    fun clearRides() {
-        val filesDir = InstrumentationRegistry.getInstrumentation().targetContext.filesDir
-        File(filesDir, "rides.json").delete()
-        File(filesDir, "rides.json.tmp").delete()
-    }
 
     @After
     fun closeScenario() {

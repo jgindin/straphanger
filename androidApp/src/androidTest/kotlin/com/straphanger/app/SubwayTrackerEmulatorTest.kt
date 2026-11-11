@@ -17,7 +17,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.espresso.Espresso
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.rules.ExternalResource
 import org.junit.Rule
 import org.junit.Test
 
@@ -32,9 +36,34 @@ fun hasTestTagSuffix(suffix: String): SemanticsMatcher =
         node.config.getOrNull(SemanticsProperties.TestTag)?.endsWith(suffix) == true
     }
 
+/**
+ * Revokes location permissions before the activity starts, for tests that expect passive capture to
+ * be off. The orchestrator's clearPackageData already resets them; this covers runs without it.
+ */
+class LocationPermissionsRevoked : ExternalResource() {
+    override fun before() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        for (permission in listOf(
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )) {
+            // Revoking a granted permission kills the app process. After clearPackageData nothing is
+            // granted, so this normally revokes nothing.
+            if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                instrumentation.uiAutomation.revokeRuntimePermission(context.packageName, permission)
+            }
+        }
+    }
+}
+
 class SubwayTrackerEmulatorTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val locationOff = LocationPermissionsRevoked()
+
+    @get:Rule(order = 1)
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     /** The subway network loads in the background; tabs show once it has. */
