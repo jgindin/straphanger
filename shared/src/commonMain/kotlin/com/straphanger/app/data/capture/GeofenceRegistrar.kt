@@ -49,6 +49,9 @@ object GeofenceEventBus {
     )
     val events: SharedFlow<GeofenceEvent> = _events.asSharedFlow()
 
+    /** True while something collects [events], i.e. a passive capture coordinator is running in this process. */
+    val hasCollectors: Boolean get() = _events.subscriptionCount.value > 0
+
     fun emit(event: GeofenceEvent) {
         _events.tryEmit(event)
     }

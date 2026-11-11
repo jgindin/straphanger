@@ -7,6 +7,7 @@ import android.util.Log
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
+import com.straphanger.app.data.capture.BackgroundWindowRefresh
 import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceEventBus
@@ -14,7 +15,8 @@ import com.straphanger.app.data.capture.GeofenceEventBus
 /**
  * Records station entries (not the window anchor) in the pending-event file, then forwards every transition to
  * [GeofenceEventBus]. The file keeps entries that arrive while no view model is running; the
- * coordinator replays it when it starts and on each entry it receives.
+ * coordinator replays it when it starts and on each entry it receives. When no coordinator is
+ * running, leaving the window anchor registers a new window around the triggering location here.
  */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -43,6 +45,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 DynamicGeofenceWindowManager.complexIdForGeofence(transition.geofenceId) != null
             ) {
                 pendingEvents.append(transition)
+            }
+            // With no coordinator running (the app process was gone), move the window here.
+            if (BackgroundWindowRefresh.shouldRefresh(transition, GeofenceEventBus.hasCollectors) &&
+                BackgroundGeofenceRefresher.captureAllowed(context)
+            ) {
+                BackgroundGeofenceRefresher.refresh(this, context, "Anchor exit") { transition.lat to transition.lng }
             }
             GeofenceEventBus.emit(transition)
         }

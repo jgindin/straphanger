@@ -54,7 +54,9 @@ The privacy policy is [docs/privacy-policy.md](docs/privacy-policy.md).
 
 - Passive capture needs background location access. Google Play restricts this permission and reviews apps that request it, so the app shows a disclosure first and the Play Console declaration must match it.
 - There is no sync between devices or platforms. Move rides with the backup file.
-- Geofences are not registered again after a reboot until the app is opened, so passive capture stops until then.
+- After a reboot the app registers the station geofences again around the last known location, if passive capture is on and fine and background location are granted. If the phone has no last known location, nothing is registered until the app is opened.
+- When the app process is not running, leaving the window anchor still moves the geofence window: the geofence receiver registers a new window around the location that triggered the exit.
+- Force stop stops passive capture. Android delivers no geofence events or boot broadcast to a force-stopped app until the user opens it again.
 - A single-stop ride shorter than about 0.5 mi is not recorded automatically.
 - The MTA data terms say the data may not be modified. The generator rewrites the feed into the app's own JSON format, so the maintainer must review the terms before a public release. This is not legal advice.
 - The app draws colored route circles with letters that resemble MTA route bullets. The MTA asserts trademarks on its symbols; the maintainer should check this before a public release.
