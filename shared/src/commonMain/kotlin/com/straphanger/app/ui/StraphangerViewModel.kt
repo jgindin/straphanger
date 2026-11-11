@@ -19,6 +19,7 @@ import com.straphanger.app.data.gtfs.TripLegRequest
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.data.local.RideIds
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.data.sync.BackupExportManager
@@ -446,7 +447,7 @@ class StraphangerViewModel(
         if (resolved.legs.isEmpty()) return null
 
         val record = SubwayDao.buildCompleteRideRecord(
-            rideId = "manual_${timestampEpochMs}_${dao.getAllRides().size}",
+            rideId = RideIds.newId("manual"),
             startTimeEpochMs = timestampEpochMs,
             endTimeEpochMs = timestampEpochMs + 18 * 60_000L,
             source = RideSource.MANUAL,
@@ -476,7 +477,7 @@ class StraphangerViewModel(
             actualDurationMinutes = 10.5
         )
         val record = SubwayDao.buildCompleteRideRecord(
-            rideId = "passive_ambig_${dao.getAllRides().size + 1}",
+            rideId = RideIds.newId("passive_sim"),
             startTimeEpochMs = ts,
             endTimeEpochMs = ts + 10 * 60_000L,
             source = RideSource.PASSIVE_GPS,

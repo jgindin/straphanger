@@ -2,6 +2,7 @@ package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
+import com.straphanger.app.data.local.RideIds
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
 import io.ktor.client.HttpClient
@@ -53,7 +54,7 @@ class GoogleMapsShareParser(
                 )
                 if (resolved.legs.isNotEmpty()) {
                     return SubwayDao.buildCompleteRideRecord(
-                        rideId = "share_${timestampEpochMs}",
+                        rideId = RideIds.newId("share"),
                         startTimeEpochMs = timestampEpochMs,
                         endTimeEpochMs = 0L,
                         source = source,
@@ -91,7 +92,7 @@ class GoogleMapsShareParser(
                 )
                 if (resolved.legs.isNotEmpty()) {
                     return SubwayDao.buildCompleteRideRecord(
-                        rideId = "share_url_${timestampEpochMs}",
+                        rideId = RideIds.newId("share_url"),
                         startTimeEpochMs = timestampEpochMs,
                         endTimeEpochMs = 0L,
                         source = source,
@@ -131,7 +132,7 @@ class GoogleMapsShareParser(
                 )
                 if (resolved.legs.isNotEmpty()) {
                     return SubwayDao.buildCompleteRideRecord(
-                        rideId = "share_txt_${timestampEpochMs}",
+                        rideId = RideIds.newId("share_txt"),
                         startTimeEpochMs = timestampEpochMs,
                         endTimeEpochMs = 0L,
                         source = source,

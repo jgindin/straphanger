@@ -92,6 +92,23 @@ class StraphangerViewModelTest {
     }
 
     @Test
+    fun rideIdsDoNotCollideAfterADelete() {
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
+            networkLoader = { TestNetwork.data }
+        )
+        val ts = 1794405600000L
+        val a = vm.submitQuickRide(timestampEpochMs = ts)!!
+        val b = vm.submitQuickRide(timestampEpochMs = ts)!!
+        vm.dao.deleteRide(a.ride.rideId)
+        val c = vm.submitQuickRide(timestampEpochMs = ts)!!
+
+        assertEquals(setOf(b.ride.rideId, c.ride.rideId), vm.dao.getAllRides().map { it.ride.rideId }.toSet())
+        assertEquals(2, vm.dao.getAllRides().size)
+    }
+
+    @Test
     fun defaultLogFormUsesGtfsStationIdsThatExistInTheNetwork() {
         val vm = StraphangerViewModel(
             backend = InMemoryPersistenceBackend(),
