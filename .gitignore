@@ -22,3 +22,9 @@ GoogleService-Info.plist
 
 # Downloaded GTFS inputs for the network generator (not committed)
 /tools/gtfs-import/input/
+
+# Release signing and Play credentials (never commit)
+keystore.properties
+*.jks
+*.keystore
+play-service-account*.json
