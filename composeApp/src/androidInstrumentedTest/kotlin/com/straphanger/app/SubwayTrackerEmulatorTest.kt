@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import org.junit.Rule
 import org.junit.Test
 
@@ -48,19 +49,19 @@ class SubwayTrackerEmulatorTest {
         // 5. Navigate to Statistics tab and toggle 472 Stations vs 424 Complexes & Stopped-At vs Boarded/Exited
         composeTestRule.onNodeWithTag("nav_tab_STATS").performClick()
         composeTestRule.onNodeWithTag("stats_dashboard_screen").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("stat_card_total_rides").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("stat_card_unique_miles").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("stat_card_total_rides").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("stat_card_unique_miles").performScrollTo().assertIsDisplayed()
 
-        composeTestRule.onNodeWithTag("toggle_grouping_COMPLEXES_424").performClick()
-        composeTestRule.onNodeWithTag("toggle_visit_BOARDED_OR_EXITED_ONLY").performClick()
-        composeTestRule.onNodeWithTag("toggle_grouping_INDIVIDUAL_472").performClick()
-        composeTestRule.onNodeWithTag("toggle_visit_STOPPED_AT").performClick()
+        composeTestRule.onNodeWithTag("toggle_grouping_COMPLEXES_424").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("toggle_visit_BOARDED_OR_EXITED_ONLY").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("toggle_grouping_INDIVIDUAL_472").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("toggle_visit_STOPPED_AT").performScrollTo().performClick()
 
         // 6. Navigate to Google Maps & Sync tab and import Timeline.json sample
         composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
         composeTestRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("import_sample_timeline_btn").performClick()
-        composeTestRule.onNodeWithTag("export_backup_btn").performClick()
-        composeTestRule.onNodeWithTag("backup_json_preview").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("export_backup_btn").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("backup_json_preview").performScrollTo().assertIsDisplayed()
     }
 }
