@@ -6,7 +6,13 @@ import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.data.gtfs.SubwayNetworkData
+import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
+import com.straphanger.app.data.capture.FakeGeofenceRegistrar
+import com.straphanger.app.data.capture.GeofenceEvent
+import com.straphanger.app.data.capture.GeofenceRegistrationException
+import com.straphanger.app.data.local.RideSource
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.Dispatchers
 import kotlin.time.Instant
 import kotlin.test.Test
@@ -123,5 +129,84 @@ class StraphangerViewModelTest {
         assertFalse(vm.uiState.value.isNetworkLoaded)
         assertEquals("The subway network could not be loaded: file missing", vm.uiState.value.networkLoadError)
         assertEquals(null, vm.graphEngine)
+    }
+
+    private fun passiveVm(
+        registrar: FakeGeofenceRegistrar,
+        events: MutableSharedFlow<GeofenceEvent>
+    ) = StraphangerViewModel(
+        backend = InMemoryPersistenceBackend(),
+        dispatcher = Dispatchers.Unconfined,
+        clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
+        networkLoader = { TestNetwork.data },
+        geofenceRegistrar = registrar,
+        geofenceEvents = events
+    )
+
+    @Test
+    fun passiveCaptureIsOffUntilLocationPermissionIsGranted() {
+        val registrar = FakeGeofenceRegistrar()
+        val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
+        assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+        assertFalse(vm.uiState.value.googleMapsNotificationEnabled)
+        assertEquals(0, vm.uiState.value.activeGeofenceCount)
+
+        vm.updateCaptureAccess(CaptureAccessState(locationGranted = false, notificationAccessEnabled = true))
+        assertTrue(registrar.replaceAllCalls.isEmpty())
+        assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+        assertTrue(vm.uiState.value.googleMapsNotificationEnabled)
+        assertEquals("Location permission is needed", vm.uiState.value.passiveCaptureError)
+    }
+
+    @Test
+    fun grantedLocationRegistersGeofencesAndRecordsPassiveRides() {
+        val registrar = FakeGeofenceRegistrar()
+        val events = MutableSharedFlow<GeofenceEvent>(extraBufferCapacity = 8)
+        val vm = passiveVm(registrar, events)
+
+        vm.updateCaptureAccess(CaptureAccessState(locationGranted = true, lastKnownLat = 40.734673, lastKnownLng = -73.989951))
+        assertEquals(1, registrar.replaceAllCalls.size)
+        assertTrue(vm.uiState.value.passiveGeofenceEnabled)
+        assertEquals(registrar.replaceAllCalls.single().size, vm.uiState.value.activeGeofenceCount)
+
+        val t0 = 1794405600000L
+        events.tryEmit(GeofenceEvent.Entered(DynamicGeofenceWindowManager.stationGeofenceId("602"), t0, 40.734673, -73.989951))
+        events.tryEmit(GeofenceEvent.Entered(DynamicGeofenceWindowManager.stationGeofenceId("397"), t0 + 12 * 60_000L, 40.779492, -73.955589))
+        val ride = vm.uiState.value.rides.single().ride
+        assertEquals(RideSource.PASSIVE_GPS, ride.source)
+        assertEquals(StationIds.EIGHTY_SIXTH_LEX, ride.destinationStationId)
+        assertTrue(vm.uiState.value.statusMessage.startsWith("Recorded passive ride: 14 St-Union Sq → 86 St"), vm.uiState.value.statusMessage)
+
+        // Turning passive capture off removes the geofences.
+        vm.disablePassiveCapture()
+        assertEquals(1, registrar.clearCalls)
+        assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+    }
+
+    @Test
+    fun refusedRegistrationLeavesTheToggleOffAndShowsWhy() {
+        val registrar = FakeGeofenceRegistrar(failure = GeofenceRegistrationException("Location permission is needed"))
+        val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
+        vm.updateCaptureAccess(CaptureAccessState(locationGranted = true))
+        assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+        assertEquals("Location permission is needed", vm.uiState.value.passiveCaptureError)
+    }
+
+    @Test
+    fun passiveCaptureWaitsForTheNetworkToLoad() {
+        val registrar = FakeGeofenceRegistrar()
+        val network = CompletableDeferred<com.straphanger.app.data.gtfs.SubwayNetworkData>()
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
+            networkLoader = { network.await() },
+            geofenceRegistrar = registrar,
+            geofenceEvents = MutableSharedFlow(extraBufferCapacity = 8)
+        )
+        vm.updateCaptureAccess(CaptureAccessState(locationGranted = true))
+        assertTrue(registrar.replaceAllCalls.isEmpty())
+        network.complete(TestNetwork.data)
+        assertEquals(1, registrar.replaceAllCalls.size)
+        assertTrue(vm.uiState.value.passiveGeofenceEnabled)
     }
 }

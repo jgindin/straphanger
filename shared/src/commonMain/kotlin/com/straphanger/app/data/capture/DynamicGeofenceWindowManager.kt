@@ -56,7 +56,7 @@ class DynamicGeofenceWindowManager(
             .take(maxStationComplexes)
             .map { (st, _) ->
                 ActiveGeofenceSpec(
-                    geofenceId = "ST_${st.complexId}",
+                    geofenceId = stationGeofenceId(st.complexId),
                     complexId = st.complexId,
                     stationId = st.id,
                     displayName = st.complexName,
@@ -102,68 +102,99 @@ class DynamicGeofenceWindowManager(
     companion object {
         const val MACRO_ANCHOR_ID = "ANCHOR_MACRO_WINDOW"
         const val IOS_MAX_REGION_LIMIT = 20
+        private const val STATION_GEOFENCE_PREFIX = "ST_"
+
+        fun stationGeofenceId(complexId: String): String = STATION_GEOFENCE_PREFIX + complexId
+
+        /** The station complex a station geofence covers, or null for the macro anchor and unknown IDs. */
+        fun complexIdForGeofence(geofenceId: String): String? =
+            if (geofenceId.startsWith(STATION_GEOFENCE_PREFIX)) geofenceId.removePrefix(STATION_GEOFENCE_PREFIX) else null
     }
 }
 
 /**
- * Reconstructs passive subway rides from station geofence entry + underground signal drop + exit events.
+ * Reconstructs passive subway rides from station geofence entries.
+ *
+ * Entering a station complex starts a candidate. Entering a different complex ends it, and a ride is
+ * recorded only if the trip took 2 to 120 minutes and the straight-line distance divided by the
+ * duration is at least 6 mph. Otherwise the second complex becomes the new candidate. Entering the
+ * candidate's own complex again moves the candidate's start time to the new entry.
  */
 class PassiveRideReconstructor(
     private val graphEngine: SubwayGraphEngine,
     private val dao: SubwayDao
 ) {
-    private var activeBoardingStationId: String? = null
-    private var activeBoardingTimeMs: Long = 0L
-    private var observedUndergroundSignalDrop: Boolean = false
+    var activeCandidateComplexId: String? = null
+        private set
+    private var activeCandidateTimeMs: Long = 0L
 
-    fun onStationGeofenceEntered(stationId: String, timestampEpochMs: Long) {
-        if (activeBoardingStationId == null) {
-            activeBoardingStationId = stationId
-            activeBoardingTimeMs = timestampEpochMs
-            observedUndergroundSignalDrop = false
-        }
-    }
-
-    fun onUndergroundSignalDropDetected() {
-        if (activeBoardingStationId != null) {
-            observedUndergroundSignalDrop = true
-        }
-    }
-
-    fun onStationGeofenceExitedOrArrived(
-        exitStationId: String,
-        timestampEpochMs: Long
-    ): CompleteRideRecord? {
-        val boardId = activeBoardingStationId ?: return null
-        val boardComplex = graphEngine.getStation(boardId)?.complexId
-        val exitComplex = graphEngine.getStation(exitStationId)?.complexId
-        val durationMin = (timestampEpochMs - activeBoardingTimeMs) / 60000.0
-
-        // Require either an underground signal drop or plausible transit duration between distinct complexes
-        if (boardComplex == exitComplex || durationMin < 1.5) {
+    /** Returns the ride recorded by this entry, or null when none was recorded. */
+    fun onStationGeofenceEntered(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
+        val boardComplex = activeCandidateComplexId
+        if (boardComplex == null || boardComplex == complexId) {
+            startCandidate(complexId, timestampEpochMs)
             return null
         }
+        val boardTimeMs = activeCandidateTimeMs
+        val record = plausibleRide(boardComplex, complexId, boardTimeMs, timestampEpochMs)
+        if (record == null) {
+            startCandidate(complexId, timestampEpochMs)
+            return null
+        }
+        activeCandidateComplexId = null
+        dao.insertOrReplaceRide(record)
+        return if (dao.lastSaveSucceeded) record else null
+    }
 
-        val resolved = graphEngine.resolveOriginToDestinationAuto(
-            originStationId = boardId,
-            destinationStationId = exitStationId,
-            preferredRouteId = null,
-            timestampEpochMs = activeBoardingTimeMs,
-            actualDurationMinutes = durationMin
-        )
-        if (resolved.legs.isEmpty()) return null
+    private fun startCandidate(complexId: String, timestampEpochMs: Long) {
+        activeCandidateComplexId = complexId
+        activeCandidateTimeMs = timestampEpochMs
+    }
 
-        val record = SubwayDao.buildCompleteRideRecord(
-            rideId = "passive_${activeBoardingTimeMs}",
-            startTimeEpochMs = activeBoardingTimeMs,
-            endTimeEpochMs = timestampEpochMs,
+    private fun plausibleRide(
+        boardComplex: String,
+        exitComplex: String,
+        startMs: Long,
+        endMs: Long
+    ): CompleteRideRecord? {
+        val boardStations = graphEngine.getStationsInComplex(boardComplex)
+        val exitStations = graphEngine.getStationsInComplex(exitComplex)
+        val board = boardStations.firstOrNull() ?: return null
+        val exit = exitStations.firstOrNull() ?: return null
+
+        val durationMin = (endMs - startMs) / 60_000.0
+        if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
+        val miles = NycSubwayNetworkCatalog.haversineMiles(board.lat, board.lng, exit.lat, exit.lng)
+        if (miles / (durationMin / 60.0) < MIN_SPEED_MPH) return null
+
+        // Pick the platform pair with the fewest legs, then the shortest distance.
+        val resolved = boardStations.flatMap { from ->
+            exitStations.map { to ->
+                graphEngine.resolveOriginToDestinationAuto(
+                    originStationId = from.id,
+                    destinationStationId = to.id,
+                    timestampEpochMs = startMs,
+                    actualDurationMinutes = durationMin
+                )
+            }
+        }
+            .filter { it.legs.isNotEmpty() }
+            .minWithOrNull(compareBy({ it.legs.size }, { it.totalDistanceMiles }))
+            ?: return null
+
+        return SubwayDao.buildCompleteRideRecord(
+            rideId = "passive_$startMs",
+            startTimeEpochMs = startMs,
+            endTimeEpochMs = endMs,
             source = RideSource.PASSIVE_GPS,
             resolved = resolved,
             graphEngine = graphEngine
         )
-        dao.insertOrReplaceRide(record)
-        activeBoardingStationId = null
-        observedUndergroundSignalDrop = false
-        return record
+    }
+
+    companion object {
+        const val MIN_RIDE_MINUTES = 2.0
+        const val MAX_RIDE_MINUTES = 120.0
+        const val MIN_SPEED_MPH = 6.0
     }
 }

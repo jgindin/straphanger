@@ -17,6 +17,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -30,7 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.straphanger.app.data.capture.GeofenceRegistrar
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.StraphangerViewModel
 import com.straphanger.app.ui.map.SubwayMapScreen
@@ -40,9 +43,24 @@ import com.straphanger.app.ui.stats.StatsDashboardScreen
 import com.straphanger.app.ui.theme.MtaColors
 import kotlinx.coroutines.launch
 
+/**
+ * @param geofenceRegistrar registers station geofences; null where passive capture is not available.
+ * @param captureAccess the platform's current permission state; the platform refreshes it on resume.
+ * @param onRequestPassiveCapture starts the platform's location permission flow.
+ * @param onRequestNotificationAccess opens the platform's notification access settings.
+ */
 @Composable
-fun App(backend: RidePersistenceBackend) {
-    val viewModel: StraphangerViewModel = viewModel { StraphangerViewModel(backend) }
+fun App(
+    backend: RidePersistenceBackend,
+    geofenceRegistrar: GeofenceRegistrar? = null,
+    captureAccess: CaptureAccessState = CaptureAccessState(),
+    onRequestPassiveCapture: () -> Unit = {},
+    onRequestNotificationAccess: () -> Unit = {}
+) {
+    val viewModel: StraphangerViewModel = viewModel {
+        StraphangerViewModel(backend, geofenceRegistrar = geofenceRegistrar)
+    }
+    LaunchedEffect(captureAccess) { viewModel.updateCaptureAccess(captureAccess) }
     val uiState by viewModel.uiState.collectAsState()
     val stats = uiState.stats
     val snackbarHostState = remember { SnackbarHostState() }
@@ -193,7 +211,13 @@ fun App(backend: RidePersistenceBackend) {
                                 snackbarHostState.currentSnackbarData?.dismiss()
                                 snackbarHostState.showSnackbar(message)
                             }
-                        }
+                        },
+                        onRequestPassiveCapture = {
+                            viewModel.enablePassiveCapture()
+                            onRequestPassiveCapture()
+                        },
+                        onDisablePassiveCapture = viewModel::disablePassiveCapture,
+                        onRequestNotificationAccess = onRequestNotificationAccess
                     )
                 }
             }

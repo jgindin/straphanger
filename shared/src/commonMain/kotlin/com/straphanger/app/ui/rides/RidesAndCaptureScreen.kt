@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -299,7 +300,10 @@ fun DataSourcesAndSyncScreen(
     onBackupRestoreFailed: (reason: String?) -> String,
     onImportBackup: suspend (ByteArray) -> Result<Int>,
     onBackupRestored: (Result<Int>) -> String,
-    onBackupMessage: (String) -> Unit
+    onBackupMessage: (String) -> Unit,
+    onRequestPassiveCapture: () -> Unit = {},
+    onDisablePassiveCapture: () -> Unit = {},
+    onRequestNotificationAccess: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val timelineLauncher = rememberFilePickerLauncher(
@@ -443,7 +447,7 @@ fun DataSourcesAndSyncScreen(
             }
         }
 
-        // 2. Rolling Station Geofence Window & Google Maps Live Notification Capture
+        // 2. Passive station geofences and the Google Maps notification listener
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -454,25 +458,33 @@ fun DataSourcesAndSyncScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "2. On-Phone Passive Geofences & Google Maps Live Listener",
+                text = "2. Passive Capture",
                 color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                text = "• Rolling Geofence Window: ${uiState.activeGeofenceCount}/20 active regions (18 nearest station complexes + 1 macro anchor — iOS CoreLocation & Android Play Services compliant)",
-                color = MtaColors.AccentGreen,
-                fontSize = 12.sp
+            CaptureToggleRow(
+                title = "Station geofences",
+                detail = when {
+                    uiState.passiveGeofenceEnabled ->
+                        "${uiState.activeGeofenceCount} regions registered (nearest station complexes and 1 window anchor). Rides are recorded when you enter a second station at subway speed."
+                    uiState.passiveCaptureError != null -> uiState.passiveCaptureError
+                    else -> "Off"
+                },
+                checked = uiState.passiveGeofenceEnabled,
+                onCheckedChange = { on -> if (on) onRequestPassiveCapture() else onDisablePassiveCapture() },
+                testTag = "passive_capture_toggle"
             )
-            Text(
-                text = "• Android GoogleMapsTransitNotificationListener & ACTION_SEND Share Target: Active",
-                color = MtaColors.TextSecondary,
-                fontSize = 12.sp
-            )
-            Text(
-                text = "• iOS straphanger://share URL Handler & CoreLocation Region Monitor: Active",
-                color = MtaColors.TextSecondary,
-                fontSize = 12.sp
+            CaptureToggleRow(
+                title = "Google Maps notifications",
+                detail = if (uiState.googleMapsNotificationEnabled) {
+                    "Notification access granted. Rides are read from Google Maps transit navigation."
+                } else {
+                    "Notification access is off. Turning this on opens system settings."
+                },
+                checked = uiState.googleMapsNotificationEnabled,
+                onCheckedChange = { onRequestNotificationAccess() },
+                testTag = "notification_access_toggle"
             )
         }
 
@@ -534,6 +546,36 @@ fun DataSourcesAndSyncScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CaptureToggleRow(
+    title: String,
+    detail: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    testTag: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = detail,
+                color = MtaColors.TextSecondary,
+                fontSize = 12.sp,
+                modifier = Modifier.testTag("${testTag}_detail")
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.testTag(testTag)
+        )
     }
 }
 

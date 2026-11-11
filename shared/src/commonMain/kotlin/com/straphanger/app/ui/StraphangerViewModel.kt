@@ -2,6 +2,11 @@ package com.straphanger.app.ui
 
 import com.straphanger.app.SharedRouteInbox
 import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
+import com.straphanger.app.data.capture.GeofenceEvent
+import com.straphanger.app.data.capture.GeofenceEventBus
+import com.straphanger.app.data.capture.GeofenceRegistrar
+import com.straphanger.app.data.capture.PassiveCaptureCoordinator
+import com.straphanger.app.data.capture.PassiveRideReconstructor
 import com.straphanger.app.data.capture.GoogleMapsShareParser
 import com.straphanger.app.data.capture.TimelineImportSummary
 import com.straphanger.app.data.capture.TimelineJsonImporter
@@ -27,6 +32,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,9 +69,13 @@ data class StraphangerUiState(
     val logDestinationStationId: String = StationIds.EIGHTY_SIXTH_LEX,
     val logPreferredRouteId: String? = null,
     val logForceExpress: Boolean? = null,
-    val passiveGeofenceEnabled: Boolean = true,
-    val googleMapsNotificationEnabled: Boolean = true,
-    val activeGeofenceCount: Int = 19,
+    /** True when station geofences are registered with the platform. */
+    val passiveGeofenceEnabled: Boolean = false,
+    /** True when the Google Maps notification listener has notification access. */
+    val googleMapsNotificationEnabled: Boolean = false,
+    val activeGeofenceCount: Int = 0,
+    /** Why station geofences are not registered, or null. */
+    val passiveCaptureError: String? = null,
     val statusMessage: String = "Rides are stored on this device",
     val loadError: String? = null,
     val isNetworkLoaded: Boolean = false,
@@ -74,6 +84,19 @@ data class StraphangerUiState(
     val timelineImportInProgress: Boolean = false,
     /** Counts from the most recent Timeline file import, without the imported records. */
     val lastImportSummary: TimelineImportSummary? = null
+)
+
+/** Permission and access state reported by the platform; refreshed whenever the app resumes. */
+data class CaptureAccessState(
+    /** Fine location is granted. Background location may still be missing; registration then reports it. */
+    val locationGranted: Boolean = false,
+    /** "Allow all the time"; Android 10 and later need it for geofences. */
+    val backgroundLocationGranted: Boolean = false,
+    /** The device location setting is on. */
+    val locationServicesEnabled: Boolean = false,
+    val notificationAccessEnabled: Boolean = false,
+    val lastKnownLat: Double? = null,
+    val lastKnownLng: Double? = null
 )
 
 /** GTFS parent-station IDs used by the log form defaults, presets and sample rides. */
@@ -123,7 +146,10 @@ class StraphangerViewModel(
     seedInitialSampleRides: Boolean = false,
     dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main.immediate,
     private val computeDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Default,
-    networkLoader: suspend () -> SubwayNetworkData = { NycSubwayNetworkCatalog.loadBundled() }
+    networkLoader: suspend () -> SubwayNetworkData = { NycSubwayNetworkCatalog.loadBundled() },
+    /** Registers station geofences; null on platforms without passive capture. */
+    private val geofenceRegistrar: GeofenceRegistrar? = null,
+    private val geofenceEvents: Flow<GeofenceEvent> = GeofenceEventBus.events
 ) : ViewModel(CoroutineScope(SupervisorJob() + dispatcher)) {
 
     /** Services that need the subway network; null until it has loaded. */
@@ -135,6 +161,9 @@ class StraphangerViewModel(
     }
 
     private var services: NetworkServices? = null
+    private var passiveCapture: PassiveCaptureCoordinator? = null
+    private var captureAccess = CaptureAccessState()
+    private var passiveCaptureTurnedOff = false
 
     /** The loaded network's engine, or null while the network is loading. */
     val graphEngine: SubwayGraphEngine? get() = services?.graphEngine
@@ -146,8 +175,7 @@ class StraphangerViewModel(
         StraphangerUiState(
             rides = dao.getAllRides(),
             stats = SubwayStatsCalculator(SubwayGraphEngine(SubwayNetworkData.EMPTY)).computeStats(emptyList()),
-            loadError = dao.loadError.value,
-            activeGeofenceCount = 0
+            loadError = dao.loadError.value
         )
     )
     val uiState: StateFlow<StraphangerUiState> = _uiState.asStateFlow()
@@ -173,12 +201,7 @@ class StraphangerViewModel(
     private fun onNetworkLoaded(network: SubwayNetworkData, seedInitialSampleRides: Boolean) {
         val loaded = NetworkServices(SubwayGraphEngine(network), clock)
         services = loaded
-        _uiState.update {
-            it.copy(
-                isNetworkLoaded = true,
-                activeGeofenceCount = loaded.geofenceManager.computeRollingWindow(40.7347, -73.9899).activeGeofences.size
-            )
-        }
+        _uiState.update { it.copy(isNetworkLoaded = true) }
         if (seedInitialSampleRides && dao.getAllRides().isEmpty()) {
             seedStarterNycRides()
         }
@@ -209,6 +232,86 @@ class StraphangerViewModel(
                 }
             }
         }
+        startPassiveCaptureCoordinator(loaded)
+    }
+
+    /**
+     * Creates the passive capture coordinator in the view model's scope, so rides it records are
+     * written on the view model dispatcher like every other DAO change.
+     */
+    private fun startPassiveCaptureCoordinator(loaded: NetworkServices) {
+        val registrar = geofenceRegistrar ?: return
+        val coordinator = PassiveCaptureCoordinator(
+            windowManager = loaded.geofenceManager,
+            reconstructor = PassiveRideReconstructor(loaded.graphEngine, dao),
+            registrar = registrar,
+            events = geofenceEvents,
+            scope = viewModelScope
+        )
+        passiveCapture = coordinator
+        viewModelScope.launch {
+            var ridesSeen = 0
+            coordinator.status.collect { status ->
+                val newRide = status.lastRecordedRide?.takeIf { status.ridesRecorded > ridesSeen }
+                ridesSeen = status.ridesRecorded
+                _uiState.update {
+                    it.copy(
+                        passiveGeofenceEnabled = status.running && status.registeredCount > 0,
+                        activeGeofenceCount = status.registeredCount,
+                        passiveCaptureError = status.error ?: missingLocationPermissionError(),
+                        statusMessage = if (newRide != null) {
+                            val origin = loaded.graphEngine.getStation(newRide.ride.originStationId)?.name
+                            val destination = loaded.graphEngine.getStation(newRide.ride.destinationStationId)?.name
+                            "Recorded passive ride: $origin → $destination"
+                        } else it.statusMessage
+                    )
+                }
+            }
+        }
+        applyCaptureAccess()
+    }
+
+    /** Called by the platform with the current permission state, e.g. on resume and after a permission request. */
+    fun updateCaptureAccess(access: CaptureAccessState) {
+        captureAccess = access
+        _uiState.update { it.copy(googleMapsNotificationEnabled = access.notificationAccessEnabled) }
+        applyCaptureAccess()
+    }
+
+    /** The user asked for passive capture; it starts once location permission is granted. */
+    fun enablePassiveCapture() {
+        passiveCaptureTurnedOff = false
+        applyCaptureAccess()
+    }
+
+    /** The user turned passive capture off for this session; the geofences are removed. */
+    fun disablePassiveCapture() {
+        passiveCaptureTurnedOff = true
+        passiveCapture?.stop()
+    }
+
+    private fun missingLocationPermissionError(): String? =
+        if (captureAccess.locationGranted) null else "Location permission is needed"
+
+    private fun applyCaptureAccess() {
+        val coordinator = passiveCapture ?: return
+        if (!captureAccess.locationGranted) {
+            if (coordinator.status.value.running) coordinator.stop()
+            _uiState.update { it.copy(passiveCaptureError = missingLocationPermissionError()) }
+            return
+        }
+        if (passiveCaptureTurnedOff) return
+        coordinator.start(
+            captureAccess.lastKnownLat ?: DEFAULT_WINDOW_LAT,
+            captureAccess.lastKnownLng ?: DEFAULT_WINDOW_LNG
+        )
+    }
+
+    private companion object {
+        // 14 St-Union Sq, used when the platform has no last known location. Android also reports
+        // leaving the macro anchor at registration, which moves the window to the real location.
+        const val DEFAULT_WINDOW_LAT = 40.7347
+        const val DEFAULT_WINDOW_LNG = -73.9899
     }
 
     fun selectTab(tab: AppTab) {
