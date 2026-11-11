@@ -112,4 +112,16 @@ class StraphangerViewModelTest {
         assertTrue(vm.uiState.value.isNetworkLoaded)
         assertEquals(3, vm.uiState.value.stats.totalRides)
     }
+
+    @Test
+    fun failedNetworkLoadIsReportedInsteadOfLoadingForever() {
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
+            networkLoader = { throw IllegalStateException("file missing") }
+        )
+        assertFalse(vm.uiState.value.isNetworkLoaded)
+        assertEquals("The subway network could not be loaded: file missing", vm.uiState.value.networkLoadError)
+        assertEquals(null, vm.graphEngine)
+    }
 }

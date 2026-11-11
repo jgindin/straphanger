@@ -65,7 +65,9 @@ data class StraphangerUiState(
     val activeGeofenceCount: Int = 19,
     val statusMessage: String = "Rides are stored on this device",
     val loadError: String? = null,
-    val isNetworkLoaded: Boolean = false
+    val isNetworkLoaded: Boolean = false,
+    /** Set when the bundled subway network could not be loaded; the app cannot work without it. */
+    val networkLoadError: String? = null
 )
 
 /** GTFS parent-station IDs used by the log form defaults, presets and sample rides. */
@@ -126,7 +128,9 @@ class StraphangerViewModel(
                 networkLoader()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _uiState.update { it.copy(statusMessage = "Could not load the subway network: ${e.message ?: "unknown error"}") }
+                _uiState.update {
+                    it.copy(networkLoadError = "The subway network could not be loaded: ${e.message ?: "unknown error"}")
+                }
                 return@launch
             }
             onNetworkLoaded(network, seedInitialSampleRides)

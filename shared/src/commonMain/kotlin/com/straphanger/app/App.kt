@@ -133,7 +133,15 @@ fun App(backend: RidePersistenceBackend) {
                         modifier = Modifier.fillMaxSize().testTag("network_loading"),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "Loading subway network", color = MtaColors.TextSecondary, fontSize = 13.sp)
+                        val loadError = uiState.networkLoadError
+                        Text(
+                            text = loadError ?: "Loading subway network",
+                            color = if (loadError != null) Color.White else MtaColors.TextSecondary,
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .testTag(if (loadError != null) "network_load_error" else "network_loading_text")
+                        )
                     }
                 } else when (uiState.activeTab) {
                     AppTab.MAP -> SubwayMapScreen(
