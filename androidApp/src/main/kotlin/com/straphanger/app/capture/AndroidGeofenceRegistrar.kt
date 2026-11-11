@@ -54,6 +54,7 @@ class AndroidGeofenceRegistrar(context: Context) : GeofenceRegistrar {
             client.removeGeofences(pendingIntent).await()
             client.addGeofences(request, pendingIntent).await()
         }
+        specs.firstOrNull { it.isMacroAnchor }?.let { PassiveCaptureStorage.recordWindowAnchor(appContext, it.lat, it.lng) }
         Log.i(TAG, "Registered ${geofences.size} geofences: ${specs.joinToString { it.geofenceId }}")
     }
 

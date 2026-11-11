@@ -29,6 +29,23 @@ object PassiveCaptureStorage {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_TURNED_ON, on) }
     }
 
+    private const val KEY_ANCHOR_LAT = "window_anchor_lat"
+    private const val KEY_ANCHOR_LNG = "window_anchor_lng"
+
+    /** Centre of the last registered geofence window, or null; used after a reboot with no last known location. */
+    fun lastWindowAnchor(context: Context): Pair<Double, Double>? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.contains(KEY_ANCHOR_LAT) || !prefs.contains(KEY_ANCHOR_LNG)) return null
+        return Double.fromBits(prefs.getLong(KEY_ANCHOR_LAT, 0L)) to Double.fromBits(prefs.getLong(KEY_ANCHOR_LNG, 0L))
+    }
+
+    fun recordWindowAnchor(context: Context, lat: Double, lng: Double) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putLong(KEY_ANCHOR_LAT, lat.toRawBits())
+            putLong(KEY_ANCHOR_LNG, lng.toRawBits())
+        }
+    }
+
     /** How many times Play services reported dropping every geofence; a new value means register again. */
     fun geofencesDroppedCount(context: Context): Int =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_GEOFENCES_DROPPED, 0)

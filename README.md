@@ -54,7 +54,7 @@ The privacy policy is [docs/privacy-policy.md](docs/privacy-policy.md).
 
 - Passive capture needs background location access. Google Play restricts this permission and reviews apps that request it, so the app shows a disclosure first and the Play Console declaration must match it.
 - There is no sync between devices or platforms. Move rides with the backup file.
-- After a reboot the app registers the station geofences again around the last known location, if passive capture is on and fine and background location are granted. If the phone has no last known location, nothing is registered until the app is opened.
+- After a reboot the app registers the station geofences again, if passive capture is on and fine and background location are granted. It centres the window on the last known location, or on the last registered window when the phone has no location yet; with neither, nothing is registered until the app is opened.
 - When the app process is not running, leaving the window anchor still moves the geofence window: the geofence receiver registers a new window around the location that triggered the exit.
 - Force stop stops passive capture. Android delivers no geofence events or boot broadcast to a force-stopped app until the user opens it again.
 - A single-stop ride shorter than about 0.5 mi is not recorded automatically.
