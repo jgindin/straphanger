@@ -31,7 +31,7 @@ data class TimelineImportSummary(
 )
 
 /**
- * Tri-Format Google Maps Timeline JSON Importer supporting:
+ * Google Maps Timeline JSON importer for three formats:
  * 1. Android on-device Timeline.json ("semanticSegments" with "40.7347°, -73.9899°" degree strings)
  * 2. iOS on-device Timeline.json (root array or "semanticSegments" with "geo:40.7347,-73.9899" URIs)
  * 3. Google Takeout Semantic Location History ("timelineObjects" -> "activitySegment" with E7 integers & transitPath)

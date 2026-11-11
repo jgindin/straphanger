@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.StopRole
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.ui.StationIds
+import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
@@ -281,7 +282,7 @@ fun RidesHistoryAndLoggerScreen(
                 )
 
                 Text(
-                    text = "Source: ${rec.ride.source.displayLabel} • $stoppedCount stops (${rec.legs.size} leg(s), $transferCount transfer(s))" +
+                    text = "Source: ${rec.ride.source.displayLabel} • $stoppedCount stops (${countOf(rec.legs.size, "leg")}, ${countOf(transferCount, "transfer")})" +
                         if (rec.ride.needsReview) " • NEEDS REVIEW" else "",
                     color = if (rec.ride.needsReview) MtaColors.AccentGold else MtaColors.TextSecondary,
                     fontSize = 11.sp
@@ -366,7 +367,7 @@ fun DataSourcesAndSyncScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            text = "Google Maps Capture & Backup",
+            text = "Import & Backup",
             color = Color.White,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold
@@ -407,7 +408,7 @@ fun DataSourcesAndSyncScreen(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Supports Android on-device Timeline.json, iOS Google Maps Timeline export, and Google Takeout Semantic Location History. Automatically merges 15-min transfers and deduplicates rides.",
+                text = "Supports Android on-device Timeline.json, iOS Google Maps Timeline export, and Google Takeout Semantic Location History. Transfers made within 15 minutes are merged into one ride, and rides already stored are skipped.",
                 color = MtaColors.TextSecondary,
                 fontSize = 12.sp
             )
@@ -439,10 +440,10 @@ fun DataSourcesAndSyncScreen(
             }
             uiState.lastImportSummary?.let { summary ->
                 Text(
-                    text = "Last import: ${summary.rawSegmentsFound} subway segment(s) found, " +
-                        "${summary.ridesImported} ride(s) imported, " +
-                        "${summary.multiLegRidesMerged} transfer(s) merged, " +
-                        "${summary.duplicatesSkipped} duplicate(s) skipped, " +
+                    text = "Last import: ${countOf(summary.rawSegmentsFound, "subway segment")} found, " +
+                        "${countOf(summary.ridesImported, "ride")} imported, " +
+                        "${countOf(summary.multiLegRidesMerged, "transfer")} merged, " +
+                        "${countOf(summary.duplicatesSkipped, "duplicate")} skipped, " +
                         "${summary.unmatchedSegmentsSkipped} not matched to stations",
                     color = MtaColors.TextSecondary,
                     fontSize = 12.sp,

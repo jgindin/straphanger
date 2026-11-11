@@ -1,90 +1,61 @@
-# Straphanger — NYC Subway Ride & Coverage Tracker (Kotlin Multiplatform)
+# Straphanger
 
-**Straphanger** is a native **Android & iOS** application built with **Kotlin Multiplatform (KMP)** and **Compose Multiplatform** that tracks every trip you take on the NYC Subway, lights up the subway network map in vibrant official MTA line colors (or a ride-frequency heatmap), and computes deep system analytics.
+Straphanger records the NYC subway rides you take and shows which lines and stations you have covered. You can log a ride by hand, import a Google Maps Timeline file, share a route from Google Maps, or (on Android, if you turn it on) record rides from station geofences. The app shows the rides on a map, computes statistics and achievements, and keeps everything in a file on the device. It is an unofficial app and is not affiliated with or endorsed by the Metropolitan Transportation Authority (MTA).
 
----
+The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app is the only one that has been built and run. There is no Xcode project, and nothing has been built or tested on iOS.
 
-## Key Features
+## Feature status
 
-### 1. Dark-Mode NYC Subway Map & Coverage Coloring
-- **Official MTA Line Colors Mode**: Unridden physical tracks render in muted dark slate (`#283142`) while ridden corridors light up in vibrant official MTA trunk colors (`#EE352E`, `#00933C`, `#B933AD`, `#0039A6`, `#FF6319`, `#6CBE45`, `#996633`, `#A7A9AC`, `#FCCC0A`, `#808183`).
-- **Ride Frequency Heatmap Mode**: Colors ridden segments by how many times you've ridden them (`1 ride` Cyan → `2–3 rides` Neon Green → `4–5 rides` Gold → `6+ rides` Crimson).
-- **Per-Line Bullet Filter**: Filter the map by any individual subway service (`1`–`7`, `A`–`Z`, `S`, `SIR`) or tap any station to inspect visit status and log a trip.
-- **60fps Pre-Projected Geometry & Zoom LOD**: Pre-projects station and segment coordinates once at load time with viewport frustum culling and 3 Zoom Levels of Detail.
+`Works` means it was built and exercised. `Partial` means the code exists but was not built or run on that platform. `Not started` means there is no code.
 
-### 2. Multi-Source Google Maps & On-Device Ride Capture
-- **Tri-Format Google Maps `Timeline.json` Importer (`TimelineJsonImporter.kt`)**:
-  - Supports **Android on-device** `Timeline.json` (`semanticSegments` with `"40.7347°, -73.9899°"` degree strings).
-  - Supports **iOS on-device** `Timeline.json` (`semanticSegments` with `"geo:40.7347,-73.9899"` URIs).
-  - Supports **Google Takeout** `Semantic Location History` (`timelineObjects` → `activitySegment` with `latitudeE7`/`longitudeE7` integers and `transitPath`).
-  - Automatically merges consecutive `IN_SUBWAY` segments within a **15-minute in-system transfer window** into a single multi-leg ride and deduplicates against existing rides.
-- **Live Google Maps Transit Notification Listener & Share Target**:
-  - **Android**: `GoogleMapsTransitNotificationListener` (`NotificationListenerService`) automatically captures active Google Maps transit navigation notifications, plus `Intent.ACTION_SEND` for sharing routes from Google Maps.
-  - **iOS**: `straphanger://share` / `nycsubway://share` URL scheme handler.
-  - **Short-Link Redirect Unpacker (`GoogleMapsShareParser.kt`)**: Follows HTTP `302` `Location` headers on opaque `maps.app.goo.gl` links via Ktor to extract origin/destination stations.
-- **Dynamic Rolling Station Geofencing (`DynamicGeofenceWindowManager.kt`)**:
-  - Maintains a rolling window of the **18 nearest station complexes + 1 macro anchor geofence (19 total)** so the app stays strictly under **iOS `CoreLocation`'s 20-region limit** and **Android's 100-geofence limit**.
-  - Pairs station entry/exit with underground signal-drop detection and flags ambiguous Express vs. Local rides (`4`/`5` Express vs. `6` Local) with a one-tap **"Needs Review"** confirmation banner.
+| Feature | Android | iOS | Notes |
+| --- | --- | --- | --- |
+| Subway map with ridden lines, frequency heatmap, line filter | Works | Partial | Shared Compose code; never built for iOS. |
+| Manual ride logging, including transfers and express/local | Works | Partial | Shared code; never built for iOS. |
+| Statistics, achievements, stations vs. complexes toggle | Works | Partial | Shared code; never built for iOS. |
+| Local ride storage (atomic JSON file, corrupt file set aside) | Works | Partial | `rides.json` in app storage. The iOS file location was never run. |
+| Backup export and restore | Works | Partial | JSON file chosen through FileKit. Android Auto Backup also includes `rides.json`. |
+| Google Maps Timeline file import (three formats) | Works | Partial | File picker; merges transfers within 15 minutes and skips duplicates. |
+| Google Maps share intent and short-link resolution | Works | Partial | Short links are followed over the network; this is the only network use. The iOS URL-scheme handler in `iosApp` was never built. |
+| Google Maps navigation notification listener | Works | Not started | Android only. Needs notification access, granted on a settings screen. |
+| Passive geofence capture | Works | Not started | Rolling window of 18 stations plus 1 anchor, with a chain rule and disclosure screens. iOS geofencing is not implemented. |
+| About screen, privacy policy, data attribution | Works | Partial | Shared code. |
+| Cloud sync | Not started | Not started | Firebase was removed. There is no account and no server. |
+| Play Store release pipeline | Works | Not started | See [docs/RELEASING.md](docs/RELEASING.md). |
 
-### 3. Time-Aware Express/Local Routing & Multi-Leg Transfers (`SubwayGraphEngine.kt`)
-- **Multi-Leg Transfers Count as 1 Ride**: A single fare entry with free in-system transfers (e.g., `L` from *Bedford Ave* → *14 St–Union Sq* → `4 Express` to *86 St*) is stored as `1 RideEntity` with `2 RideLegEntity` rows — counting as **1 ride** in *Total Rides Since Tracking Started* while crediting **both** the `L` and `4` lines with exact mileage and completion %.
-- **Time-of-Day Service Periods**: Automatically switches routes like the `A`, `2`, and `4` from daytime Express to **Late Night Local** (`11:45 PM – 5:30 AM`).
-- **Express Stop Skipping**: Riding an Express train colors the entire physical track corridor traversed and counts its full mileage, while excluding skipped local stations from *Stations Stopped At*.
+## Setup
 
-### 4. Comprehensive Statistics & Achievements (`SubwayStatsCalculator.kt`)
-- **Headline Stats**: Total Rides, Total Miles Ridden, Unique System Miles Ridden, System Completion %, and Total Hours Underground.
-- **Interactive Station Counting Toggles**:
-  - **472 Individual MTA Stations** vs. **424 Connected Station Complexes**.
-  - **All Stations Stopped At** (excluding stations skipped by an express train) vs. **Boarded / Exited / Transferred Only**.
-- **Breakdowns & Badges**: Per-line completion bars with official MTA bullets, 5-borough breakdown, top stations & O-D pairs, monthly mileage trends, and 8 unlockable NYC Subway Achievements.
+- JDK 17.
+- Android SDK with platform 37 (`compileSdk`; `targetSdk` is 36, `minSdk` is 26).
+- Gradle 9.9.1 (wrapper), Kotlin 2.4.21, Android Gradle Plugin 9.5.1, Compose Multiplatform 1.12.2.
+- iOS targets are `iosArm64` and `iosSimulatorArm64`. Building them needs macOS with Xcode; no Xcode version has been used, because no iOS build has been made. `iosX64` is not a target because Compose 1.12 does not publish it.
 
-### 5. Local Storage + File Backup
-- Rides are stored on the device via `SubwayDao` and work offline. There is no cloud sync. "Export backup…" writes all rides to a JSON file you choose, and "Restore from backup…" reads such a file back (rides are matched by id, so restoring twice does not duplicate them). File dialogs use FileKit.
+## Build and test
 
----
-
-## Project Structure
-
-```text
-straphanger/
-├── .github/workflows/kmp-ci.yml       # Android APK, Android Emulator UI Tests, & iOS Simulator CI
-├── shared/                            # KMP library (Android + iOS): domain, data, Compose UI
-│   ├── src/commonMain/kotlin/com/straphanger/app/
-│   │   ├── data/gtfs/                 # NycSubwayNetworkCatalog, SubwayGraphEngine, SubwayModels
-│   │   ├── data/local/                # Entities (Ride -> RideLegs -> Segments & Stops), SubwayDao
-│   │   ├── data/capture/              # TimelineJsonImporter, GoogleMapsShareParser, DynamicGeofenceWindowManager
-│   │   ├── data/sync/                 # BackupExportManager (JSON export / import)
-│   │   ├── domain/stats/              # SubwayStatsCalculator, AchievementEngine
-│   │   └── ui/                        # SubwayMapScreen, StatsDashboardScreen, RidesAndCaptureScreen, StraphangerViewModel
-│   ├── src/commonTest/                # Multiplatform unit test suite (runs on the JVM via :shared:testAndroidHostTest)
-│   └── src/iosMain/                   # MainViewController (ComposeUIViewController); framework baseName "ComposeApp"
-├── androidApp/                        # Android application
-│   ├── src/main/                      # MainActivity, GoogleMapsTransitNotificationListener, AndroidManifest.xml, res/
-│   └── src/androidTest/               # SubwayTrackerEmulatorTest (Compose UI Emulator test suite)
-└── iosApp/                            # Xcode SwiftUI host project for iOS
-```
-
----
-
-## Building & Running Tests
-
-### Run Shared KMP Unit Tests
 ```bash
-./gradlew :shared:testAndroidHostTest
+./gradlew :shared:testAndroidHostTest             # shared unit tests on the JVM
+./gradlew :androidApp:assembleDebug               # debug APK
+./gradlew :androidApp:connectedDebugAndroidTest   # instrumented tests; needs a device or emulator
+./gradlew :shared:iosSimulatorArm64Test           # iOS simulator tests; macOS only, not run so far
+scripts/check-listing.sh                          # Play listing text checks
 ```
 
-### Build Android Debug APK
-```bash
-./gradlew :androidApp:assembleDebug
-# Output: androidApp/build/outputs/apk/debug/androidApp-debug.apk
-```
+Modules: `:shared` (library), `:androidApp`, `:tools:gtfs-import` (JVM generator for the network data). Release builds, signing and the Play listing are described in [docs/RELEASING.md](docs/RELEASING.md).
 
-### Run Android Emulator Instrumented Compose UI Tests
-```bash
-./gradlew :androidApp:connectedDebugAndroidTest
-```
+## Data sources
 
-### Build & Test iOS Simulator Target (on macOS)
-```bash
-./gradlew :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64
-```
+The subway network (496 stations in 445 complexes) is generated from the MTA's static GTFS feed and the MTA Subway Stations dataset on data.ny.gov, downloaded 2026-11-10. The generator, source URLs, checksums and terms are in [tools/gtfs-import/README.md](tools/gtfs-import/README.md). The attribution shown in the app is:
+
+> Subway data from the Metropolitan Transportation Authority (MTA) GTFS feed and the MTA Subway Stations dataset on data.ny.gov. Straphanger is not affiliated with or endorsed by the MTA.
+
+The privacy policy is [docs/privacy-policy.md](docs/privacy-policy.md).
+
+## Known limitations
+
+- Passive capture needs background location access. Google Play restricts this permission and reviews apps that request it, so the app shows a disclosure first and the Play Console declaration must match it.
+- There is no sync between devices or platforms. Move rides with the backup file.
+- Geofences are not registered again after a reboot until the app is opened, so passive capture stops until then.
+- A single-stop ride shorter than about 0.5 mi is not recorded automatically.
+- The MTA data terms say the data may not be modified. The generator rewrites the feed into the app's own JSON format, so the maintainer must review the terms before a public release. This is not legal advice.
+- The app draws colored route circles with letters that resemble MTA route bullets. The MTA asserts trademarks on its symbols; the maintainer should check this before a public release.
+- iOS is untested, as the status table shows.

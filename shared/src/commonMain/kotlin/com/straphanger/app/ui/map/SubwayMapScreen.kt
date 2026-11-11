@@ -78,7 +78,7 @@ fun SubwayMapScreen(
     onStartRideFromStation: (String) -> Unit,
     onEndRideAtStation: (String) -> Unit
 ) {
-    // Pre-project geographic coordinates once (Adversarial Fix #7: zero GC allocation churn during pan/zoom)
+    // Pre-project geographic coordinates once (avoids allocating during pan and zoom)
     val projectedGeometry = remember(network) {
         val minLat = 40.505
         val maxLat = 40.900
@@ -127,7 +127,7 @@ fun SubwayMapScreen(
             .background(MtaColors.DarkBg)
             .testTag("subway_map_screen")
     ) {
-        // 60fps Interactive Subway Map Canvas
+        // Subway map canvas
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -204,7 +204,7 @@ fun SubwayMapScreen(
                 )
             }
 
-            // Pass 2: Draw all RIDDEN subway segments in Vibrant Official MTA Line Colors or Heatmap
+            // Pass 2: Draw all RIDDEN subway segments in MTA line colors or the frequency heatmap
             for (seg in projectedGeometry.segments) {
                 if (selectedRoute != null && selectedRoute !in seg.routes) continue
                 val rideCount = stats.segmentRideCounts[seg.segmentId] ?: 0
@@ -237,7 +237,7 @@ fun SubwayMapScreen(
                     cap = StrokeCap.Round
                 )
 
-                // Crisp vibrant MTA core track
+                // Core track line
                 drawLine(
                     color = activeColor,
                     start = start,

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.ui.StraphangerUiState
+import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
 
@@ -170,7 +171,7 @@ fun StatsDashboardScreen(
             }
         }
 
-        // Per-Line Completion Bars with Official MTA Bullets
+        // Per-Line Completion Bars with route bullets
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -209,7 +210,7 @@ fun StatsDashboardScreen(
                             )
                         }
                         Text(
-                            text = "${lineStat.completionPercent}% (${lineStat.uniqueCorridorMilesRidden}/${lineStat.totalCorridorMilesAvailable} mi • ${lineStat.legRideCount} legs)",
+                            text = "${lineStat.completionPercent}% (${lineStat.uniqueCorridorMilesRidden}/${lineStat.totalCorridorMilesAvailable} mi • ${countOf(lineStat.legRideCount, "leg")})",
                             color = MtaColors.TextSecondary,
                             fontSize = 11.sp,
                             modifier = Modifier.testTag("line_stat_$rId")
@@ -256,7 +257,7 @@ fun StatsDashboardScreen(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "${boro.stationsVisited}/${boro.totalStationsInGraph} stations • ${boro.milesRidden} mi (${boro.rideTouches} rides)",
+                        text = "${boro.stationsVisited}/${boro.totalStationsInGraph} stations • ${boro.milesRidden} mi (${countOf(boro.rideTouches, "ride")})",
                         color = MtaColors.TextSecondary,
                         fontSize = 12.sp
                     )
@@ -291,7 +292,7 @@ fun StatsDashboardScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 stats.monthlyTrends.forEach { trend ->
                     Text(
-                        text = "Month ${trend.yearMonth}: ${trend.rideCount} rides • ${trend.totalMiles} total mi (+${trend.newUniqueMiles} new unique mi)",
+                        text = "Month ${trend.yearMonth}: ${countOf(trend.rideCount, "ride")} • ${trend.totalMiles} total mi (+${trend.newUniqueMiles} new unique mi)",
                         color = MtaColors.AccentGold,
                         fontSize = 12.sp
                     )

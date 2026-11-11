@@ -52,7 +52,7 @@ enum class AppTab(val label: String) {
     MAP("Subway Map"),
     STATS("Statistics"),
     RIDES("Rides & Log"),
-    SOURCES("Google Maps & Backup")
+    SOURCES("Import & Backup")
 }
 
 data class StraphangerUiState(
@@ -459,7 +459,7 @@ class StraphangerViewModel(
         _uiState.update {
             it.copy(
                 isLogRideSheetOpen = false,
-                statusMessage = "Logged ride (${record.ride.totalDistanceMiles} mi across ${record.legs.size} leg(s))"
+                statusMessage = "Logged ride (${record.ride.totalDistanceMiles} mi across ${countOf(record.legs.size, "leg")})"
             )
         }
         return record
@@ -510,7 +510,7 @@ class StraphangerViewModel(
         if (!dao.lastSaveSucceeded) return 0
         _uiState.update {
             it.copy(
-                statusMessage = "Google Maps Timeline: imported ${summary.ridesImported} new ride(s), skipped ${summary.duplicatesSkipped} duplicate(s)"
+                statusMessage = "Google Maps Timeline: imported ${countOf(summary.ridesImported, "new ride")}, skipped ${countOf(summary.duplicatesSkipped, "duplicate")}"
             )
         }
         return summary.ridesImported
@@ -546,9 +546,9 @@ class StraphangerViewModel(
                     statusMessage = when {
                         !saved -> it.statusMessage
                         summary.rawSegmentsFound == 0 -> "No subway rides found in that file"
-                        else -> "Timeline file: imported ${summary.ridesImported} ride(s), " +
-                            "skipped ${summary.duplicatesSkipped} duplicate(s), " +
-                            "${summary.multiLegRidesMerged} transfer(s) merged"
+                        else -> "Timeline file: imported ${countOf(summary.ridesImported, "ride")}, " +
+                            "skipped ${countOf(summary.duplicatesSkipped, "duplicate")}, " +
+                            "${countOf(summary.multiLegRidesMerged, "transfer")} merged"
                     }
                 )
             }
@@ -573,7 +573,7 @@ class StraphangerViewModel(
     fun reportBackupExported(fileName: String?): String =
         setStatus(
             buildString {
-                append("Exported ${dao.getAllRides().size} ride(s)")
+                append("Exported ${countOf(dao.getAllRides().size, "ride")}")
                 if (!fileName.isNullOrBlank()) append(" to $fileName")
             }
         )
@@ -604,7 +604,7 @@ class StraphangerViewModel(
     fun reportBackupRestored(result: Result<Int>): String =
         setStatus(
             result.fold(
-                onSuccess = { n -> "Restored $n ride(s) from backup" },
+                onSuccess = { n -> "Restored ${countOf(n, "ride")} from backup" },
                 onFailure = { "Could not restore: the file is not a Straphanger backup" }
             )
         )

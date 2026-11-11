@@ -72,9 +72,9 @@ object MtaColors {
         return when {
             rideCount <= 0 -> UnriddenTrack
             rideCount == 1 -> Color(0xFF00E5FF) // Cyan (1 ride)
-            rideCount in 2..3 -> Color(0xFF00E676) // Neon Green (2-3 rides)
-            rideCount in 4..5 -> Color(0xFFFFD600) // Electric Gold (4-5 rides)
-            else -> Color(0xFFFF1744) // Hot Magenta/Crimson (6+ rides)
+            rideCount in 2..3 -> Color(0xFF00E676) // Green (2-3 rides)
+            rideCount in 4..5 -> Color(0xFFFFD600) // Gold (4-5 rides)
+            else -> Color(0xFFFF1744) // Red (6+ rides)
         }
     }
 }

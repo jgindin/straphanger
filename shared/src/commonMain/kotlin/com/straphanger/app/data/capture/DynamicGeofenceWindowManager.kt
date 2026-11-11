@@ -27,11 +27,9 @@ data class GeofenceWindowSnapshot(
 )
 
 /**
- * Solves Adversarial Vulnerability #1:
- * iOS CoreLocation strictly enforces a 20-region limit per app (and Android enforces 100).
- * DynamicGeofenceWindowManager computes at most 18 nearest station complexes + 1 macro anchor
- * geofence (19 total, strictly <= 20) and dynamically refreshes the window when the user crosses
- * the macro anchor boundary.
+ * Chooses which geofences to register. iOS CoreLocation allows 20 monitored regions per app and
+ * Android allows 100. This class computes at most 18 nearest station complexes plus one anchor
+ * geofence (19 in total) and recomputes the window when the user leaves the anchor.
  */
 class DynamicGeofenceWindowManager(
     private val graphEngine: SubwayGraphEngine,

@@ -77,7 +77,7 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.onNodeWithTag("toggle_grouping_INDIVIDUAL_STATIONS").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("toggle_visit_STOPPED_AT").performScrollTo().performClick()
 
-        // 6. Navigate to Google Maps & Backup tab and import Timeline.json sample
+        // 6. Navigate to Import & Backup tab and import Timeline.json sample
         composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
         composeTestRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
         composeTestRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()

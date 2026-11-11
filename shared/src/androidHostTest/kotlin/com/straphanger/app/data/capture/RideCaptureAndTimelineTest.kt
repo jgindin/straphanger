@@ -110,7 +110,7 @@ class RideCaptureAndTimelineTest {
     }
 
     @Test
-    fun dynamicGeofenceWindowStrictlyRespectsIosTwentyRegionCapAcrossAllBoroughs() {
+    fun dynamicGeofenceWindowStaysUnderIosTwentyRegionCapAcrossAllBoroughs() {
         val manager = DynamicGeofenceWindowManager(engine)
         val testPoints = listOf(
             40.7553 to -73.9875, // Manhattan: Times Sq
@@ -125,7 +125,7 @@ class RideCaptureAndTimelineTest {
             assertEquals(19, window.activeGeofences.size, "Must register 18 stations + 1 macro anchor = 19")
             assertTrue(
                 window.activeGeofences.size < DynamicGeofenceWindowManager.IOS_MAX_REGION_LIMIT,
-                "Active geofence count must remain strictly under iOS 20-region limit"
+                "Active geofence count must remain under iOS 20-region limit"
             )
             assertEquals(1, window.activeGeofences.count { it.isMacroAnchor })
         }
