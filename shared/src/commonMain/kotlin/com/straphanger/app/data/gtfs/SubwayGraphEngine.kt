@@ -111,7 +111,7 @@ class SubwayGraphEngine(
         destinationStationId: String,
         preferredRouteId: String? = null,
         forceExpress: Boolean? = null,
-        timestampEpochMs: Long = 1731164400000L, // Default daytime timestamp
+        timestampEpochMs: Long,
         actualDurationMinutes: Double? = null
     ): ResolvedTripResult {
         val rawPath = findShortestPath(originStationId, destinationStationId, preferredRouteId)
@@ -179,7 +179,7 @@ class SubwayGraphEngine(
      */
     fun resolveTrip(
         legs: List<TripLegRequest>,
-        timestampEpochMs: Long = 1731164400000L,
+        timestampEpochMs: Long,
         actualDurationMinutes: Double? = null
     ): ResolvedTripResult {
         val servicePeriod = inferServicePeriod(timestampEpochMs)

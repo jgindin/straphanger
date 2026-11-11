@@ -17,6 +17,7 @@ import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.domain.stats.SubwayStatsCalculator
 import com.straphanger.app.domain.stats.SubwayStatsSnapshot
+import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,6 +63,7 @@ data class StraphangerUiState(
 
 class StraphangerViewModel(
     backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
+    private val clock: Clock = Clock.System,
     seedInitialSampleRides: Boolean = true,
     dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Unconfined
 ) {
@@ -71,10 +73,10 @@ class StraphangerViewModel(
     val dao = SubwayDao(backend)
     val statsCalculator = SubwayStatsCalculator(graphEngine)
     val timelineImporter = TimelineJsonImporter(graphEngine)
-    val shareParser = GoogleMapsShareParser(graphEngine)
+    val shareParser = GoogleMapsShareParser(graphEngine, clock = clock)
     val geofenceManager = DynamicGeofenceWindowManager(graphEngine)
     val firestoreSync = FirestoreKmpSyncClient(dao)
-    val backupManager = BackupExportManager(dao)
+    val backupManager = BackupExportManager(dao, clock)
 
     private val _uiState = MutableStateFlow(
         StraphangerUiState(
@@ -187,7 +189,7 @@ class StraphangerViewModel(
         destinationStationId: String = _uiState.value.logDestinationStationId,
         preferredRouteId: String? = _uiState.value.logPreferredRouteId,
         forceExpress: Boolean? = _uiState.value.logForceExpress,
-        timestampEpochMs: Long = 1794250800000L + (dao.getAllRides().size * 3600_000L)
+        timestampEpochMs: Long = clock.now().toEpochMilliseconds()
     ): CompleteRideRecord? {
         if (originStationId == destinationStationId) return null
 
@@ -248,7 +250,7 @@ class StraphangerViewModel(
     }
 
     fun simulateAmbiguousPassiveRide(): CompleteRideRecord {
-        val ts = 1794258000000L + (dao.getAllRides().size * 600_000L)
+        val ts = clock.now().toEpochMilliseconds()
         val resolved = graphEngine.resolveOriginToDestinationAuto(
             originStationId = "LEX_14_USQ",
             destinationStationId = "LEX_86",
@@ -350,7 +352,8 @@ class StraphangerViewModel(
     }
 
     fun seedStarterNycRides() {
-        val baseTime = 1793800000000L
+        // Spread the starter rides over the three days ending now, oldest first.
+        val baseTime = clock.now().toEpochMilliseconds() - 172_800_000L - 24 * 60 * 60_000L
         // 1. L -> 4 Express multi-leg transfer (Brooklyn -> Manhattan)
         val ride1 = SubwayDao.buildCompleteRideRecord(
             rideId = "starter_1",

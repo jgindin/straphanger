@@ -7,6 +7,7 @@ import com.straphanger.app.data.local.SubwayDao
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.http.HttpHeaders
+import kotlin.time.Clock
 
 /**
  * Parses shared Google Maps routes from:
@@ -17,7 +18,8 @@ import io.ktor.http.HttpHeaders
  */
 class GoogleMapsShareParser(
     private val graphEngine: SubwayGraphEngine,
-    private val httpClient: HttpClient = HttpClient { followRedirects = false }
+    private val httpClient: HttpClient = HttpClient { followRedirects = false },
+    private val clock: Clock = Clock.System
 ) {
     private val shortUrlRegex = Regex("""https?://(?:maps\.app\.goo\.gl|goo\.gl/maps)/[A-Za-z0-9_-]+""")
     private val fromToViaRegex = Regex(
@@ -27,7 +29,7 @@ class GoogleMapsShareParser(
 
     suspend fun parseAndResolveSharedRoute(
         sharedText: String,
-        timestampEpochMs: Long = 1794250800000L
+        timestampEpochMs: Long = clock.now().toEpochMilliseconds()
     ): CompleteRideRecord? {
         val text = sharedText.trim()
         val isNotification = text.startsWith("GMAPS_NOTIFICATION:")

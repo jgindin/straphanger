@@ -3,6 +3,8 @@ package com.straphanger.app.ui
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
+import com.straphanger.app.testutil.FixedClock
+import kotlin.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -49,5 +51,20 @@ class StraphangerViewModelTest {
         val imported = vm.importSampleGoogleMapsTimeline()
         assertTrue(imported >= 1)
         assertTrue(vm.uiState.value.stats.totalRides >= 5)
+    }
+
+    @Test
+    fun submitQuickRideUsesClockTime() {
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
+            seedInitialSampleRides = false
+        )
+        val record = vm.submitQuickRide(
+            originStationId = "LEX_14_USQ",
+            transferStationId = null,
+            destinationStationId = "LEX_86"
+        )
+        assertEquals(1794405600000L, record!!.ride.startTimeEpochMs)
     }
 }

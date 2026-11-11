@@ -4,6 +4,7 @@ import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.sync.BackupExportManager
 import com.straphanger.app.data.sync.FirebaseConfig
 import com.straphanger.app.data.sync.FirestoreKmpSyncClient
+import com.straphanger.app.testutil.FixedClock
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -16,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class SubwayPersistenceAndSyncTest {
 
@@ -50,8 +52,8 @@ class SubwayPersistenceAndSyncTest {
         assertEquals("4", saved.legs[1].routeId)
 
         // Verify BackupExportManager lossless JSON round-trip into a fresh DAO
-        val exporter = BackupExportManager(dao)
-        val backupJson = exporter.exportToJson(sampleTime)
+        val exporter = BackupExportManager(dao, FixedClock(Instant.fromEpochMilliseconds(sampleTime)))
+        val backupJson = exporter.exportToJson()
         val csv = exporter.exportToCsv()
         assertTrue(csv.contains("L+4X"))
 
@@ -59,6 +61,13 @@ class SubwayPersistenceAndSyncTest {
         val importedCount = BackupExportManager(freshDao).importFromJson(backupJson)
         assertEquals(1, importedCount)
         assertEquals(saved.ride.totalDistanceMiles, freshDao.getAllRides().single().ride.totalDistanceMiles)
+    }
+
+    @Test
+    fun exportUsesClockTime() {
+        val clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z"))
+        val json = BackupExportManager(SubwayDao(InMemoryPersistenceBackend()), clock).exportToJson()
+        assertTrue(json.contains("\"exportedAtEpochMs\": ${clock.instant.toEpochMilliseconds()}"))
     }
 
     @Test

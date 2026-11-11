@@ -8,6 +8,7 @@ import com.straphanger.app.data.gtfs.SubwayRouteInfo
 import com.straphanger.app.data.local.CompleteRideRecord
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
@@ -296,7 +297,7 @@ class SubwayStatsCalculator(
         for (rec in chronologicalRides) {
             val dt = Instant.fromEpochMilliseconds(rec.ride.startTimeEpochMs)
                 .toLocalDateTime(TimeZone.of("America/New_York"))
-            val ym = "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}"
+            val ym = "${dt.year}-${dt.month.number.toString().padStart(2, '0')}"
             var newlyUnlockedMiles = 0.0
             for (seg in rec.segments) {
                 if (seenSegmentsEver.add(seg.segmentId)) {

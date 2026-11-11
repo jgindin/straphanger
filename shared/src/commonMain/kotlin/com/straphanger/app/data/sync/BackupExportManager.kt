@@ -5,6 +5,7 @@ import com.straphanger.app.data.local.SubwayDao
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 
 @Serializable
 data class StraphangerBackupBundle(
@@ -14,7 +15,8 @@ data class StraphangerBackupBundle(
 )
 
 class BackupExportManager(
-    private val dao: SubwayDao
+    private val dao: SubwayDao,
+    private val clock: Clock = Clock.System
 ) {
     private val json = Json {
         prettyPrint = true
@@ -22,10 +24,10 @@ class BackupExportManager(
         encodeDefaults = true
     }
 
-    fun exportToJson(exportedAtEpochMs: Long = 1794250800000L): String {
+    fun exportToJson(): String {
         val bundle = StraphangerBackupBundle(
             formatVersion = 1,
-            exportedAtEpochMs = exportedAtEpochMs,
+            exportedAtEpochMs = clock.now().toEpochMilliseconds(),
             rides = dao.getAllRides()
         )
         return json.encodeToString(bundle)
