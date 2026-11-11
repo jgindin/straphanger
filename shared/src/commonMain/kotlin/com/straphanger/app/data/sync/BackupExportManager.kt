@@ -49,7 +49,7 @@ class BackupExportManager(
         } catch (e: IllegalArgumentException) {
             return Result.failure(e)
         }
-        dao.insertOrReplaceRides(rides)
+        dao.replaceRidesOrThrow(rides)
         return Result.success(rides.size)
     }
 

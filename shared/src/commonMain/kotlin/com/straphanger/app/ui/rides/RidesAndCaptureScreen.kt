@@ -70,24 +70,6 @@ fun RidesHistoryAndLoggerScreen(
             .testTag("rides_history_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        if (uiState.loadError != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF2A1416))
-                    .border(1.dp, Color(0xFFD64545), RoundedCornerShape(10.dp))
-                    .padding(12.dp)
-                    .testTag("storage_error_banner")
-            ) {
-                Text(
-                    text = uiState.loadError,
-                    color = Color.White,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
         // 1. "Needs Review" Banner for Ambiguous Express vs. Local Passive Rides
         if (pendingReviewRides.isNotEmpty()) {
             Column(

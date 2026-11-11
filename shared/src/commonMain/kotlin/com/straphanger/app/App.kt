@@ -107,6 +107,20 @@ fun App(backend: RidePersistenceBackend) {
                 }
             }
 
+            val storageError = uiState.loadError
+            if (storageError != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF2A1416))
+                        .border(1.dp, Color(0xFFD64545))
+                        .padding(12.dp)
+                        .testTag("storage_error_banner")
+                ) {
+                    Text(text = storageError, color = Color.White, fontSize = 12.sp)
+                }
+            }
+
             // Main Content Area
             Box(
                 modifier = Modifier

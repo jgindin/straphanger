@@ -68,7 +68,7 @@ class StraphangerViewModel(
     backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
     private val clock: Clock = Clock.System,
     seedInitialSampleRides: Boolean = false,
-    dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Unconfined
+    dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Main.immediate
 ) : ViewModel(CoroutineScope(SupervisorJob() + dispatcher)) {
 
     val graphEngine = SubwayGraphEngine()
@@ -115,7 +115,7 @@ class StraphangerViewModel(
                         val parsed = shareParser.parseAndResolveSharedRoute(txt)
                         if (parsed != null) {
                             dao.insertOrReplaceRide(parsed)
-                            _uiState.update {
+                            if (dao.lastSaveSucceeded) _uiState.update {
                                 it.copy(statusMessage = "Auto-captured ride from Google Maps: ${parsed.ride.originStationId} → ${parsed.ride.destinationStationId}")
                             }
                         }
@@ -245,6 +245,7 @@ class StraphangerViewModel(
             forceNeedsReview = false
         )
         dao.insertOrReplaceRide(record)
+        if (!dao.lastSaveSucceeded) return null
         _uiState.update {
             it.copy(
                 isLogRideSheetOpen = false,
@@ -273,7 +274,7 @@ class StraphangerViewModel(
             forceNeedsReview = true
         )
         dao.insertOrReplaceRide(record)
-        _uiState.update {
+        if (dao.lastSaveSucceeded) _uiState.update {
             it.copy(
                 statusMessage = "Passively detected 14 St–Union Sq → 86 St • Tap to confirm 4 Express vs 6 Local"
             )
@@ -283,7 +284,7 @@ class StraphangerViewModel(
 
     fun confirmAmbiguousRide(rideId: String, routeId: String, isExpress: Boolean) {
         dao.confirmAmbiguousRide(rideId, routeId, isExpress, graphEngine)
-        _uiState.update {
+        if (dao.lastSaveSucceeded) _uiState.update {
             it.copy(
                 statusMessage = "Confirmed $routeId ${if (isExpress) "Express" else "Local"} for ride $rideId"
             )
@@ -316,6 +317,7 @@ class StraphangerViewModel(
             }
         """.trimIndent()
         val summary = timelineImporter.importTimelineJson(sampleTimelineJson, dao)
+        if (!dao.lastSaveSucceeded) return 0
         _uiState.update {
             it.copy(
                 statusMessage = "Google Maps Timeline: imported ${summary.ridesImported} new ride(s), skipped ${summary.duplicatesSkipped} duplicate(s)"
@@ -326,6 +328,7 @@ class StraphangerViewModel(
 
     fun importCustomTimelineJson(rawJson: String): Int {
         val summary = timelineImporter.importTimelineJson(rawJson, dao)
+        if (!dao.lastSaveSucceeded) return 0
         _uiState.update {
             it.copy(
                 statusMessage = "Timeline JSON imported ${summary.ridesImported} ride(s) (${summary.multiLegRidesMerged} transfer(s) merged)"
@@ -389,13 +392,13 @@ class StraphangerViewModel(
 
     fun clearAllRides() {
         dao.clearAll()
-        _uiState.update { it.copy(statusMessage = "Cleared all local rides") }
+        if (dao.lastSaveSucceeded) _uiState.update { it.copy(statusMessage = "Cleared all local rides") }
     }
 
     /** Adds three sample rides so the map and statistics have something to show. */
     fun loadDemoRides() {
         seedStarterNycRides()
-        _uiState.update { it.copy(statusMessage = "Loaded 3 sample rides") }
+        if (dao.lastSaveSucceeded) _uiState.update { it.copy(statusMessage = "Loaded 3 sample rides") }
     }
 
     fun seedStarterNycRides() {

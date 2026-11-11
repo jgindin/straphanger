@@ -3,6 +3,7 @@ package com.straphanger.app.data.local
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.ui.StraphangerViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
@@ -118,17 +119,46 @@ class FileRidePersistenceBackendTest {
 
     @Test
     fun viewModelDoesNotSeedByDefault() {
-        val vm = StraphangerViewModel(InMemoryPersistenceBackend())
+        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), dispatcher = Dispatchers.Unconfined)
 
         assertTrue(vm.uiState.value.rides.isEmpty())
     }
 
     @Test
     fun loadDemoRidesAddsSampleRides() {
-        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), clock)
+        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), clock, dispatcher = Dispatchers.Unconfined)
 
         vm.loadDemoRides()
 
         assertEquals(3, vm.uiState.value.rides.size)
+    }
+
+    @Test
+    fun saveFailureDoesNotThrowLeavesRidesUnchangedAndSetsError() {
+        val backend = object : RidePersistenceBackend {
+            var failing = false
+            var stored: String? = null
+            override fun loadSnapshotJson(): String? = stored
+            override fun saveSnapshotJson(json: String) {
+                if (failing) throw IllegalStateException("disk full")
+                stored = json
+            }
+        }
+        val vm = StraphangerViewModel(backend, clock, dispatcher = Dispatchers.Unconfined)
+        assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime))
+        val before = vm.dao.getAllRides()
+
+        backend.failing = true
+        val result = vm.submitQuickRide(timestampEpochMs = sampleTime + 1_000L)
+        vm.loadDemoRides()
+
+        assertNull(result)
+        assertEquals(before, vm.dao.getAllRides())
+        assertEquals(before, vm.uiState.value.rides)
+        assertTrue(vm.uiState.value.loadError!!.contains("disk full"))
+
+        backend.failing = false
+        assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime + 2_000L))
+        assertNull(vm.uiState.value.loadError)
     }
 }

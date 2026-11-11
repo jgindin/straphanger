@@ -4,6 +4,7 @@ import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.testutil.FixedClock
+import kotlinx.coroutines.Dispatchers
 import kotlin.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,6 +17,7 @@ class StraphangerViewModelTest {
     fun viewModelEndToEndFlowLogsRideConfirmsAmbiguousRideAndImportsTimeline() {
         val vm = StraphangerViewModel(
             backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
             seedInitialSampleRides = true
         )
 
@@ -57,6 +59,7 @@ class StraphangerViewModelTest {
     fun submitQuickRideUsesClockTime() {
         val vm = StraphangerViewModel(
             backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
             clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
             seedInitialSampleRides = false
         )

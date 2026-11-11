@@ -46,6 +46,10 @@ class SubwayDao(
     /** Set when the stored rides could not be read at startup; the app then starts with no rides. */
     val loadError: StateFlow<String?> = _loadError.asStateFlow()
 
+    /** False when the most recent change could not be saved; the rides are then left as they were. */
+    var lastSaveSucceeded: Boolean = true
+        private set
+
     // True when an unreadable file could not be set aside; saving would overwrite it.
     private var savesBlocked = false
 
@@ -93,24 +97,34 @@ class SubwayDao(
     fun insertOrReplaceRide(record: CompleteRideRecord) {
         val updated = _ridesFlow.value
             .filterNot { it.ride.rideId == record.ride.rideId } + record
-        updateAndPersist(updated)
+        updateAndPersistReporting(updated)
     }
 
     fun insertOrReplaceRides(records: List<CompleteRideRecord>) {
+        try {
+            replaceRidesOrThrow(records)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reportSaveFailure(e)
+        }
+    }
+
+    /** Like [insertOrReplaceRides], but a failure to save is thrown and the rides are left unchanged. */
+    fun replaceRidesOrThrow(records: List<CompleteRideRecord>) {
         if (records.isEmpty()) return
         val incomingIds = records.map { it.ride.rideId }.toSet()
         val updated = _ridesFlow.value
             .filterNot { it.ride.rideId in incomingIds } + records
-        updateAndPersist(updated)
+        persistThenPublish(updated)
     }
 
     fun deleteRide(rideId: String) {
         val updated = _ridesFlow.value.filterNot { it.ride.rideId == rideId }
-        updateAndPersist(updated)
+        updateAndPersistReporting(updated)
     }
 
     fun clearAll() {
-        updateAndPersist(emptyList())
+        updateAndPersistReporting(emptyList())
     }
 
     /**
@@ -159,14 +173,40 @@ class SubwayDao(
         return updatedRecord
     }
 
-    private fun updateAndPersist(records: List<CompleteRideRecord>) {
+    private fun updateAndPersistReporting(records: List<CompleteRideRecord>) {
+        try {
+            persistThenPublish(records)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            reportSaveFailure(e)
+        }
+    }
+
+    // Saves first and publishes only on success, so memory never holds rides that were not saved.
+    private fun persistThenPublish(records: List<CompleteRideRecord>) {
         val sorted = records.sortedByDescending { it.ride.startTimeEpochMs }
+        if (!savesBlocked) {
+            try {
+                backend.saveSnapshotJson(json.encodeToString(sorted))
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                lastSaveSucceeded = false
+                throw e
+            }
+        }
+        lastSaveSucceeded = true
+        if (_loadError.value?.startsWith(SAVE_ERROR_PREFIX) == true) _loadError.value = null
         _ridesFlow.value = sorted
-        if (savesBlocked) return
-        backend.saveSnapshotJson(json.encodeToString(sorted))
+    }
+
+    private fun reportSaveFailure(cause: Exception) {
+        lastSaveSucceeded = false
+        _loadError.value = "$SAVE_ERROR_PREFIX ${cause.message ?: "unknown error"}. The change was not applied."
     }
 
     companion object {
+        private const val SAVE_ERROR_PREFIX = "Rides could not be saved:"
+
         fun buildCompleteRideRecord(
             rideId: String,
             startTimeEpochMs: Long,
