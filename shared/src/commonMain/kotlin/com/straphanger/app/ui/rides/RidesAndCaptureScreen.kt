@@ -56,6 +56,7 @@ fun RidesHistoryAndLoggerScreen(
     onUpdateLogForm: (String, String?, String, String?, Boolean?) -> Unit,
     onSubmitQuickRide: () -> Unit,
     onSimulateAmbiguousRide: () -> Unit,
+    showDeveloperTools: Boolean = false,
     onLoadDemoRides: () -> Unit,
     onConfirmAmbiguousRide: (String, String, Boolean) -> Unit
 ) {
@@ -196,14 +197,16 @@ fun RidesHistoryAndLoggerScreen(
                     Text("Log Subway Ride", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
 
-                Button(
-                    onClick = onSimulateAmbiguousRide,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("simulate_passive_ride_btn")
-                ) {
-                    Text("Simulate Passive GPS Ride", fontSize = 12.sp)
+                if (showDeveloperTools) {
+                    Button(
+                        onClick = onSimulateAmbiguousRide,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("simulate_passive_ride_btn")
+                    ) {
+                        Text("Simulate Passive GPS Ride", fontSize = 12.sp)
+                    }
                 }
             }
         }

@@ -56,6 +56,7 @@ kotlin {
             implementation(libs.kotlinx.io.core)
             implementation(libs.ktor.client.core)
             implementation(libs.filekit.dialogs.compose)
+            implementation(libs.compose.ui.backhandler)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

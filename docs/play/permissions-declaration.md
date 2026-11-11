@@ -12,11 +12,11 @@ Riders do not keep the app open on a train. The station entry has to be noticed 
 
 ## Declaration text
 
-"Straphanger uses background location to detect when the user enters a subway station so it can record the rides they take, even when the app is closed. The feature is optional and off until the user turns on passive capture in the app. Before any location permission prompt, the app shows a full screen explaining the use, with Not now and Continue buttons. Location is used only on the device. It is never sent to the developer or any other party, and it is not used for ads or analytics."
+"Straphanger uses background location to detect when the user enters a subway station so it can record the rides they take, even when the app is closed or not in use. The feature is optional and off until the user turns on passive capture in the app. Before any location permission prompt, the app shows a full screen explaining the use, with Not now and Continue buttons. Location is used only on the device. It is never sent to the developer or any other party, and it is not used for ads or analytics."
 
 The in-app disclosure text is:
 
-"Straphanger uses your location in the background to notice when you enter and leave subway stations, even when the app is closed. Your location is used only on this phone to record rides and is never sent anywhere."
+"Straphanger uses your location in the background to notice when you enter and leave subway stations, even when the app is closed or not in use. Your location is used only on this phone to record rides and is never sent anywhere."
 
 ## Demo video shot list
 

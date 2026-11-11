@@ -27,6 +27,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -60,10 +62,12 @@ import kotlinx.coroutines.launch
  * @param onDisablePassiveCapture saves the user's choice to turn passive capture off.
  * @param onRequestNotificationAccess opens the platform's notification access settings.
  * @param appVersion the app's version name, shown on the About screen.
+ * @param showDeveloperTools shows controls that fabricate rides; true only in debug and test builds.
  * @param licensesContent the open-source license list for the About screen; null where the platform has none.
  *
  * Both request callbacks run only after the user taps "Continue" on the matching disclosure.
  */
+@OptIn(ExperimentalComposeUiApi::class) // ui-backhandler's BackHandler is still marked experimental in CMP 1.12
 @Composable
 fun App(
     backend: RidePersistenceBackend,
@@ -74,7 +78,8 @@ fun App(
     onDisablePassiveCapture: () -> Unit = {},
     onRequestNotificationAccess: () -> Unit = {},
     appVersion: String = "",
-    licensesContent: (@Composable () -> Unit)? = null
+    licensesContent: (@Composable () -> Unit)? = null,
+    showDeveloperTools: Boolean = false
 ) {
     val viewModel: StraphangerViewModel = viewModel {
         StraphangerViewModel(
@@ -91,6 +96,11 @@ fun App(
     var showBackgroundLocationDisclosure by rememberSaveable { mutableStateOf(false) }
     var showNotificationDisclosure by rememberSaveable { mutableStateOf(false) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
+
+    // System Back: a disclosure acts as "Not now", then About closes.
+    BackHandler(enabled = showBackgroundLocationDisclosure) { showBackgroundLocationDisclosure = false }
+    BackHandler(enabled = showNotificationDisclosure) { showNotificationDisclosure = false }
+    BackHandler(enabled = showAbout && !showBackgroundLocationDisclosure && !showNotificationDisclosure) { showAbout = false }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -238,6 +248,7 @@ fun App(
                             viewModel.updateLogForm(orig, trans, dest, route, exp)
                         },
                         onSubmitQuickRide = { viewModel.submitQuickRide() },
+                        showDeveloperTools = showDeveloperTools,
                         onSimulateAmbiguousRide = { viewModel.simulateAmbiguousPassiveRide() },
                         onLoadDemoRides = { viewModel.loadDemoRides() },
                         onConfirmAmbiguousRide = { id, r, exp ->
@@ -294,6 +305,8 @@ fun App(
                             .background(if (selected) Color(0xFF0039A6) else Color.Transparent)
                             .clickable {
                                 showAbout = false
+                                showBackgroundLocationDisclosure = false
+                                showNotificationDisclosure = false
                                 viewModel.selectTab(tab)
                             }
                             .padding(horizontal = 12.dp, vertical = 8.dp)

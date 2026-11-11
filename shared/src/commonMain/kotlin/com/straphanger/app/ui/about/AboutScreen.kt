@@ -18,6 +18,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
@@ -41,6 +43,7 @@ fun mtaAttributionText(sourceDate: String): String =
  * @param licensesContent the open-source license list; the platform supplies it (AboutLibraries on Android).
  *   Null where the platform has none.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AboutScreen(
     appVersion: String,
@@ -49,6 +52,8 @@ fun AboutScreen(
     licensesContent: (@Composable () -> Unit)? = null
 ) {
     var showLicenses by rememberSaveable { mutableStateOf(false) }
+    // Back closes the licenses view first; otherwise App's handler closes About.
+    BackHandler(enabled = showLicenses) { showLicenses = false }
     if (showLicenses && licensesContent != null) {
         Column(
             modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen")

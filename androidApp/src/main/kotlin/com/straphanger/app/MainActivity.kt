@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
                 },
                 onRequestNotificationAccess = { startActivity(NotificationAccess.settingsIntent()) },
                 appVersion = versionName,
+                showDeveloperTools = BuildConfig.SHOW_DEVELOPER_TOOLS,
                 licensesContent = {
                     val libraries by produceLibraries(R.raw.aboutlibraries)
                     LibrariesContainer(libraries)

@@ -24,7 +24,7 @@ import com.straphanger.app.ui.theme.MtaColors
 
 const val BACKGROUND_LOCATION_DISCLOSURE_TEXT =
     "Straphanger uses your location in the background to notice when you enter and leave subway stations, " +
-        "even when the app is closed. Your location is used only on this phone to record rides and is never sent anywhere."
+        "even when the app is closed or not in use. Your location is used only on this phone to record rides and is never sent anywhere."
 
 const val NOTIFICATION_ACCESS_DISCLOSURE_TEXT =
     "Straphanger can read Google Maps transit navigation notifications to record the ride you're taking. " +

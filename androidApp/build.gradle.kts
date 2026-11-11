@@ -63,6 +63,7 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    buildFeatures { buildConfig = true }
     testBuildType = providers.gradleProperty("testBuildType").getOrElse("debug")
     signingConfigs {
         create("release") {
@@ -79,9 +80,12 @@ android {
         }
     }
     buildTypes {
+        // Developer tools fabricate rides; only the shipping release build hides them.
+        getByName("debug") { buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true") }
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
+            buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "false")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs["release"]
         }
@@ -91,6 +95,7 @@ android {
             initWith(getByName("release"))
             matchingFallbacks += "release"
             proguardFiles("proguard-test-rules.pro")
+            buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true")
         }
     }
     compileOptions {

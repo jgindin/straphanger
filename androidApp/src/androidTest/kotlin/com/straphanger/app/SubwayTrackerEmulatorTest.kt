@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.test.espresso.Espresso
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -156,5 +157,44 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.waitUntil(timeoutMillis = 10_000) {
             composeTestRule.onAllNodesWithText("Apache", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    @Test
+    fun systemBackDismissesDisclosureLikeNotNow() {
+        waitForNetwork()
+        composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+        composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
+
+        Espresso.pressBack()
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithTag("background_location_disclosure").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("straphanger_root").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().assertIsOff()
+    }
+
+    @Test
+    fun systemBackClosesLicensesThenAbout() {
+        openAbout()
+        composeTestRule.onNodeWithTag("about_licenses_btn").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("licenses_screen").assertIsDisplayed()
+        Espresso.pressBack()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("about_screen").assertIsDisplayed()
+        Espresso.pressBack()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("about_screen").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("straphanger_root").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabTapClearsDisclosure() {
+        waitForNetwork()
+        composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+        composeTestRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("notification_access_disclosure").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("nav_tab_MAP").performClick()
+        composeTestRule.onNodeWithTag("notification_access_disclosure").assertDoesNotExist()
     }
 }
