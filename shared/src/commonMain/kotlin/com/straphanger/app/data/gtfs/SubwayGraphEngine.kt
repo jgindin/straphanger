@@ -133,11 +133,12 @@ class SubwayGraphEngine(
             )
         }
 
-        // Split into legs wherever no single route serves the next segment, or the path walks
+        // Split into legs wherever the path changes trains: a route change at a station, or a walk
         // between platforms of a station complex.
         val legRequests = mutableListOf<TripLegRequest>()
         var legStart: String? = null
         var legEnd: String? = null
+        var legRoute: String? = null
         var legRoutes: Set<String> = emptySet()
 
         fun closeLeg() {
@@ -153,6 +154,7 @@ class SubwayGraphEngine(
             )
             legStart = null
             legEnd = null
+            legRoute = null
             legRoutes = emptySet()
         }
 
@@ -162,15 +164,15 @@ class SubwayGraphEngine(
                 closeLeg()
                 continue
             }
-            val shared = legRoutes intersect seg.routes.toSet()
-            if (legStart != null && shared.isEmpty()) {
+            if (legStart != null && step.routeId != legRoute) {
                 closeLeg()
             }
             if (legStart == null) {
                 legStart = step.fromStationId
+                legRoute = step.routeId
                 legRoutes = seg.routes.toSet()
             } else {
-                legRoutes = shared
+                legRoutes = legRoutes intersect seg.routes.toSet()
             }
             legEnd = step.toStationId
         }
@@ -368,58 +370,138 @@ class SubwayGraphEngine(
     private data class PathStep(
         val fromStationId: String,
         val toStationId: String,
-        val segment: SubwaySegment?
+        val segment: SubwaySegment?,
+        /** The route ridden on this step; null for a walk between platforms. */
+        val routeId: String? = null
     )
 
+    /**
+     * A search state: at [stationId], either riding [routeId] or on foot ([routeId] == null).
+     * On foot is where every trip starts and ends, and where transfers happen.
+     */
+    private data class RouteState(val stationId: String, val routeId: String?)
+
+    private class StateQueue {
+        private val heap = mutableListOf<Pair<Double, RouteState>>()
+
+        fun isNotEmpty(): Boolean = heap.isNotEmpty()
+
+        fun push(cost: Double, state: RouteState) {
+            heap.add(cost to state)
+            var i = heap.lastIndex
+            while (i > 0) {
+                val parent = (i - 1) / 2
+                if (heap[parent].first <= heap[i].first) break
+                heap[i] = heap[parent].also { heap[parent] = heap[i] }
+                i = parent
+            }
+        }
+
+        fun pop(): Pair<Double, RouteState> {
+            val top = heap.first()
+            val last = heap.removeAt(heap.lastIndex)
+            if (heap.isNotEmpty()) {
+                heap[0] = last
+                var i = 0
+                while (true) {
+                    val l = 2 * i + 1
+                    val r = l + 1
+                    var smallest = i
+                    if (l < heap.size && heap[l].first < heap[smallest].first) smallest = l
+                    if (r < heap.size && heap[r].first < heap[smallest].first) smallest = r
+                    if (smallest == i) break
+                    heap[i] = heap[smallest].also { heap[smallest] = heap[i] }
+                    i = smallest
+                }
+            }
+            return top
+        }
+    }
+
+    /**
+     * Route-aware shortest path. Riding a segment on a route costs its miles; getting off a train
+     * (to change routes at the same station, or to walk to another platform) costs
+     * [ROUTE_CHANGE_COST_MILES]; walking between platforms of a complex costs its edge plus
+     * [PLATFORM_WALK_PENALTY_MILES]. So a one-seat ride wins unless a transfer saves more than a
+     * mile. Trips start and end on foot; the final alighting cost is the same for every path.
+     */
     private fun findShortestPath(
         startStationId: String,
         endStationId: String,
         preferredRouteId: String?
     ): List<PathStep> {
         if (startStationId == endStationId) return emptyList()
-        val dist = mutableMapOf<String, Double>().withDefault { Double.POSITIVE_INFINITY }
-        val prev = mutableMapOf<String, PathStep>()
-        val visited = mutableSetOf<String>()
+        val start = RouteState(startStationId, null)
+        val goal = RouteState(endStationId, null)
+        val dist = mutableMapOf(start to 0.0)
+        // How each state was reached: the previous state and the station-to-station step, if any.
+        val prev = mutableMapOf<RouteState, Pair<RouteState, PathStep?>>()
+        val settled = mutableSetOf<RouteState>()
+        val queue = StateQueue()
+        queue.push(0.0, start)
 
-        dist[startStationId] = 0.0
-        val queue = mutableListOf(startStationId)
-
-        while (queue.isNotEmpty()) {
-            queue.sortBy { dist.getValue(it) }
-            val current = queue.removeAt(0)
-            if (current == endStationId) break
-            if (!visited.add(current)) continue
-
-            val currentCost = dist.getValue(current)
-
-            for (edge in adjacency[current].orEmpty()) {
-                if (edge.toStationId in visited) continue
-                val seg = edge.segment
-                // In-complex platform transfer penalty so single-seat rides win
-                val transferPenalty = if (seg == null) 0.35 else 0.0
-                val routePenalty = if (preferredRouteId != null && seg != null && preferredRouteId !in seg.routes) {
-                    0.25
-                } else {
-                    0.0
-                }
-                val nextCost = currentCost + edge.costMiles + transferPenalty + routePenalty
-                if (nextCost < dist.getValue(edge.toStationId)) {
-                    dist[edge.toStationId] = nextCost
-                    prev[edge.toStationId] = PathStep(current, edge.toStationId, seg)
-                    if (edge.toStationId !in queue) {
-                        queue.add(edge.toStationId)
-                    }
-                }
+        fun relax(from: RouteState, to: RouteState, cost: Double, step: PathStep?) {
+            if (cost < (dist[to] ?: Double.POSITIVE_INFINITY)) {
+                dist[to] = cost
+                prev[to] = from to step
+                queue.push(cost, to)
             }
         }
 
+        while (queue.isNotEmpty()) {
+            val (cost, state) = queue.pop()
+            if (!settled.add(state)) continue
+            if (state == goal) break
+            val edges = adjacency[state.stationId].orEmpty()
+            val ridingRoute = state.routeId
+            if (ridingRoute == null) {
+                // Board any route serving this station.
+                val boardable = edges.mapNotNullTo(mutableSetOf()) { e -> e.segment?.routes }.flatten().toSet()
+                for (r in boardable) relax(state, RouteState(state.stationId, r), cost, null)
+                // Walk to another platform of the same complex.
+                for (e in edges) {
+                    if (e.segment != null) continue
+                    relax(
+                        state,
+                        RouteState(e.toStationId, null),
+                        cost + e.costMiles + PLATFORM_WALK_PENALTY_MILES,
+                        PathStep(state.stationId, e.toStationId, null, null)
+                    )
+                }
+            } else {
+                // Stay on the train.
+                for (e in edges) {
+                    val seg = e.segment ?: continue
+                    if (ridingRoute !in seg.routes) continue
+                    val routePenalty = if (preferredRouteId != null && ridingRoute != preferredRouteId) 0.25 else 0.0
+                    relax(
+                        state,
+                        RouteState(e.toStationId, ridingRoute),
+                        cost + e.costMiles + routePenalty,
+                        PathStep(state.stationId, e.toStationId, seg, ridingRoute)
+                    )
+                }
+                // Get off.
+                relax(state, RouteState(state.stationId, null), cost + ROUTE_CHANGE_COST_MILES, null)
+            }
+        }
+
+        if (goal !in prev) return emptyList()
         val path = mutableListOf<PathStep>()
-        var curr: String? = endStationId
-        while (curr != null && curr != startStationId) {
-            val step = prev[curr] ?: return emptyList()
-            path.add(0, step)
-            curr = step.fromStationId
+        var curr = goal
+        while (curr != start) {
+            val (before, step) = prev[curr] ?: return emptyList()
+            if (step != null) path.add(0, step)
+            curr = before
         }
         return path
+    }
+
+    private companion object {
+        /** Mile-equivalent cost of getting off one train to take another. */
+        const val ROUTE_CHANGE_COST_MILES = 1.0
+
+        /** Extra mile-equivalent cost of walking between platforms, on top of the route change. */
+        const val PLATFORM_WALK_PENALTY_MILES = 0.35
     }
 }
