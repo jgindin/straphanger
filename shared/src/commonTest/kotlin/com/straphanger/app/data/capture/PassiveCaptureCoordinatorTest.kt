@@ -3,6 +3,7 @@ package com.straphanger.app.data.capture
 import com.straphanger.app.data.capture.DynamicGeofenceWindowManager.Companion.MACRO_ANCHOR_ID
 import com.straphanger.app.data.gtfs.NycSubwayNetworkCatalog
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
+import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.testutil.TestNetwork
@@ -49,9 +50,14 @@ class PassiveCaptureCoordinatorTest {
     private val t0 = 1794405600000L // 2026-11-11T14:00:00Z, a weekday afternoon
     private val minute = 60_000L
 
-    private class Harness(scope: CoroutineScope, clock: Clock, val store: PendingGeofenceEventStore) {
+    private class Harness(
+        scope: CoroutineScope,
+        clock: Clock,
+        val store: PendingGeofenceEventStore,
+        backend: RidePersistenceBackend = InMemoryPersistenceBackend()
+    ) {
         val engine = TestNetwork.engine()
-        val dao = SubwayDao(InMemoryPersistenceBackend())
+        val dao = SubwayDao(backend)
         val windowManager = DynamicGeofenceWindowManager(engine)
         val reconstructor = PassiveRideReconstructor(engine, dao)
         val registrar = FakeGeofenceRegistrar()
@@ -61,8 +67,10 @@ class PassiveCaptureCoordinatorTest {
         )
     }
 
-    private fun TestScope.harness(store: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore()) =
-        Harness(backgroundScope, SchedulerClock(testScheduler, t0), store)
+    private fun TestScope.harness(
+        store: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
+        backend: RidePersistenceBackend = InMemoryPersistenceBackend()
+    ) = Harness(backgroundScope, SchedulerClock(testScheduler, t0), store, backend)
 
     private fun TestScope.startedHarness(): Harness {
         val h = harness()
@@ -306,6 +314,35 @@ class PassiveCaptureCoordinatorTest {
         runCurrent()
         silence(15)
         assertEquals(1, second.dao.getAllRides().size)
+    }
+
+    @Test
+    fun failedSaveKeepsTheChainEntriesForTheNextStart() = runTest {
+        val store = InMemoryPendingGeofenceEventStore()
+        val failing = object : RidePersistenceBackend {
+            override fun loadSnapshotJson(): String? = null
+            override fun saveSnapshotJson(json: String) = throw IllegalStateException("disk full")
+        }
+        val first = harness(store, failing)
+        first.coordinator.start(unionSqLat, unionSqLng)
+        runCurrent()
+        deliver(first, entered("602", 0.0))
+        deliver(first, entered("397", 12.0))
+        silence(15)
+        assertEquals(0, first.dao.getAllRides().size)
+        // The ride could not be saved, so its entries stay for a retry.
+        assertEquals(2, store.readAll().size)
+        first.coordinator.stop()
+        runCurrent()
+
+        // The next start, with storage working again, records the ride.
+        val second = harness(store)
+        second.coordinator.start(unionSqLat, unionSqLng)
+        runCurrent()
+        val ride = second.dao.getAllRides().single().ride
+        assertEquals("635", ride.originStationId)
+        assertEquals("626", ride.destinationStationId)
+        assertTrue(store.readAll().isEmpty())
     }
 
     @Test

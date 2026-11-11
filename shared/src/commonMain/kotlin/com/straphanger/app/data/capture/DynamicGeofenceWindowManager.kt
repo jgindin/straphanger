@@ -143,6 +143,13 @@ class PassiveRideReconstructor(
     val chainLastComplexId: String? get() = last?.complexId
     val chainLastTimeMs: Long? get() = last?.timeMs
 
+    /**
+     * Start time of the oldest chain whose ride could not be saved, or null. Its station entries
+     * must be kept so the ride is recorded again on the next start.
+     */
+    var unsavedChainOriginTimeMs: Long? = null
+        private set
+
     /** Returns the ride recorded because this entry closed the previous chain, or null. */
     fun onStationGeofenceEntered(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
         val previous = last
@@ -199,7 +206,9 @@ class PassiveRideReconstructor(
         if (effectiveMiles / (durationMs / 3_600_000.0) < MIN_SPEED_MPH) return null
         val record = buildRide(from, to, durationMin) ?: return null
         dao.insertOrReplaceRide(record)
-        return if (dao.lastSaveSucceeded) record else null
+        if (dao.lastSaveSucceeded) return record
+        unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
+        return null
     }
 
     /** Straight-line miles between the complexes' first stations; null for an unknown complex. */

@@ -31,7 +31,7 @@ data class PassiveCaptureStatus(
  *
  * Station entries are read from [pendingEvents], which the platform receiver appends to, as well as
  * from [events]. Each entry is handled once. After handling, the store keeps only the entries of the
- * chain that is still open, so a restart replays that chain and entries recorded while nothing was
+ * chain that is still open and of any chain whose ride could not be saved, so a restart replays them and entries recorded while nothing was
  * running are not lost. A chain idle for the reconstructor's idle period is closed by a timer.
  */
 class PassiveCaptureCoordinator(
@@ -157,9 +157,12 @@ class PassiveCaptureCoordinator(
         }
     }
 
-    /** Keeps only the entries of the open chain, which a restart needs to replay. */
+    /**
+     * Keeps only the entries a restart needs to replay: those of the open chain, and those of any
+     * chain whose ride could not be saved.
+     */
     private fun trimPending() {
-        val originMs = reconstructor.chainOriginTimeMs
+        val originMs = listOfNotNull(reconstructor.chainOriginTimeMs, reconstructor.unsavedChainOriginTimeMs).minOrNull()
         val keep = if (originMs == null) emptyList() else pendingEvents.readAll().filter { it.epochMs >= originMs }
         pendingEvents.replaceAll(keep)
         handled.retainAll(keep.toSet())
