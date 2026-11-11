@@ -34,8 +34,9 @@ R8 minification and resource shrinking are on for release. Keep `androidApp/buil
 - Instrumented tests against the minified app (clear app data first):
 
       adb shell pm clear com.straphanger.app
-      ./gradlew :androidApp:connectedReleaseAndroidTest -PtestBuildType=release -Pstraphanger.allowDebugSignedRelease=true
+      ./gradlew :androidApp:connectedReleaseTestAndroidTest -PtestBuildType=releaseTest -Pstraphanger.allowDebugSignedRelease=true
 
-  With `-PtestBuildType=release`, `androidApp/proguard-test-rules.pro` is added to the app's R8 run. It keeps shared library classes the test APK needs and is not used for shipping builds.
+  The tests run against the `releaseTest` build type: the release R8 configuration plus the keeps in `androidApp/proguard-test-rules.pro` that the separately minified test APK needs. This is not the exact shipping R8 graph, and the `release` build type never references the test rules. Never upload a `releaseTest` build.
+  The tests cover ride logging, the sample Timeline import, and decoding `rides.json` in a fresh ViewModel. Backup export/import needs the system file picker and is not automated, so check it by hand on a release build before shipping.
 - 16 KB page alignment: `zipalign -c -P 16 -v 4 androidApp/build/outputs/apk/release/androidApp-release.apk` should print `Verification successful`. The only native libraries are `libandroidx.graphics.path.so` for four ABIs.
 - Version in the APK: `aapt2 dump badging <apk> | grep versionCode`.

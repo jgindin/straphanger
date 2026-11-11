@@ -55,7 +55,7 @@ android {
         versionCode = versionCodeFor(appVersionName)
         versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        testProguardFiles("proguard-test-rules.pro")
+        testProguardFiles("proguard-test-apk-rules.pro")
     }
     packaging {
         resources {
@@ -82,9 +82,14 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Instrumented tests against the minified app need extra keeps; never shipped.
-            if (testBuildType == "release") proguardFiles("proguard-test-rules.pro")
             signingConfig = signingConfigs["release"]
+        }
+        // Release R8 config plus keeps the minified test APK needs. Used only for instrumented tests
+        // (-PtestBuildType=releaseTest); never upload it.
+        create("releaseTest") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            proguardFiles("proguard-test-rules.pro")
         }
     }
     compileOptions {
@@ -116,5 +121,5 @@ val checkReleaseSigning = tasks.register("checkReleaseSigning") {
     }
 }
 tasks.matching {
-    it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle")
+    it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle", "assembleReleaseTest", "packageReleaseTest")
 }.configureEach { dependsOn(checkReleaseSigning) }
