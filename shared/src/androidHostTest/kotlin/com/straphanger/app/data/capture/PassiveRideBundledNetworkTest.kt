@@ -23,7 +23,8 @@ class PassiveRideBundledNetworkTest {
         assertEquals(unionSq, DynamicGeofenceWindowManager.complexIdForGeofence(window.activeGeofences.first().geofenceId))
 
         reconstructor.onStationGeofenceEntered(unionSq, t0)
-        val record = reconstructor.onStationGeofenceEntered(eightySixth, t0 + 14 * 60_000L)!!
+        reconstructor.onStationGeofenceEntered(eightySixth, t0 + 14 * 60_000L)
+        val record = reconstructor.closeIfIdle(t0 + 29 * 60_000L)!!
 
         assertEquals(RideSource.PASSIVE_GPS, record.ride.source)
         assertEquals("635", record.ride.originStationId)

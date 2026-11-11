@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.straphanger.app.data.capture.GeofenceRegistrar
+import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
+import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.AppTab
@@ -46,19 +48,28 @@ import kotlinx.coroutines.launch
 /**
  * @param geofenceRegistrar registers station geofences; null where passive capture is not available.
  * @param captureAccess the platform's current permission state; the platform refreshes it on resume.
- * @param onRequestPassiveCapture starts the platform's location permission flow.
+ * @param pendingGeofenceEvents station entries recorded by the platform receiver.
+ * @param onRequestPassiveCapture saves the user's choice to turn passive capture on and starts the
+ *   platform's location permission flow.
+ * @param onDisablePassiveCapture saves the user's choice to turn passive capture off.
  * @param onRequestNotificationAccess opens the platform's notification access settings.
  */
 @Composable
 fun App(
     backend: RidePersistenceBackend,
     geofenceRegistrar: GeofenceRegistrar? = null,
+    pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
     captureAccess: CaptureAccessState = CaptureAccessState(),
     onRequestPassiveCapture: () -> Unit = {},
+    onDisablePassiveCapture: () -> Unit = {},
     onRequestNotificationAccess: () -> Unit = {}
 ) {
     val viewModel: StraphangerViewModel = viewModel {
-        StraphangerViewModel(backend, geofenceRegistrar = geofenceRegistrar)
+        StraphangerViewModel(
+            backend,
+            geofenceRegistrar = geofenceRegistrar,
+            pendingGeofenceEvents = pendingGeofenceEvents
+        )
     }
     LaunchedEffect(captureAccess) { viewModel.updateCaptureAccess(captureAccess) }
     val uiState by viewModel.uiState.collectAsState()
@@ -212,11 +223,8 @@ fun App(
                                 snackbarHostState.showSnackbar(message)
                             }
                         },
-                        onRequestPassiveCapture = {
-                            viewModel.enablePassiveCapture()
-                            onRequestPassiveCapture()
-                        },
-                        onDisablePassiveCapture = viewModel::disablePassiveCapture,
+                        onRequestPassiveCapture = onRequestPassiveCapture,
+                        onDisablePassiveCapture = onDisablePassiveCapture,
                         onRequestNotificationAccess = onRequestNotificationAccess
                     )
                 }

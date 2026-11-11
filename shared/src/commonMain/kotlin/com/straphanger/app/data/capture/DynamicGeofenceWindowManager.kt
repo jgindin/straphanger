@@ -113,67 +113,107 @@ class DynamicGeofenceWindowManager(
 }
 
 /**
- * Reconstructs passive subway rides from station geofence entries.
+ * Reconstructs passive subway rides from station geofence entries by chaining stations.
  *
- * Entering a station complex starts a candidate. Entering a different complex ends it, and a ride is
- * recorded only if the trip took 2 to 120 minutes and the straight-line distance divided by the
- * duration is at least 6 mph. Otherwise the second complex becomes the new candidate. Entering the
- * candidate's own complex again moves the candidate's start time to the new entry.
+ * A chain has an origin and a last station. Entering a complex other than the last one extends the
+ * chain when the hop from the last station is at least 6 mph and came within 30 minutes. Otherwise
+ * the chain closes and a new one starts at the entered complex. A chain also closes when
+ * [idleCloseMs] passes with no new station entry ([closeIfIdle], or the next entry).
+ *
+ * Closing records a ride from origin to last only if they are different complexes, the trip took 2
+ * to 120 minutes, and the straight-line speed from origin to last is at least 6 mph.
  */
 class PassiveRideReconstructor(
     private val graphEngine: SubwayGraphEngine,
-    private val dao: SubwayDao
+    private val dao: SubwayDao,
+    val idleCloseMs: Long = DEFAULT_IDLE_CLOSE_MS
 ) {
-    var activeCandidateComplexId: String? = null
-        private set
-    private var activeCandidateTimeMs: Long = 0L
+    private class Visit(val complexId: String, val timeMs: Long)
 
-    /** Returns the ride recorded by this entry, or null when none was recorded. */
+    private var origin: Visit? = null
+    private var last: Visit? = null
+
+    val chainOriginComplexId: String? get() = origin?.complexId
+    val chainOriginTimeMs: Long? get() = origin?.timeMs
+    val chainLastComplexId: String? get() = last?.complexId
+    val chainLastTimeMs: Long? get() = last?.timeMs
+
+    /** Returns the ride recorded because this entry closed the previous chain, or null. */
     fun onStationGeofenceEntered(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
-        val boardComplex = activeCandidateComplexId
-        if (boardComplex == null || boardComplex == complexId) {
-            startCandidate(complexId, timestampEpochMs)
+        val previous = last
+        if (previous == null) {
+            startChain(complexId, timestampEpochMs)
             return null
         }
-        val boardTimeMs = activeCandidateTimeMs
-        val record = plausibleRide(boardComplex, complexId, boardTimeMs, timestampEpochMs)
-        if (record == null) {
-            startCandidate(complexId, timestampEpochMs)
+        val gapMs = timestampEpochMs - previous.timeMs
+        if (gapMs < 0) return null // older than the chain; out-of-order delivery
+        if (gapMs >= idleCloseMs) {
+            val record = close()
+            startChain(complexId, timestampEpochMs)
+            return record
+        }
+        if (complexId == previous.complexId) {
+            // Still at the only station of the chain: the latest entry is closest to boarding.
+            if (origin === previous) startChain(complexId, timestampEpochMs)
             return null
         }
-        activeCandidateComplexId = null
+        val hopMph = mph(previous.complexId, complexId, gapMs)
+        if (hopMph != null && hopMph >= MIN_SPEED_MPH && gapMs <= MAX_HOP_MS) {
+            last = Visit(complexId, timestampEpochMs)
+            return null
+        }
+        val record = close()
+        startChain(complexId, timestampEpochMs)
+        return record
+    }
+
+    /** Closes the chain if [idleCloseMs] has passed since its last entry; returns the recorded ride, or null. */
+    fun closeIfIdle(nowEpochMs: Long): CompleteRideRecord? {
+        val previous = last ?: return null
+        return if (nowEpochMs - previous.timeMs >= idleCloseMs) close() else null
+    }
+
+    private fun startChain(complexId: String, timestampEpochMs: Long) {
+        val visit = Visit(complexId, timestampEpochMs)
+        origin = visit
+        last = visit
+    }
+
+    private fun close(): CompleteRideRecord? {
+        val from = origin
+        val to = last
+        origin = null
+        last = null
+        if (from == null || to == null || from.complexId == to.complexId) return null
+        val durationMs = to.timeMs - from.timeMs
+        val durationMin = durationMs / 60_000.0
+        if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
+        val overallMph = mph(from.complexId, to.complexId, durationMs) ?: return null
+        if (overallMph < MIN_SPEED_MPH) return null
+        val record = buildRide(from, to, durationMin) ?: return null
         dao.insertOrReplaceRide(record)
         return if (dao.lastSaveSucceeded) record else null
     }
 
-    private fun startCandidate(complexId: String, timestampEpochMs: Long) {
-        activeCandidateComplexId = complexId
-        activeCandidateTimeMs = timestampEpochMs
+    /** Straight-line speed between the complexes' first stations; null for an unknown complex. */
+    private fun mph(fromComplex: String, toComplex: String, durationMs: Long): Double? {
+        val a = graphEngine.getStationsInComplex(fromComplex).firstOrNull() ?: return null
+        val b = graphEngine.getStationsInComplex(toComplex).firstOrNull() ?: return null
+        val miles = NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
+        if (durationMs <= 0) return Double.POSITIVE_INFINITY
+        return miles / (durationMs / 3_600_000.0)
     }
 
-    private fun plausibleRide(
-        boardComplex: String,
-        exitComplex: String,
-        startMs: Long,
-        endMs: Long
-    ): CompleteRideRecord? {
-        val boardStations = graphEngine.getStationsInComplex(boardComplex)
-        val exitStations = graphEngine.getStationsInComplex(exitComplex)
-        val board = boardStations.firstOrNull() ?: return null
-        val exit = exitStations.firstOrNull() ?: return null
-
-        val durationMin = (endMs - startMs) / 60_000.0
-        if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
-        val miles = NycSubwayNetworkCatalog.haversineMiles(board.lat, board.lng, exit.lat, exit.lng)
-        if (miles / (durationMin / 60.0) < MIN_SPEED_MPH) return null
-
+    private fun buildRide(from: Visit, to: Visit, durationMin: Double): CompleteRideRecord? {
+        val boardStations = graphEngine.getStationsInComplex(from.complexId)
+        val exitStations = graphEngine.getStationsInComplex(to.complexId)
         // Pick the platform pair with the fewest legs, then the shortest distance.
-        val resolved = boardStations.flatMap { from ->
-            exitStations.map { to ->
+        val resolved = boardStations.flatMap { a ->
+            exitStations.map { b ->
                 graphEngine.resolveOriginToDestinationAuto(
-                    originStationId = from.id,
-                    destinationStationId = to.id,
-                    timestampEpochMs = startMs,
+                    originStationId = a.id,
+                    destinationStationId = b.id,
+                    timestampEpochMs = from.timeMs,
                     actualDurationMinutes = durationMin
                 )
             }
@@ -183,9 +223,9 @@ class PassiveRideReconstructor(
             ?: return null
 
         return SubwayDao.buildCompleteRideRecord(
-            rideId = "passive_$startMs",
-            startTimeEpochMs = startMs,
-            endTimeEpochMs = endMs,
+            rideId = "passive_${from.timeMs}",
+            startTimeEpochMs = from.timeMs,
+            endTimeEpochMs = to.timeMs,
             source = RideSource.PASSIVE_GPS,
             resolved = resolved,
             graphEngine = graphEngine
@@ -196,5 +236,7 @@ class PassiveRideReconstructor(
         const val MIN_RIDE_MINUTES = 2.0
         const val MAX_RIDE_MINUTES = 120.0
         const val MIN_SPEED_MPH = 6.0
+        const val MAX_HOP_MS = 30 * 60_000L
+        const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
     }
 }

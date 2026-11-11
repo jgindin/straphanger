@@ -10,6 +10,7 @@ import androidx.core.location.LocationManagerCompat
 import com.google.android.gms.location.LocationServices
 import com.straphanger.app.capture.AndroidGeofenceRegistrar
 import com.straphanger.app.capture.NotificationAccess
+import com.straphanger.app.capture.PassiveCaptureStorage
 import com.straphanger.app.data.local.FileRidePersistenceBackend
 import com.straphanger.app.permissions.CapturePermissions
 import com.straphanger.app.permissions.rememberPassiveCapturePermissionRequest
@@ -26,13 +27,23 @@ class MainActivity : ComponentActivity() {
         FileKit.init(this)
         handleIncomingShareIntent(intent)
         val geofenceRegistrar = AndroidGeofenceRegistrar(applicationContext)
+        val pendingGeofenceEvents = PassiveCaptureStorage.pendingEvents(applicationContext)
         setContent {
             val requestPassiveCapture = rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
             App(
                 backend = FileRidePersistenceBackend(Path(filesDir.path, "rides.json")),
                 geofenceRegistrar = geofenceRegistrar,
+                pendingGeofenceEvents = pendingGeofenceEvents,
                 captureAccess = captureAccess.value,
-                onRequestPassiveCapture = requestPassiveCapture,
+                onRequestPassiveCapture = {
+                    PassiveCaptureStorage.setTurnedOn(this, true)
+                    refreshCaptureAccess()
+                    requestPassiveCapture()
+                },
+                onDisablePassiveCapture = {
+                    PassiveCaptureStorage.setTurnedOn(this, false)
+                    refreshCaptureAccess()
+                },
                 onRequestNotificationAccess = { startActivity(NotificationAccess.settingsIntent()) }
             )
         }
@@ -56,6 +67,7 @@ class MainActivity : ComponentActivity() {
             backgroundLocationGranted = CapturePermissions.backgroundLocationGranted(this),
             locationServicesEnabled = locationManager != null && LocationManagerCompat.isLocationEnabled(locationManager),
             notificationAccessEnabled = NotificationAccess.isEnabled(this),
+            passiveCaptureTurnedOn = PassiveCaptureStorage.isTurnedOn(this),
             lastKnownLat = captureAccess.value.lastKnownLat,
             lastKnownLng = captureAccess.value.lastKnownLng
         )

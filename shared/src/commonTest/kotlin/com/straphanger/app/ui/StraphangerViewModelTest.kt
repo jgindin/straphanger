@@ -10,6 +10,13 @@ import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.FakeGeofenceRegistrar
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceRegistrationException
+import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
+import com.straphanger.app.data.capture.PendingGeofenceEventStore
+import com.straphanger.app.data.capture.SchedulerClock
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import com.straphanger.app.data.local.RideSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -133,14 +140,18 @@ class StraphangerViewModelTest {
 
     private fun passiveVm(
         registrar: FakeGeofenceRegistrar,
-        events: MutableSharedFlow<GeofenceEvent>
+        events: MutableSharedFlow<GeofenceEvent>,
+        dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Unconfined,
+        clock: kotlin.time.Clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
+        store: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore()
     ) = StraphangerViewModel(
         backend = InMemoryPersistenceBackend(),
-        dispatcher = Dispatchers.Unconfined,
-        clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
+        dispatcher = dispatcher,
+        clock = clock,
         networkLoader = { TestNetwork.data },
         geofenceRegistrar = registrar,
-        geofenceEvents = events
+        geofenceEvents = events,
+        pendingGeofenceEvents = store
     )
 
     @Test
@@ -158,29 +169,51 @@ class StraphangerViewModelTest {
         assertEquals("Location permission is needed", vm.uiState.value.passiveCaptureError)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun grantedLocationRegistersGeofencesAndRecordsPassiveRides() {
+    fun grantedLocationRegistersGeofencesAndRecordsPassiveRides() = runTest {
+        val t0 = 1794405600000L
         val registrar = FakeGeofenceRegistrar()
         val events = MutableSharedFlow<GeofenceEvent>(extraBufferCapacity = 8)
-        val vm = passiveVm(registrar, events)
+        val vm = passiveVm(
+            registrar, events,
+            dispatcher = UnconfinedTestDispatcher(testScheduler),
+            clock = SchedulerClock(testScheduler, t0)
+        )
 
-        vm.updateCaptureAccess(CaptureAccessState(locationGranted = true, lastKnownLat = 40.734673, lastKnownLng = -73.989951))
+        val granted = CaptureAccessState(locationGranted = true, lastKnownLat = 40.734673, lastKnownLng = -73.989951)
+        vm.updateCaptureAccess(granted)
         assertEquals(1, registrar.replaceAllCalls.size)
         assertTrue(vm.uiState.value.passiveGeofenceEnabled)
         assertEquals(registrar.replaceAllCalls.single().size, vm.uiState.value.activeGeofenceCount)
 
-        val t0 = 1794405600000L
         events.tryEmit(GeofenceEvent.Entered(DynamicGeofenceWindowManager.stationGeofenceId("602"), t0, 40.734673, -73.989951))
+        advanceTimeBy(12 * 60_000L)
         events.tryEmit(GeofenceEvent.Entered(DynamicGeofenceWindowManager.stationGeofenceId("397"), t0 + 12 * 60_000L, 40.779492, -73.955589))
+        assertTrue(vm.uiState.value.rides.isEmpty())
+        advanceTimeBy(15 * 60_000L + 1)
         val ride = vm.uiState.value.rides.single().ride
         assertEquals(RideSource.PASSIVE_GPS, ride.source)
         assertEquals(StationIds.EIGHTY_SIXTH_LEX, ride.destinationStationId)
         assertTrue(vm.uiState.value.statusMessage.startsWith("Recorded passive ride: 14 St-Union Sq → 86 St"), vm.uiState.value.statusMessage)
 
-        // Turning passive capture off removes the geofences.
-        vm.disablePassiveCapture()
+        // The user turning passive capture off removes the geofences.
+        vm.updateCaptureAccess(granted.copy(passiveCaptureTurnedOn = false))
         assertEquals(1, registrar.clearCalls)
         assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+    }
+
+    @Test
+    fun passiveCaptureTurnedOffByTheUserDoesNotRegisterAtStart() {
+        val registrar = FakeGeofenceRegistrar()
+        val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
+        vm.updateCaptureAccess(CaptureAccessState(locationGranted = true, passiveCaptureTurnedOn = false))
+        assertTrue(registrar.replaceAllCalls.isEmpty())
+        assertFalse(vm.uiState.value.passiveGeofenceEnabled)
+        assertEquals(null, vm.uiState.value.passiveCaptureError)
+
+        vm.updateCaptureAccess(CaptureAccessState(locationGranted = true, passiveCaptureTurnedOn = true))
+        assertEquals(1, registrar.replaceAllCalls.size)
     }
 
     @Test

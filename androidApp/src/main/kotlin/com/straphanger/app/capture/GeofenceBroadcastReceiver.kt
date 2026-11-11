@@ -7,10 +7,15 @@ import android.util.Log
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
+import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceEventBus
 
-/** Forwards geofence transitions from Google Play services to [GeofenceEventBus]. */
+/**
+ * Records station entries (not the window anchor) in the pending-event file, then forwards every transition to
+ * [GeofenceEventBus]. The file keeps entries that arrive while no view model is running; the
+ * coordinator replays it when it starts and on each entry it receives.
+ */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val event = GeofencingEvent.fromIntent(intent) ?: return
@@ -20,6 +25,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
         val location = event.triggeringLocation ?: return
         val epochMs = location.time.takeIf { it > 0 } ?: System.currentTimeMillis()
+        val pendingEvents = PassiveCaptureStorage.pendingEvents(context)
         for (geofence in event.triggeringGeofences.orEmpty()) {
             val transition = when (event.geofenceTransition) {
                 Geofence.GEOFENCE_TRANSITION_ENTER ->
@@ -29,6 +35,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 else -> null
             } ?: continue
             Log.i(TAG, "$transition")
+            if (transition is GeofenceEvent.Entered &&
+                DynamicGeofenceWindowManager.complexIdForGeofence(transition.geofenceId) != null
+            ) {
+                pendingEvents.append(transition)
+            }
             GeofenceEventBus.emit(transition)
         }
     }

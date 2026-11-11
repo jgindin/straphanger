@@ -5,6 +5,8 @@ import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceEventBus
 import com.straphanger.app.data.capture.GeofenceRegistrar
+import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
+import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.capture.PassiveCaptureCoordinator
 import com.straphanger.app.data.capture.PassiveRideReconstructor
 import com.straphanger.app.data.capture.GoogleMapsShareParser
@@ -95,6 +97,8 @@ data class CaptureAccessState(
     /** The device location setting is on. */
     val locationServicesEnabled: Boolean = false,
     val notificationAccessEnabled: Boolean = false,
+    /** The user's saved choice for passive capture; when false no geofences are registered. */
+    val passiveCaptureTurnedOn: Boolean = true,
     val lastKnownLat: Double? = null,
     val lastKnownLng: Double? = null
 )
@@ -149,7 +153,9 @@ class StraphangerViewModel(
     networkLoader: suspend () -> SubwayNetworkData = { NycSubwayNetworkCatalog.loadBundled() },
     /** Registers station geofences; null on platforms without passive capture. */
     private val geofenceRegistrar: GeofenceRegistrar? = null,
-    private val geofenceEvents: Flow<GeofenceEvent> = GeofenceEventBus.events
+    private val geofenceEvents: Flow<GeofenceEvent> = GeofenceEventBus.events,
+    /** Station entries the platform receiver recorded, including those received while no view model ran. */
+    private val pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore()
 ) : ViewModel(CoroutineScope(SupervisorJob() + dispatcher)) {
 
     /** Services that need the subway network; null until it has loaded. */
@@ -163,7 +169,6 @@ class StraphangerViewModel(
     private var services: NetworkServices? = null
     private var passiveCapture: PassiveCaptureCoordinator? = null
     private var captureAccess = CaptureAccessState()
-    private var passiveCaptureTurnedOff = false
 
     /** The loaded network's engine, or null while the network is loading. */
     val graphEngine: SubwayGraphEngine? get() = services?.graphEngine
@@ -246,7 +251,9 @@ class StraphangerViewModel(
             reconstructor = PassiveRideReconstructor(loaded.graphEngine, dao),
             registrar = registrar,
             events = geofenceEvents,
-            scope = viewModelScope
+            scope = viewModelScope,
+            clock = clock,
+            pendingEvents = pendingGeofenceEvents
         )
         passiveCapture = coordinator
         viewModelScope.launch {
@@ -278,29 +285,23 @@ class StraphangerViewModel(
         applyCaptureAccess()
     }
 
-    /** The user asked for passive capture; it starts once location permission is granted. */
-    fun enablePassiveCapture() {
-        passiveCaptureTurnedOff = false
-        applyCaptureAccess()
-    }
-
-    /** The user turned passive capture off for this session; the geofences are removed. */
-    fun disablePassiveCapture() {
-        passiveCaptureTurnedOff = true
-        passiveCapture?.stop()
-    }
-
     private fun missingLocationPermissionError(): String? =
-        if (captureAccess.locationGranted) null else "Location permission is needed"
+        if (captureAccess.locationGranted || !captureAccess.passiveCaptureTurnedOn) null
+        else "Location permission is needed"
 
     private fun applyCaptureAccess() {
         val coordinator = passiveCapture ?: return
+        _uiState.update {
+            it.copy(passiveCaptureError = coordinator.status.value.error ?: missingLocationPermissionError())
+        }
         if (!captureAccess.locationGranted) {
             if (coordinator.status.value.running) coordinator.stop()
-            _uiState.update { it.copy(passiveCaptureError = missingLocationPermissionError()) }
             return
         }
-        if (passiveCaptureTurnedOff) return
+        if (!captureAccess.passiveCaptureTurnedOn) {
+            if (coordinator.status.value.running) coordinator.stop()
+            return
+        }
         coordinator.start(
             captureAccess.lastKnownLat ?: DEFAULT_WINDOW_LAT,
             captureAccess.lastKnownLng ?: DEFAULT_WINDOW_LNG
