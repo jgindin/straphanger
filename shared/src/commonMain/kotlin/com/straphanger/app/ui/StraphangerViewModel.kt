@@ -34,6 +34,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -556,6 +557,26 @@ class StraphangerViewModel(
             return summary
         } finally {
             _uiState.update { it.copy(timelineImportInProgress = false) }
+        }
+    }
+
+    /**
+     * Reads and imports a Timeline file in the view model's scope, so leaving the screen does not
+     * cancel it. A file that cannot be read or imported is reported in the status message.
+     */
+    fun importTimelineFileInBackground(readBytes: suspend () -> ByteArray): Job = viewModelScope.launch {
+        val bytes = try {
+            readBytes()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            setStatus("Could not read the file: ${e.message ?: "unknown error"}")
+            return@launch
+        }
+        try {
+            importTimelineFile(bytes)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            setStatus("Could not import the file: ${e.message ?: "unknown error"}")
         }
     }
 

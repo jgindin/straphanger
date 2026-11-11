@@ -13,6 +13,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
@@ -41,6 +42,28 @@ class TimelineImportFileTest {
         assertEquals(ridesAfterFirst, vm.dao.getAllRides().size)
         assertEquals(second.copy(importedRecords = emptyList()), vm.uiState.value.lastImportSummary)
         assertFalse(vm.uiState.value.timelineImportInProgress)
+    }
+
+    @Test
+    fun fileImportRunsInTheViewModelScopeAfterTheCallerIsGone() = runTest {
+        val vm = newViewModel()
+        val bytes = CompletableDeferred<ByteArray>()
+        // The screen only starts the import; it returns at once and nothing ties it to the screen.
+        vm.importTimelineFileInBackground { bytes.await() }
+        assertTrue(vm.dao.getAllRides().isEmpty())
+
+        bytes.complete(SAMPLE_TIMELINE_JSON.encodeToByteArray())
+
+        assertEquals(2, vm.dao.getAllRides().size)
+        assertFalse(vm.uiState.value.timelineImportInProgress)
+    }
+
+    @Test
+    fun fileThatCannotBeReadReportsTheError() = runTest {
+        val vm = newViewModel()
+        vm.importTimelineFileInBackground { throw IllegalStateException("no access") }
+        assertTrue(vm.uiState.value.statusMessage.contains("no access"), vm.uiState.value.statusMessage)
+        assertTrue(vm.dao.getAllRides().isEmpty())
     }
 
     @Test

@@ -296,7 +296,8 @@ fun RidesHistoryAndLoggerScreen(
 fun DataSourcesAndSyncScreen(
     uiState: StraphangerUiState,
     onImportSampleTimeline: () -> Unit,
-    onImportTimelineFile: suspend (ByteArray) -> Unit,
+    /** Starts a Timeline import that reads the chosen file; it runs in the view model, not this screen. */
+    onImportTimelineFile: (readBytes: suspend () -> ByteArray) -> Unit,
     suggestedBackupName: String,
     onExportBackup: suspend () -> String,
     onBackupExported: (fileName: String?) -> String,
@@ -315,23 +316,7 @@ fun DataSourcesAndSyncScreen(
         type = FileKitType.File(listOf("json")),
         onError = { failure -> onBackupMessage("Could not open the file picker: ${failure.message ?: "unknown error"}") }
     ) { file ->
-        if (file != null) {
-            scope.launch {
-                val bytes = try {
-                    file.readBytes()
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    onBackupMessage("Could not read the file: ${e.message ?: "unknown error"}")
-                    return@launch
-                }
-                try {
-                    onImportTimelineFile(bytes)
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    onBackupMessage("Could not import the file: ${e.message ?: "unknown error"}")
-                }
-            }
-        }
+        if (file != null) onImportTimelineFile { file.readBytes() }
     }
     val restoreLauncher = rememberFilePickerLauncher(
         type = FileKitType.File(listOf("json")),

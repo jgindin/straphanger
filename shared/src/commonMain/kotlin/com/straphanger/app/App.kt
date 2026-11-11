@@ -276,7 +276,7 @@ fun App(
                     AppTab.SOURCES -> DataSourcesAndSyncScreen(
                         uiState = uiState,
                         onImportSampleTimeline = { viewModel.importSampleGoogleMapsTimeline() },
-                        onImportTimelineFile = { viewModel.importTimelineFile(it) },
+                        onImportTimelineFile = { readBytes -> viewModel.importTimelineFileInBackground(readBytes) },
                         suggestedBackupName = viewModel.suggestedBackupName(),
                         onExportBackup = { viewModel.exportBackup() },
                         onBackupExported = viewModel::reportBackupExported,
