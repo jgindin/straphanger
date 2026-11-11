@@ -23,16 +23,16 @@ jobs:
           cache: 'gradle'
 
       - name: Run Shared KMP Unit Tests
-        run: ./gradlew :composeApp:testDebugUnitTest --stacktrace
+        run: ./gradlew :shared:testAndroidHostTest --stacktrace
 
       - name: Assemble Android Debug APK
-        run: ./gradlew :composeApp:assembleDebug --stacktrace
+        run: ./gradlew :androidApp:assembleDebug --stacktrace
 
       - name: Upload Straphanger Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: straphanger-debug-apk
-          path: composeApp/build/outputs/apk/debug/composeApp-debug.apk
+          path: androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
   android-emulator-tests:
     name: Android Emulator Instrumented Compose UI Tests
@@ -63,7 +63,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: ./gradlew :composeApp:connectedDebugAndroidTest --stacktrace
+          script: ./gradlew :androidApp:connectedDebugAndroidTest --stacktrace
 
   ios-simulator-build-and-test:
     name: iOS Simulator Framework & KMP Tests
@@ -80,7 +80,7 @@ jobs:
           cache: 'gradle'
 
       - name: Run KMP Tests on iOS Simulator (Arm64)
-        run: ./gradlew :composeApp:iosSimulatorArm64Test --stacktrace
+        run: ./gradlew :shared:iosSimulatorArm64Test --stacktrace
 
       - name: Link iOS Simulator Debug Framework
-        run: ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64 --stacktrace
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64 --stacktrace

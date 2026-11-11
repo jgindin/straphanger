@@ -48,7 +48,7 @@
 ```text
 straphanger/
 ├── .github/workflows/kmp-ci.yml       # Android APK, Android Emulator UI Tests, & iOS Simulator CI
-├── composeApp/
+├── shared/                            # KMP library (Android + iOS): domain, data, Compose UI
 │   ├── src/commonMain/kotlin/com/straphanger/app/
 │   │   ├── data/gtfs/                 # NycSubwayNetworkCatalog, SubwayGraphEngine, SubwayModels
 │   │   ├── data/local/                # Entities (Ride -> RideLegs -> Segments & Stops), SubwayDao
@@ -56,10 +56,11 @@ straphanger/
 │   │   ├── data/sync/                 # FirestoreKmpSyncClient, BackupExportManager
 │   │   ├── domain/stats/              # SubwayStatsCalculator, AchievementEngine
 │   │   └── ui/                        # SubwayMapScreen, StatsDashboardScreen, RidesAndCaptureScreen, StraphangerViewModel
-│   ├── src/commonTest/                # Multiplatform unit test suite
-│   ├── src/androidMain/               # MainActivity, GoogleMapsTransitNotificationListener, AndroidManifest.xml
-│   ├── src/androidInstrumentedTest/   # SubwayTrackerEmulatorTest (Compose UI Emulator test suite)
-│   └── src/iosMain/                   # MainViewController (ComposeUIViewController)
+│   ├── src/commonTest/                # Multiplatform unit test suite (runs on the JVM via :shared:testAndroidHostTest)
+│   └── src/iosMain/                   # MainViewController (ComposeUIViewController); framework baseName "ComposeApp"
+├── androidApp/                        # Android application
+│   ├── src/main/                      # MainActivity, GoogleMapsTransitNotificationListener, AndroidManifest.xml, res/
+│   └── src/androidTest/               # SubwayTrackerEmulatorTest (Compose UI Emulator test suite)
 └── iosApp/                            # Xcode SwiftUI host project for iOS
 ```
 
@@ -69,21 +70,21 @@ straphanger/
 
 ### Run Shared KMP Unit Tests
 ```bash
-./gradlew :composeApp:testDebugUnitTest
+./gradlew :shared:testAndroidHostTest
 ```
 
 ### Build Android Debug APK
 ```bash
-./gradlew :composeApp:assembleDebug
-# Output: composeApp/build/outputs/apk/debug/composeApp-debug.apk
+./gradlew :androidApp:assembleDebug
+# Output: androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
 ### Run Android Emulator Instrumented Compose UI Tests
 ```bash
-./gradlew :composeApp:connectedDebugAndroidTest
+./gradlew :androidApp:connectedDebugAndroidTest
 ```
 
 ### Build & Test iOS Simulator Target (on macOS)
 ```bash
-./gradlew :composeApp:iosSimulatorArm64Test :composeApp:linkDebugFrameworkIosSimulatorArm64
+./gradlew :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64
 ```
