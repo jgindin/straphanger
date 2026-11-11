@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.aboutlibraries.android)
 }
 
 /** versionCode = major * 1_000_000 + minor * 1_000 + patch, so 0.1.0 -> 1000. */
@@ -104,6 +105,7 @@ dependencies {
     implementation(libs.filekit.dialogs.compose)
     implementation(libs.kotlinx.io.core)
     implementation(libs.play.services.location)
+    implementation(libs.aboutlibraries.compose.m3)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
@@ -123,3 +125,12 @@ val checkReleaseSigning = tasks.register("checkReleaseSigning") {
 tasks.matching {
     it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle", "assembleReleaseTest", "packageReleaseTest")
 }.configureEach { dependsOn(checkReleaseSigning) }
+
+aboutLibraries {
+    collect {
+        // AboutLibraries skips any configuration whose name contains "Test", which includes the
+        // releaseTest build type used for minified instrumented tests; without this its license list is empty.
+        // Variant filtering still limits each variant to its own classpaths, so test dependencies are not added.
+        includeTestVariants = true
+    }
+}

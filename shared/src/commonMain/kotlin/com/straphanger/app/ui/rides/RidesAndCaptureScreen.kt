@@ -303,7 +303,8 @@ fun DataSourcesAndSyncScreen(
     onBackupMessage: (String) -> Unit,
     onRequestPassiveCapture: () -> Unit = {},
     onDisablePassiveCapture: () -> Unit = {},
-    onRequestNotificationAccess: () -> Unit = {}
+    onRequestNotificationAccess: () -> Unit = {},
+    onOpenAbout: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val timelineLauncher = rememberFilePickerLauncher(
@@ -545,6 +546,14 @@ fun DataSourcesAndSyncScreen(
                     Text("Restore from backup…", fontSize = 12.sp)
                 }
             }
+        }
+
+        Button(
+            onClick = onOpenAbout,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
+            modifier = Modifier.testTag("open_about_btn")
+        ) {
+            Text("About, data sources and licenses", fontSize = 12.sp)
         }
     }
 }

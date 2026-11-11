@@ -28,3 +28,6 @@ keystore.properties
 *.jks
 *.keystore
 play-service-account*.json
+
+# play-policy-insights scratch output
+/.scratch/

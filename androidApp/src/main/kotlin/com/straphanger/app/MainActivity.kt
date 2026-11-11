@@ -6,6 +6,9 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
+import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import androidx.core.location.LocationManagerCompat
 import com.google.android.gms.location.LocationServices
 import com.straphanger.app.capture.AndroidGeofenceRegistrar
@@ -28,6 +31,7 @@ class MainActivity : ComponentActivity() {
         handleIncomingShareIntent(intent)
         val geofenceRegistrar = AndroidGeofenceRegistrar(applicationContext)
         val pendingGeofenceEvents = PassiveCaptureStorage.pendingEvents(applicationContext)
+        val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
         setContent {
             val requestPassiveCapture = rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
             App(
@@ -44,7 +48,12 @@ class MainActivity : ComponentActivity() {
                     PassiveCaptureStorage.setTurnedOn(this, false)
                     refreshCaptureAccess()
                 },
-                onRequestNotificationAccess = { startActivity(NotificationAccess.settingsIntent()) }
+                onRequestNotificationAccess = { startActivity(NotificationAccess.settingsIntent()) },
+                appVersion = versionName,
+                licensesContent = {
+                    val libraries by produceLibraries(R.raw.aboutlibraries)
+                    LibrariesContainer(libraries)
+                }
             )
         }
     }

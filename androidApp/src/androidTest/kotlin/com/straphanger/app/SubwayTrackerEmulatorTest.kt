@@ -4,9 +4,14 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onChildAt
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -97,5 +102,59 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.waitForIdle()
         waitForNetwork()
         assertEquals(before + 1, headerRideCount())
+    }
+
+    @Test
+    fun passiveCaptureShowsDisclosureBeforePermissionPrompt() {
+        waitForNetwork()
+        composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+        composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("background_location_disclosure")
+            .assert(hasAnyDescendant(hasText("Straphanger uses your location in the background", substring = true)))
+
+        composeTestRule.onNodeWithTag("disclosure_not_now").performClick()
+        composeTestRule.onNodeWithTag("background_location_disclosure").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().assertIsOff()
+    }
+
+    @Test
+    fun notificationAccessShowsDisclosureFirst() {
+        waitForNetwork()
+        composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+        composeTestRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("notification_access_disclosure").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("notification_access_disclosure")
+            .assert(hasAnyDescendant(hasText("Straphanger can read Google Maps transit navigation notifications", substring = true)))
+        composeTestRule.onNodeWithTag("disclosure_not_now").performClick()
+        composeTestRule.onNodeWithTag("notification_access_disclosure").assertDoesNotExist()
+    }
+
+    private fun openAbout() {
+        waitForNetwork()
+        composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+        composeTestRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
+    }
+
+    @Test
+    fun aboutScreenShowsDisclaimerAndDataDate() {
+        openAbout()
+        composeTestRule.onNodeWithTag("about_screen").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("about_screen")
+            .assert(hasAnyDescendant(hasText("Not affiliated with or endorsed by", substring = true)))
+        composeTestRule.onNodeWithTag("about_screen")
+            .assert(hasAnyDescendant(hasText("MTA GTFS, ", substring = true)))
+        composeTestRule.onNodeWithTag("about_screen")
+            .assert(hasAnyDescendant(hasText("Version ", substring = true)))
+    }
+
+    @Test
+    fun aboutScreenListsOpenSourceLicenses() {
+        openAbout()
+        composeTestRule.onNodeWithTag("about_licenses_btn").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("licenses_screen").assertIsDisplayed()
+        composeTestRule.waitUntil(timeoutMillis = 10_000) {
+            composeTestRule.onAllNodesWithText("Apache", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

@@ -21,7 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +41,10 @@ import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.StraphangerViewModel
+import com.straphanger.app.ui.about.AboutScreen
 import com.straphanger.app.ui.map.SubwayMapScreen
+import com.straphanger.app.ui.permissions.BackgroundLocationDisclosure
+import com.straphanger.app.ui.permissions.NotificationAccessDisclosure
 import com.straphanger.app.ui.rides.DataSourcesAndSyncScreen
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
@@ -53,6 +59,10 @@ import kotlinx.coroutines.launch
  *   platform's location permission flow.
  * @param onDisablePassiveCapture saves the user's choice to turn passive capture off.
  * @param onRequestNotificationAccess opens the platform's notification access settings.
+ * @param appVersion the app's version name, shown on the About screen.
+ * @param licensesContent the open-source license list for the About screen; null where the platform has none.
+ *
+ * Both request callbacks run only after the user taps "Continue" on the matching disclosure.
  */
 @Composable
 fun App(
@@ -62,7 +72,9 @@ fun App(
     captureAccess: CaptureAccessState = CaptureAccessState(),
     onRequestPassiveCapture: () -> Unit = {},
     onDisablePassiveCapture: () -> Unit = {},
-    onRequestNotificationAccess: () -> Unit = {}
+    onRequestNotificationAccess: () -> Unit = {},
+    appVersion: String = "",
+    licensesContent: (@Composable () -> Unit)? = null
 ) {
     val viewModel: StraphangerViewModel = viewModel {
         StraphangerViewModel(
@@ -76,6 +88,9 @@ fun App(
     val stats = uiState.stats
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showBackgroundLocationDisclosure by rememberSaveable { mutableStateOf(false) }
+    var showNotificationDisclosure by rememberSaveable { mutableStateOf(false) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -172,6 +187,29 @@ fun App(
                                 .testTag(if (loadError != null) "network_load_error" else "network_loading_text")
                         )
                     }
+                } else if (showBackgroundLocationDisclosure) {
+                    BackgroundLocationDisclosure(
+                        onContinue = {
+                            showBackgroundLocationDisclosure = false
+                            onRequestPassiveCapture()
+                        },
+                        onNotNow = { showBackgroundLocationDisclosure = false }
+                    )
+                } else if (showNotificationDisclosure) {
+                    NotificationAccessDisclosure(
+                        onContinue = {
+                            showNotificationDisclosure = false
+                            onRequestNotificationAccess()
+                        },
+                        onNotNow = { showNotificationDisclosure = false }
+                    )
+                } else if (showAbout) {
+                    AboutScreen(
+                        appVersion = appVersion,
+                        sourceDate = graphEngine.network.sourceDate,
+                        onBack = { showAbout = false },
+                        licensesContent = licensesContent
+                    )
                 } else when (uiState.activeTab) {
                     AppTab.MAP -> SubwayMapScreen(
                         uiState = uiState,
@@ -223,9 +261,14 @@ fun App(
                                 snackbarHostState.showSnackbar(message)
                             }
                         },
-                        onRequestPassiveCapture = onRequestPassiveCapture,
+                        onRequestPassiveCapture = { showBackgroundLocationDisclosure = true },
                         onDisablePassiveCapture = onDisablePassiveCapture,
-                        onRequestNotificationAccess = onRequestNotificationAccess
+                        onRequestNotificationAccess = {
+                            // Turning access off opens the same settings screen; the disclosure is for turning it on.
+                            if (uiState.googleMapsNotificationEnabled) onRequestNotificationAccess()
+                            else showNotificationDisclosure = true
+                        },
+                        onOpenAbout = { showAbout = true }
                     )
                 }
             }
@@ -249,7 +292,10 @@ fun App(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (selected) Color(0xFF0039A6) else Color.Transparent)
-                            .clickable { viewModel.selectTab(tab) }
+                            .clickable {
+                                showAbout = false
+                                viewModel.selectTab(tab)
+                            }
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                             .testTag("nav_tab_${tab.name}"),
                         contentAlignment = Alignment.Center
