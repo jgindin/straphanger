@@ -16,13 +16,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,9 +64,35 @@ fun RidesHistoryAndLoggerScreen(
     showDeveloperTools: Boolean = false,
     onLoadDemoRides: () -> Unit,
     onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
-    onKeepRideAsIs: (String) -> Unit = {}
+    onKeepRideAsIs: (String) -> Unit = {},
+    onDeleteRide: (String) -> Unit = {}
 ) {
     val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
+    var rideIdToDelete by remember { mutableStateOf<String?>(null) }
+
+    rideIdToDelete?.let { rideId ->
+        AlertDialog(
+            onDismissRequest = { rideIdToDelete = null },
+            title = { Text("Delete this ride?") },
+            text = { Text("The ride is removed from this device. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        rideIdToDelete = null
+                        onDeleteRide(rideId)
+                    },
+                    modifier = Modifier.testTag("confirm_delete_btn")
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { rideIdToDelete = null },
+                    modifier = Modifier.testTag("cancel_delete_btn")
+                ) { Text("Cancel") }
+            },
+            modifier = Modifier.testTag("delete_ride_dialog")
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -224,12 +254,14 @@ fun RidesHistoryAndLoggerScreen(
             }
         }
 
-        Button(
-            onClick = onLoadDemoRides,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
-            modifier = Modifier.testTag("load_demo_rides_btn")
-        ) {
-            Text("Load sample rides", fontSize = 12.sp)
+        if (showDeveloperTools) {
+            Button(
+                onClick = onLoadDemoRides,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
+                modifier = Modifier.testTag("load_demo_rides_btn")
+            ) {
+                Text("Load sample rides", fontSize = 12.sp)
+            }
         }
 
         // 3. Ride History List
@@ -293,12 +325,25 @@ fun RidesHistoryAndLoggerScreen(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Text(
-                    text = "Source: ${rec.ride.source.displayLabel} • $stoppedCount stops (${countOf(rec.legs.size, "leg")}, ${countOf(transferCount, "transfer")})" +
-                        if (rec.ride.needsReview) " • NEEDS REVIEW" else "",
-                    color = if (rec.ride.needsReview) MtaColors.AccentGold else MtaColors.TextSecondary,
-                    fontSize = 11.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Source: ${rec.ride.source.displayLabel} • $stoppedCount stops (${countOf(rec.legs.size, "leg")}, ${countOf(transferCount, "transfer")})" +
+                            if (rec.ride.needsReview) " • NEEDS REVIEW" else "",
+                        color = if (rec.ride.needsReview) MtaColors.AccentGold else MtaColors.TextSecondary,
+                        fontSize = 11.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = { rideIdToDelete = rec.ride.rideId },
+                        modifier = Modifier.testTag("delete_ride_btn_${rec.ride.rideId}")
+                    ) {
+                        Text("Delete", color = MtaColors.TextSecondary, fontSize = 12.sp)
+                    }
+                }
             }
         }
     }
@@ -321,7 +366,9 @@ fun DataSourcesAndSyncScreen(
     onRequestPassiveCapture: () -> Unit = {},
     onDisablePassiveCapture: () -> Unit = {},
     onRequestNotificationAccess: () -> Unit = {},
-    onOpenAbout: () -> Unit = {}
+    onOpenAbout: () -> Unit = {},
+    /** Shows the sample import, which adds made-up rides; true only in debug and test builds. */
+    showDeveloperTools: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
     val timelineLauncher = rememberFilePickerLauncher(
@@ -409,12 +456,14 @@ fun DataSourcesAndSyncScreen(
                 color = MtaColors.TextSecondary,
                 fontSize = 12.sp
             )
-            Button(
-                onClick = onImportSampleTimeline,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
-                modifier = Modifier.testTag("import_sample_timeline_btn")
-            ) {
-                Text("Import Google Maps Timeline.json Sample", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            if (showDeveloperTools) {
+                Button(
+                    onClick = onImportSampleTimeline,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
+                    modifier = Modifier.testTag("import_sample_timeline_btn")
+                ) {
+                    Text("Import Google Maps Timeline.json Sample", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             Button(

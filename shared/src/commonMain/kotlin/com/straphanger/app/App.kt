@@ -272,7 +272,8 @@ fun App(
                         onConfirmAmbiguousRide = { id, r, exp ->
                             viewModel.confirmAmbiguousRide(id, r, exp)
                         },
-                        onKeepRideAsIs = viewModel::keepRideAsIs
+                        onKeepRideAsIs = viewModel::keepRideAsIs,
+                        onDeleteRide = viewModel::deleteRide
                     )
                     AppTab.SOURCES -> DataSourcesAndSyncScreen(
                         uiState = uiState,
@@ -298,7 +299,8 @@ fun App(
                             if (uiState.googleMapsNotificationEnabled) onRequestNotificationAccess()
                             else showNotificationDisclosure = true
                         },
-                        onOpenAbout = { showAbout = true }
+                        onOpenAbout = { showAbout = true },
+                        showDeveloperTools = showDeveloperTools
                     )
                 }
             }

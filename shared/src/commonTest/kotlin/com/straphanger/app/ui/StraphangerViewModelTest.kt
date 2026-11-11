@@ -92,6 +92,22 @@ class StraphangerViewModelTest {
     }
 
     @Test
+    fun deleteRideRemovesOnlyThatRide() {
+        val vm = StraphangerViewModel(
+            backend = InMemoryPersistenceBackend(),
+            dispatcher = Dispatchers.Unconfined,
+            networkLoader = { TestNetwork.data }
+        )
+        val a = vm.submitQuickRide(timestampEpochMs = 1794405600000L)!!
+        val b = vm.submitQuickRide(timestampEpochMs = 1794409200000L)!!
+
+        vm.deleteRide(a.ride.rideId)
+
+        assertEquals(listOf(b.ride.rideId), vm.uiState.value.rides.map { it.ride.rideId })
+        assertEquals(1, vm.uiState.value.stats.totalRides)
+    }
+
+    @Test
     fun rideIdsDoNotCollideAfterADelete() {
         val vm = StraphangerViewModel(
             backend = InMemoryPersistenceBackend(),

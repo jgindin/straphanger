@@ -79,6 +79,28 @@ class RidePersistenceEmulatorTest {
         assertEquals(1, headerRideCount())
     }
 
+    @Test
+    fun loggedRideCanBeDeletedAfterConfirming() {
+        launch()
+        composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
+        composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
+        assertEquals(1, headerRideCount())
+
+        // Cancel keeps the ride.
+        composeTestRule.onNode(hasTestTagPrefix("delete_ride_btn_")).performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("cancel_delete_btn").performClick()
+        assertEquals(1, headerRideCount())
+
+        composeTestRule.onNode(hasTestTagPrefix("delete_ride_btn_")).performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("confirm_delete_btn").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 5_000) { headerRideCount() == 0 }
+        assertEquals(0, headerRideCount())
+
+        // The deletion was saved: a fresh view model decodes no rides.
+        launch()
+        assertEquals(0, headerRideCount())
+    }
+
     private companion object {
         const val EXPECTED_SAMPLE_RIDES = 2
     }
