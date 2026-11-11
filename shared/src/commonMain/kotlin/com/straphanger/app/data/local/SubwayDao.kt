@@ -183,16 +183,19 @@ class SubwayDao(
     }
 
     // Saves first and publishes only on success, so memory never holds rides that were not saved.
+    // While saves are blocked nothing can be saved, so nothing is published either.
     private fun persistThenPublish(records: List<CompleteRideRecord>) {
+        if (savesBlocked) {
+            lastSaveSucceeded = false
+            throw IllegalStateException(SAVES_BLOCKED_MESSAGE)
+        }
         val sorted = records.sortedByDescending { it.ride.startTimeEpochMs }
-        if (!savesBlocked) {
-            try {
-                backend.saveSnapshotJson(json.encodeToString(sorted))
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                lastSaveSucceeded = false
-                throw e
-            }
+        try {
+            backend.saveSnapshotJson(json.encodeToString(sorted))
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            lastSaveSucceeded = false
+            throw e
         }
         lastSaveSucceeded = true
         if (_loadError.value?.startsWith(SAVE_ERROR_PREFIX) == true) _loadError.value = null
@@ -201,11 +204,13 @@ class SubwayDao(
 
     private fun reportSaveFailure(cause: Exception) {
         lastSaveSucceeded = false
-        _loadError.value = "$SAVE_ERROR_PREFIX ${cause.message ?: "unknown error"}. The change was not applied."
+        _loadError.value = "$SAVE_ERROR_PREFIX ${cause.message?.removeSuffix(".") ?: "unknown error"}. The change was not applied."
     }
 
     companion object {
         private const val SAVE_ERROR_PREFIX = "Rides could not be saved:"
+        private const val SAVES_BLOCKED_MESSAGE =
+            "Saves are blocked because the existing rides file could not be read or moved aside."
 
         fun buildCompleteRideRecord(
             rideId: String,

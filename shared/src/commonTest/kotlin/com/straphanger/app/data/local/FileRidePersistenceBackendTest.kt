@@ -118,6 +118,28 @@ class FileRidePersistenceBackendTest {
     }
 
     @Test
+    fun blockedSavesAreNotAppliedToMemoryAndShowAnError() {
+        val backend = object : RidePersistenceBackend {
+            var saves = 0
+            override fun loadSnapshotJson(): String = "{not json"
+            override fun saveSnapshotJson(json: String) {
+                saves++
+            }
+            override fun quarantineCorruptSnapshot(suffix: String) = throw IllegalStateException("read-only")
+        }
+        val vm = StraphangerViewModel(backend, clock, dispatcher = Dispatchers.Unconfined, networkLoader = { TestNetwork.data })
+
+        val result = vm.submitQuickRide(timestampEpochMs = sampleTime)
+
+        assertNull(result)
+        assertTrue(vm.dao.getAllRides().isEmpty())
+        assertTrue(vm.uiState.value.rides.isEmpty())
+        assertFalse(vm.dao.lastSaveSucceeded)
+        assertTrue(vm.uiState.value.loadError!!.contains("Saves are blocked"), vm.uiState.value.loadError)
+        assertEquals(0, backend.saves)
+    }
+
+    @Test
     fun viewModelDoesNotSeedByDefault() {
         val vm = StraphangerViewModel(InMemoryPersistenceBackend(), dispatcher = Dispatchers.Unconfined, networkLoader = { TestNetwork.data })
 
