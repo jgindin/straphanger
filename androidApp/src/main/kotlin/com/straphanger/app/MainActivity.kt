@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 backend = FileRidePersistenceBackend(Path(filesDir.path, "rides.json"), syncFile = ::syncToStorage),
                 geofenceRegistrar = geofenceRegistrar,
                 pendingGeofenceEvents = pendingGeofenceEvents,
+                notificationSessions = PassiveCaptureStorage.notificationSessions(applicationContext),
                 captureAccess = captureAccess.value,
                 onRequestPassiveCapture = {
                     PassiveCaptureStorage.setTurnedOn(this, true)

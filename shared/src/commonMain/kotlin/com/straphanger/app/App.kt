@@ -47,7 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.straphanger.app.data.capture.GeofenceRegistrar
+import com.straphanger.app.data.capture.InMemoryNotificationSessionStore
 import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
+import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.ui.CaptureAccessState
@@ -67,6 +69,7 @@ import kotlinx.coroutines.launch
  * @param geofenceRegistrar registers station geofences; null where passive capture is not available.
  * @param captureAccess the platform's current permission state; the platform refreshes it on resume.
  * @param pendingGeofenceEvents station entries recorded by the platform receiver.
+ * @param notificationSessions Google Maps navigation sessions recorded by the notification listener.
  * @param onRequestPassiveCapture saves the user's choice to turn passive capture on and starts the
  *   platform's location permission flow.
  * @param onDisablePassiveCapture saves the user's choice to turn passive capture off.
@@ -83,6 +86,7 @@ fun App(
     backend: RidePersistenceBackend,
     geofenceRegistrar: GeofenceRegistrar? = null,
     pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
+    notificationSessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
     captureAccess: CaptureAccessState = CaptureAccessState(),
     onRequestPassiveCapture: () -> Unit = {},
     onDisablePassiveCapture: () -> Unit = {},
@@ -95,7 +99,8 @@ fun App(
         StraphangerViewModel(
             backend,
             geofenceRegistrar = geofenceRegistrar,
-            pendingGeofenceEvents = pendingGeofenceEvents
+            pendingGeofenceEvents = pendingGeofenceEvents,
+            notificationSessions = notificationSessions
         )
     }
     LaunchedEffect(captureAccess) { viewModel.updateCaptureAccess(captureAccess) }

@@ -31,9 +31,15 @@ class GoogleMapsShareParser(
     )
     private val dirUrlPathRegex = Regex("""/maps/dir/([^/]+)/([^/?#]+)""")
 
+    /**
+     * @param timestampEpochMs when the ride started.
+     * @param endTimeEpochMs when it ended, if known (e.g. a navigation notification's removal); 0
+     *   means unknown, and the duration is estimated from the distance.
+     */
     suspend fun parseAndResolveSharedRoute(
         sharedText: String,
-        timestampEpochMs: Long = clock.now().toEpochMilliseconds()
+        timestampEpochMs: Long = clock.now().toEpochMilliseconds(),
+        endTimeEpochMs: Long = 0L
     ): CompleteRideRecord? {
         val text = sharedText.trim()
         val isNotification = text.startsWith("GMAPS_NOTIFICATION:")
@@ -56,7 +62,7 @@ class GoogleMapsShareParser(
                     return SubwayDao.buildCompleteRideRecord(
                         rideId = RideIds.newId("share"),
                         startTimeEpochMs = timestampEpochMs,
-                        endTimeEpochMs = 0L,
+                        endTimeEpochMs = endTimeEpochMs,
                         source = source,
                         resolved = resolved,
                         graphEngine = graphEngine
@@ -66,7 +72,7 @@ class GoogleMapsShareParser(
         }
 
         // 2. Check plain-text summary or live notification body
-        extractFromPlainText(text, timestampEpochMs, source)?.let { return it }
+        extractFromPlainText(text, timestampEpochMs, endTimeEpochMs, source)?.let { return it }
 
         // 3. Check for maps.app.goo.gl short link and unpack HTTP 302 Location header
         val shortUrlMatch = shortUrlRegex.find(text)?.value
@@ -94,7 +100,7 @@ class GoogleMapsShareParser(
                     return SubwayDao.buildCompleteRideRecord(
                         rideId = RideIds.newId("share_url"),
                         startTimeEpochMs = timestampEpochMs,
-                        endTimeEpochMs = 0L,
+                        endTimeEpochMs = endTimeEpochMs,
                         source = source,
                         resolved = resolved,
                         graphEngine = graphEngine,
@@ -110,6 +116,7 @@ class GoogleMapsShareParser(
     private fun extractFromPlainText(
         text: String,
         timestampEpochMs: Long,
+        endTimeEpochMs: Long,
         source: RideSource
     ): CompleteRideRecord? {
         val headerRoute = Regex("""\b([1-7]|[A-HJ-NP-Z]|SIR)\s+[Tt]rain\b""").find(text)?.groupValues?.get(1)?.uppercase()
@@ -134,7 +141,7 @@ class GoogleMapsShareParser(
                     return SubwayDao.buildCompleteRideRecord(
                         rideId = RideIds.newId("share_txt"),
                         startTimeEpochMs = timestampEpochMs,
-                        endTimeEpochMs = 0L,
+                        endTimeEpochMs = endTimeEpochMs,
                         source = source,
                         resolved = resolved,
                         graphEngine = graphEngine,

@@ -5,7 +5,12 @@ import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceEventBus
 import com.straphanger.app.data.capture.GeofenceRegistrar
+import com.straphanger.app.data.capture.InMemoryNotificationSessionStore
 import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
+import com.straphanger.app.data.capture.NavigationNotificationSession
+import com.straphanger.app.data.capture.NotificationSessionSignal
+import com.straphanger.app.data.capture.NotificationSessionStore
+import com.straphanger.app.data.capture.isDuplicateRide
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.capture.PassiveCaptureCoordinator
 import com.straphanger.app.data.capture.PassiveRideReconstructor
@@ -162,7 +167,10 @@ class StraphangerViewModel(
     private val geofenceRegistrar: GeofenceRegistrar? = null,
     private val geofenceEvents: Flow<GeofenceEvent> = GeofenceEventBus.events,
     /** Station entries the platform receiver recorded, including those received while no view model ran. */
-    private val pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore()
+    private val pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
+    /** Google Maps navigation sessions the notification listener recorded; ended ones become rides. */
+    private val notificationSessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
+    private val notificationSessionsEnded: Flow<Int> = NotificationSessionSignal.endedCount
 ) : ViewModel(CoroutineScope(SupervisorJob() + dispatcher)) {
 
     /** Services that need the subway network; null until it has loaded. */
@@ -245,8 +253,46 @@ class StraphangerViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            // Collecting replays the current count, so sessions that ended while no view model ran are drained at start.
+            notificationSessionsEnded.collect { drainNotificationSessions(loaded) }
+        }
         startPassiveCaptureCoordinator(loaded)
     }
+
+    /**
+     * Records one ride per ended navigation session: from the first post to the session's end,
+     * parsed from its latest text (or its first, if the latest does not name a route). A ride that
+     * duplicates one already stored is skipped. Sessions are removed from the store once handled,
+     * and kept if the ride could not be saved.
+     */
+    private suspend fun drainNotificationSessions(loaded: NetworkServices) {
+        val ended = notificationSessions.read().completed
+        if (ended.isEmpty()) return
+        val handled = mutableListOf<NavigationNotificationSession>()
+        for (session in ended) {
+            val end = session.endMs ?: session.lastPostMs
+            val record = loaded.shareParser.parseAndResolveSharedRoute(session.latestText, session.firstPostMs, end)
+                ?: loaded.shareParser.parseAndResolveSharedRoute(session.firstText, session.firstPostMs, end)
+            if (record == null || isDuplicateRide(dao.getAllRides(), record)) {
+                handled += session
+                continue
+            }
+            dao.insertOrReplaceRide(record)
+            if (!dao.lastSaveSucceeded) break
+            handled += session
+            _uiState.update {
+                it.copy(statusMessage = "Recorded ride from Google Maps navigation: ${stationName(loaded, record.ride.originStationId)} → ${stationName(loaded, record.ride.destinationStationId)}")
+            }
+        }
+        if (handled.isEmpty()) return
+        // Re-read: the store may have changed while parsing suspended.
+        val current = notificationSessions.read()
+        notificationSessions.write(current.copy(completed = current.completed - handled.toSet()))
+    }
+
+    private fun stationName(loaded: NetworkServices, stationId: String): String =
+        loaded.graphEngine.getStation(stationId)?.name ?: stationId
 
     /**
      * Creates the passive capture coordinator in the view model's scope, so rides it records are

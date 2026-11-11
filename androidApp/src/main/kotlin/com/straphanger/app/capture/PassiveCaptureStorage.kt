@@ -2,7 +2,9 @@ package com.straphanger.app.capture
 
 import android.content.Context
 import androidx.core.content.edit
+import com.straphanger.app.data.capture.FileNotificationSessionStore
 import com.straphanger.app.data.capture.FilePendingGeofenceEventStore
+import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import kotlinx.io.files.Path
 
@@ -14,6 +16,10 @@ object PassiveCaptureStorage {
 
     fun pendingEvents(context: Context): PendingGeofenceEventStore =
         FilePendingGeofenceEventStore(Path(context.filesDir.path, "pending_geofence_events.json"))
+
+    /** Google Maps navigation sessions recorded by the notification listener. */
+    fun notificationSessions(context: Context): NotificationSessionStore =
+        FileNotificationSessionStore(Path(context.filesDir.path, "notification_sessions.json"))
 
     /** The user's choice; off until they turn it on through the disclosure. */
     fun isTurnedOn(context: Context): Boolean =
