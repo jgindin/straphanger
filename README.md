@@ -14,11 +14,11 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 | Manual ride logging, including transfers and express/local | Works | Partial | Shared code; never built for iOS. |
 | Statistics, achievements, stations vs. complexes toggle | Works | Partial | Shared code; never built for iOS. |
 | Local ride storage (atomic JSON file, corrupt file set aside) | Works | Partial | `rides.json` in app storage. The iOS file location was never run. |
-| Backup export and restore | Works | Partial | JSON file chosen through FileKit. Android Auto Backup also includes `rides.json`. |
+| Backup export and restore | Works | Partial | JSON file chosen through FileKit. Export and restore were checked by hand on the emulator; the file picker is not covered by automated tests. Android Auto Backup also includes `rides.json`. |
 | Google Maps Timeline file import (three formats) | Works | Partial | File picker; merges transfers within 15 minutes and skips duplicates. |
 | Google Maps share intent and short-link resolution | Works | Partial | Short links are followed over the network; this is the only network use. The iOS URL-scheme handler in `iosApp` was never built. |
 | Google Maps navigation notification listener | Works | Not started | Android only. Needs notification access, granted on a settings screen. |
-| Passive geofence capture | Works | Not started | Rolling window of 18 stations plus 1 anchor, with a chain rule and disclosure screens. iOS geofencing is not implemented. |
+| Passive geofence capture | Works | Not started | Rolling window of 18 stations plus 1 anchor, with a chain rule and disclosure screens. Verified with simulated location on the emulator, not with real travel. iOS geofencing is not implemented. |
 | About screen, privacy policy, data attribution | Works | Partial | Shared code. |
 | Cloud sync | Not started | Not started | Firebase was removed. There is no account and no server. |
 | Play Store release pipeline | Works | Not started | See [docs/RELEASING.md](docs/RELEASING.md). |
