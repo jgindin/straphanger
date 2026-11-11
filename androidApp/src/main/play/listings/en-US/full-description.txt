@@ -1,0 +1,26 @@
+Straphanger records the subway rides you take in New York City and shows which stations and lines you have covered.
+
+Unofficial app. Not affiliated with or endorsed by the Metropolitan Transportation Authority.
+
+What it does
+
+- Shows a map of the subway network with 496 stations. Color the lines by their MTA colors or by how often you have ridden them.
+- Shows statistics for your rides: total rides, miles ridden, and unique miles of track covered.
+- Lists every ride with its origin, destination, distance, duration, and whether it ran express or local.
+- Lets you log a ride by hand. Pick an origin, an optional transfer, and a destination, or tap a station on the map.
+
+Ways to add rides
+
+- Import a Google Maps Timeline file from your phone. Straphanger finds subway segments, merges transfers made within 15 minutes, and skips duplicates.
+- Share a Google Maps transit route to the app.
+- Turn on Google Maps notifications. Straphanger reads Google Maps transit navigation notifications to record the ride you are taking. It ignores notifications from other apps.
+- Turn on station geofences. Straphanger uses your location, including when the app is closed, to notice when you enter a station and records a ride when you enter a second station at subway speed. This is optional and off until you turn it on. The app explains it on a screen before it asks for permission.
+
+Your data
+
+- Rides are stored on your phone.
+- There are no accounts, no ads and no analytics.
+- Your location, rides and notifications are not sent to the developer or to anyone else.
+- You can export all rides to a file and restore them from that file.
+
+Subway data comes from the MTA GTFS feed and the MTA Subway Stations dataset on data.ny.gov. The data is provided as is and may not be accurate, complete or current.

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.aboutlibraries.android)
+    alias(libs.plugins.play.publisher)
 }
 
 /** versionCode = major * 1_000_000 + minor * 1_000 + patch, so 0.1.0 -> 1000. */
@@ -130,6 +131,14 @@ val checkReleaseSigning = tasks.register("checkReleaseSigning") {
 tasks.matching {
     it.name in setOf("assembleRelease", "bundleRelease", "packageRelease", "packageReleaseBundle", "assembleReleaseTest", "packageReleaseTest")
 }.configureEach { dependsOn(checkReleaseSigning) }
+
+// Listing text and graphics live in androidApp/src/main/play. Credentials are never committed;
+// the release workflow points STRAPHANGER_PLAY_CREDENTIALS at a file written from a secret.
+play {
+    track.set("internal")
+    defaultToAppBundles.set(true)
+    serviceAccountCredentials.set(file(System.getenv("STRAPHANGER_PLAY_CREDENTIALS") ?: "play-service-account.json"))
+}
 
 aboutLibraries {
     collect {

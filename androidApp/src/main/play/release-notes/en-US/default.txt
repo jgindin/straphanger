@@ -1,0 +1,1 @@
+First release. Subway map, ride statistics, manual ride logging, Google Maps Timeline import, optional passive capture, and backup and restore.
