@@ -28,7 +28,7 @@ The `play-policy-insights` skill could not delegate to subagents in this session
 
 - **Background location (location_access_policy).** Declared and used only for passive capture, which is off until the user turns it on. The foreground-only alternative cannot record rides while the app is closed, which is the feature. No change.
 - **Fine and coarse location.** Station geofences and speed checks need precise location. Both are requested together, as Android requires for precise location. No change.
-- **Passive capture default.** `PassiveCaptureStorage.isTurnedOn` defaults to true, but no location is read until the user grants permission, and permission is requested only after the disclosure. No change.
+- **Passive capture default.** `PassiveCaptureStorage.isTurnedOn` defaults to false. Passive capture starts only after the user turns it on, reads the disclosure and grants permission.
 - **Disclosure wording.** The copy names location and says it is used "even when the app is closed or not in use", which matches Play's wording check for background location. No change.
 - **Network use.** `INTERNET` is used for short-link resolution only. There is no analytics, ad or crash library in the dependencies. No change.
 - **Silent transfers.** None found. Station entries and rides stay in `filesDir`.

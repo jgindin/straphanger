@@ -15,9 +15,9 @@ object PassiveCaptureStorage {
     fun pendingEvents(context: Context): PendingGeofenceEventStore =
         FilePendingGeofenceEventStore(Path(context.filesDir.path, "pending_geofence_events.json"))
 
-    /** The user's choice; on until they turn it off. */
+    /** The user's choice; off until they turn it on through the disclosure. */
     fun isTurnedOn(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_TURNED_ON, true)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_TURNED_ON, false)
 
     fun setTurnedOn(context: Context, on: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_TURNED_ON, on) }
