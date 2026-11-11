@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Only rides.json is included, so rides.corrupt-* copies are not backed up. -->
+        <!-- Only rides.json is included, so rides.corrupt-* copies and the rides.json.bak copy are not backed up. -->
         <include domain="file" path="rides.json" />
         <exclude domain="file" path="rides.json.tmp" />
+        <exclude domain="file" path="rides.json.bak" />
     </cloud-backup>
     <device-transfer>
-        <!-- Only rides.json is included, so rides.corrupt-* copies are not backed up. -->
+        <!-- Only rides.json is included, so rides.corrupt-* copies and the rides.json.bak copy are not backed up. -->
         <include domain="file" path="rides.json" />
         <exclude domain="file" path="rides.json.tmp" />
+        <exclude domain="file" path="rides.json.bak" />
     </device-transfer>
 </data-extraction-rules>

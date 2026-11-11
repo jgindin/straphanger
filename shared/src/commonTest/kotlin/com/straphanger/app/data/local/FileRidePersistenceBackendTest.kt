@@ -89,6 +89,64 @@ class FileRidePersistenceBackendTest {
     }
 
     @Test
+    fun saveKeepsThePreviousFileAsBak() {
+        val file = Path(newDirectory(), "rides.json")
+        val dao = SubwayDao(FileRidePersistenceBackend(file), clock)
+        dao.insertOrReplaceRide(ride("a"))
+        dao.insertOrReplaceRide(ride("b", 3_600_000L))
+
+        val bak = Path(file.toString() + ".bak")
+        assertTrue(SystemFileSystem.exists(bak))
+        assertEquals(1, SubwayDao(InMemoryPersistenceBackend(bak.readText()), clock).getAllRides().size)
+    }
+
+    @Test
+    fun blankFileWithAGoodBakLoadsTheBakAndKeepsTheBlankFile() {
+        val dir = newDirectory()
+        val file = Path(dir, "rides.json")
+        val first = SubwayDao(FileRidePersistenceBackend(file), clock)
+        first.insertOrReplaceRide(ride("a"))
+        first.insertOrReplaceRide(ride("b", 3_600_000L))
+        file.writeText("")
+
+        val dao = SubwayDao(FileRidePersistenceBackend(file), clock)
+
+        assertEquals(listOf("a"), dao.getAllRides().map { it.ride.rideId })
+        assertTrue(dao.loadError.value!!.contains("previous copy"), dao.loadError.value)
+        assertEquals(1, SystemFileSystem.list(dir).count { it.name.startsWith("rides.corrupt-") })
+    }
+
+    @Test
+    fun corruptFileWithAGoodBakLoadsTheBak() {
+        val file = Path(newDirectory(), "rides.json")
+        val first = SubwayDao(FileRidePersistenceBackend(file), clock)
+        first.insertOrReplaceRide(ride("a"))
+        first.insertOrReplaceRide(ride("b", 3_600_000L))
+        file.writeText("{not json")
+
+        val dao = SubwayDao(FileRidePersistenceBackend(file), clock)
+
+        assertEquals(listOf("a"), dao.getAllRides().map { it.ride.rideId })
+        assertTrue(dao.loadError.value!!.contains("previous copy"), dao.loadError.value)
+    }
+
+    @Test
+    fun failedWriteLeavesTheOldFileReadable() {
+        val file = Path(newDirectory(), "rides.json")
+        SubwayDao(FileRidePersistenceBackend(file), clock).insertOrReplaceRide(ride("a"))
+        // kotlinx-io's FileSystem is sealed, so the write is made to fail for real: a directory
+        // where the temporary file goes makes opening its sink throw.
+        SystemFileSystem.createDirectories(Path(file.toString() + ".tmp"))
+        val dao = SubwayDao(FileRidePersistenceBackend(file), clock)
+
+        dao.insertOrReplaceRide(ride("b", 3_600_000L))
+
+        assertFalse(dao.lastSaveSucceeded)
+        assertEquals(listOf("a"), dao.getAllRides().map { it.ride.rideId })
+        assertEquals(listOf("a"), SubwayDao(FileRidePersistenceBackend(file), clock).getAllRides().map { it.ride.rideId })
+    }
+
+    @Test
     fun noLeftoverTmpFileAfterSave() {
         val file = Path(newDirectory(), "rides.json")
         val dao = SubwayDao(FileRidePersistenceBackend(file), clock)

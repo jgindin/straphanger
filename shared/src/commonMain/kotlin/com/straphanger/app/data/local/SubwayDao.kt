@@ -17,6 +17,9 @@ interface RidePersistenceBackend {
     fun loadSnapshotJson(): String?
     fun saveSnapshotJson(json: String)
 
+    /** The previous good snapshot kept by the last save, or null when there is none. */
+    fun loadBackupSnapshotJson(): String? = null
+
     /** Moves an unreadable snapshot aside, named with [suffix], so a later save cannot overwrite it. */
     fun quarantineCorruptSnapshot(suffix: String) {}
 }
@@ -63,29 +66,63 @@ class SubwayDao(
             savesBlocked = true
             null
         }
-        if (!raw.isNullOrBlank()) {
-            try {
-                val loaded = json.decodeFromString<List<CompleteRideRecord>>(raw)
-                _ridesFlow.value = loaded.sortedByDescending { it.ride.startTimeEpochMs }
-            } catch (e: SerializationException) {
-                handleCorruptSnapshot(e)
-            } catch (e: IllegalArgumentException) {
-                handleCorruptSnapshot(e)
+        if (!savesBlocked) {
+            var loaded: List<CompleteRideRecord>? = null
+            var corruption: Exception? = null
+            if (!raw.isNullOrBlank()) {
+                try {
+                    loaded = decode(raw)
+                } catch (e: SerializationException) {
+                    corruption = e
+                } catch (e: IllegalArgumentException) {
+                    corruption = e
+                }
+            }
+            // A missing, blank or unreadable file falls back to the copy kept by the previous save.
+            val restored = if (loaded == null) loadBackupOrNull() else null
+            when {
+                loaded != null -> _ridesFlow.value = loaded
+                corruption != null || (raw != null && restored != null) ->
+                    handleBadSnapshot(corruption, restored)
+                restored != null -> {
+                    // rides.json is missing (a save stopped between its two renames): use the copy.
+                    _ridesFlow.value = restored
+                    _loadError.value = "Saved rides were missing, so the previous copy was restored."
+                }
             }
         }
     }
 
-    private fun handleCorruptSnapshot(cause: Exception) {
+    private fun decode(raw: String): List<CompleteRideRecord> =
+        json.decodeFromString<List<CompleteRideRecord>>(raw).sortedByDescending { it.ride.startTimeEpochMs }
+
+    private fun loadBackupOrNull(): List<CompleteRideRecord>? = try {
+        backend.loadBackupSnapshotJson()?.takeIf { it.isNotBlank() }?.let { decode(it) }
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        null
+    }
+
+    /** Sets a blank or unreadable snapshot aside; [restored] is the previous copy, when one could be read. */
+    private fun handleBadSnapshot(cause: Exception?, restored: List<CompleteRideRecord>?) {
         val suffix = "corrupt-${clock.now().toEpochMilliseconds()}"
+        val problem = cause?.message ?: if (cause == null) "the file is empty" else "invalid data"
         try {
             backend.quarantineCorruptSnapshot(suffix)
-            _loadError.value = "Saved rides could not be read (${cause.message ?: "invalid data"}). " +
-                "The file was kept as a copy named like rides.$suffix.json and the app started with no rides."
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             savesBlocked = true
             _loadError.value = "Saved rides could not be read and the file could not be set aside " +
                 "(${e.message ?: "unknown error"}). Changes will not be saved until the app is restarted."
+            return
+        }
+        if (restored != null) {
+            _ridesFlow.value = restored
+            _loadError.value = "Saved rides could not be read ($problem). The file was kept as a copy named " +
+                "like rides.$suffix.json and the previous copy of your rides was restored."
+        } else {
+            _loadError.value = "Saved rides could not be read ($problem). " +
+                "The file was kept as a copy named like rides.$suffix.json and the app started with no rides."
         }
     }
 

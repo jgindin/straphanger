@@ -13,7 +13,7 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 | Subway map with ridden lines, frequency heatmap, line filter | Works | Partial | Shared Compose code; never built for iOS. |
 | Manual ride logging, including transfers and express/local | Works | Partial | Shared code; never built for iOS. |
 | Statistics, achievements, stations vs. complexes toggle | Works | Partial | Shared code; never built for iOS. |
-| Local ride storage (atomic JSON file, corrupt file set aside) | Works | Partial | `rides.json` in app storage. The iOS file location was never run. |
+| Local ride storage (atomic JSON file, previous copy kept, corrupt file set aside) | Works | Partial | `rides.json` in app storage; each save keeps the previous file as `rides.json.bak`, which is loaded if `rides.json` is empty or unreadable. The iOS file location was never run. |
 | Backup export and restore | Works | Partial | JSON file chosen through FileKit. Export and restore were checked by hand on the emulator; the file picker is not covered by automated tests. Android Auto Backup also includes `rides.json`. |
 | Google Maps Timeline file import (three formats) | Works | Partial | File picker; merges transfers within 15 minutes and skips duplicates. |
 | Google Maps share intent and short-link resolution | Works | Partial | Short links are followed over the network; this is the only network use. The iOS URL-scheme handler in `iosApp` was never built. |

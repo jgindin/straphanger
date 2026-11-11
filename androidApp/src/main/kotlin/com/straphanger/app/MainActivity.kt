@@ -24,6 +24,7 @@ import com.straphanger.app.ui.CaptureAccessState
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.init
 import kotlinx.io.files.Path
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
     private val captureAccess = mutableStateOf(CaptureAccessState())
@@ -43,7 +44,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val requestPassiveCapture = rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
             App(
-                backend = FileRidePersistenceBackend(Path(filesDir.path, "rides.json")),
+                backend = FileRidePersistenceBackend(Path(filesDir.path, "rides.json"), syncFile = ::syncToStorage),
                 geofenceRegistrar = geofenceRegistrar,
                 pendingGeofenceEvents = pendingGeofenceEvents,
                 captureAccess = captureAccess.value,
@@ -107,6 +108,11 @@ class MainActivity : ComponentActivity() {
             Log.w(AndroidGeofenceRegistrar.TAG, "Last known location refused", e)
             captureAccess.value = current
         }
+    }
+
+    /** Forces a written file to storage; fsync on any descriptor of the file flushes its data. */
+    private fun syncToStorage(path: Path) {
+        FileOutputStream(path.toString(), true).use { it.fd.sync() }
     }
 
     private fun handleIncomingShareIntent(intent: Intent?) {
