@@ -271,7 +271,8 @@ fun App(
                         onLoadDemoRides = { viewModel.loadDemoRides() },
                         onConfirmAmbiguousRide = { id, r, exp ->
                             viewModel.confirmAmbiguousRide(id, r, exp)
-                        }
+                        },
+                        onKeepRideAsIs = viewModel::keepRideAsIs
                     )
                     AppTab.SOURCES -> DataSourcesAndSyncScreen(
                         uiState = uiState,

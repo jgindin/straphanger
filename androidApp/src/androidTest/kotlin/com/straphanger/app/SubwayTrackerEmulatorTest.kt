@@ -2,6 +2,7 @@ package com.straphanger.app
 
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasAnyDescendant
@@ -19,6 +20,17 @@ import androidx.test.espresso.Espresso
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+
+/** Matches a node whose test tag starts with [prefix], e.g. a per-ride tag whose ride ID is random. */
+fun hasTestTagPrefix(prefix: String): SemanticsMatcher =
+    SemanticsMatcher("test tag starts with $prefix") { node ->
+        node.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
+    }
+
+fun hasTestTagSuffix(suffix: String): SemanticsMatcher =
+    SemanticsMatcher("test tag ends with $suffix") { node ->
+        node.config.getOrNull(SemanticsProperties.TestTag)?.endsWith(suffix) == true
+    }
 
 class SubwayTrackerEmulatorTest {
 
@@ -63,8 +75,9 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.onNodeWithTag("simulate_passive_ride_btn").performClick()
         composeTestRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
 
-        // 4. Confirm 4 Express and verify the review banner clears
-        composeTestRule.onNodeWithTag("confirm_express_btn").performClick()
+        // 4. Confirm the first candidate (the express) and verify the review banner clears
+        composeTestRule.onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_0")).performClick()
+        composeTestRule.onNodeWithTag("needs_review_banner").assertDoesNotExist()
 
         // 5. Navigate to Statistics tab and toggle stations vs complexes & Stopped-At vs Boarded/Exited
         composeTestRule.onNodeWithTag("nav_tab_STATS").performClick()

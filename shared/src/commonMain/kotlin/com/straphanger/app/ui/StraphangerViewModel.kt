@@ -488,8 +488,10 @@ class StraphangerViewModel(
         )
         dao.insertOrReplaceRide(record)
         if (dao.lastSaveSucceeded) _uiState.update {
+            val choices = record.ride.ambiguousCandidates.joinToString(" or ") { c -> c.label }
             it.copy(
-                statusMessage = "Passively detected 14 St–Union Sq → 86 St • Tap to confirm 4 Express vs 6 Local"
+                statusMessage = "Simulated passive ride 14 St-Union Sq → 86 St" +
+                    if (choices.isNotEmpty()) ": confirm $choices on the Rides tab" else ""
             )
         }
         return record
@@ -503,6 +505,19 @@ class StraphangerViewModel(
                 statusMessage = "Confirmed $routeId ${if (isExpress) "Express" else "Local"} for ride $rideId"
             )
         }
+    }
+
+    /** Clears the review flag of [rideId] without changing its legs. */
+    fun keepRideAsIs(rideId: String) {
+        dao.markReviewed(rideId) ?: return
+        if (dao.lastSaveSucceeded) _uiState.update { it.copy(statusMessage = "Kept the ride as recorded") }
+    }
+
+    /** Deletes [rideId]. */
+    fun deleteRide(rideId: String) {
+        if (dao.getRideById(rideId) == null) return
+        dao.deleteRide(rideId)
+        if (dao.lastSaveSucceeded) _uiState.update { it.copy(statusMessage = "Deleted the ride") }
     }
 
     fun importSampleGoogleMapsTimeline(): Int {

@@ -59,7 +59,8 @@ fun RidesHistoryAndLoggerScreen(
     onSimulateAmbiguousRide: () -> Unit,
     showDeveloperTools: Boolean = false,
     onLoadDemoRides: () -> Unit,
-    onConfirmAmbiguousRide: (String, String, Boolean) -> Unit
+    onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
+    onKeepRideAsIs: (String) -> Unit = {}
 ) {
     val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
 
@@ -72,7 +73,7 @@ fun RidesHistoryAndLoggerScreen(
             .testTag("rides_history_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 1. "Needs Review" Banner for Ambiguous Express vs. Local Passive Rides
+        // 1. Rides that need review: express or local, or a station name that matched several stations
         if (pendingReviewRides.isNotEmpty()) {
             Column(
                 modifier = Modifier
@@ -85,33 +86,44 @@ fun RidesHistoryAndLoggerScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "Needs Review (${pendingReviewRides.size} Passive Ride)",
+                    text = "Needs review: ${countOf(pendingReviewRides.size, "ride")}",
                     color = MtaColors.AccentGold,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 pendingReviewRides.forEach { rec ->
+                    val rideId = rec.ride.rideId
                     val orig = graphEngine.getStation(rec.ride.originStationId)?.name ?: rec.ride.originStationId
                     val dest = graphEngine.getStation(rec.ride.destinationStationId)?.name ?: rec.ride.destinationStationId
+                    val review = reviewFor(rec.ride)
                     Text(
-                        text = "$orig → $dest (${rec.ride.totalDistanceMiles} mi) • Did you ride Express or Local?",
+                        text = "$orig → $dest (${rec.ride.totalDistanceMiles} mi). ${review.prompt}",
                         color = Color.White,
                         fontSize = 13.sp
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { onConfirmAmbiguousRide(rec.ride.rideId, "4", true) },
-                            colors = ButtonDefaults.buttonColors(containerColor = MtaColors.ActionGreen),
-                            modifier = Modifier.testTag("confirm_express_btn")
-                        ) {
-                            Text("Confirm 4 Express", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = { onConfirmAmbiguousRide(rec.ride.rideId, "6", false) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
-                            modifier = Modifier.testTag("confirm_local_btn")
-                        ) {
-                            Text("Confirm 6 Local", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        review.actions.forEach { action ->
+                            when (action) {
+                                is ReviewAction.ConfirmCandidate -> Button(
+                                    onClick = { onConfirmAmbiguousRide(rideId, action.routeId, action.isExpress) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (action.index == 0) MtaColors.ActionGreen else Color(0xFF2B3548)
+                                    ),
+                                    modifier = Modifier.testTag("confirm_candidate_${rideId}_${action.index}")
+                                ) {
+                                    Text(action.label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                ReviewAction.KeepAsIs -> Button(
+                                    onClick = { onKeepRideAsIs(rideId) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
+                                    modifier = Modifier.testTag("keep_as_is_$rideId")
+                                ) {
+                                    Text("Keep as is", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                 }

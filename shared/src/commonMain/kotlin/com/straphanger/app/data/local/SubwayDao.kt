@@ -210,6 +210,14 @@ class SubwayDao(
         return updatedRecord
     }
 
+    /** Clears the review flag of [rideId] and keeps its legs. Returns the updated ride, or null if there is none. */
+    fun markReviewed(rideId: String): CompleteRideRecord? {
+        val existing = getRideById(rideId) ?: return null
+        val updated = existing.copy(ride = existing.ride.copy(needsReview = false, ambiguousCandidates = emptyList()))
+        insertOrReplaceRide(updated)
+        return updated
+    }
+
     private fun updateAndPersistReporting(records: List<CompleteRideRecord>) {
         try {
             persistThenPublish(records)
