@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":shared"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.filekit.dialogs.compose)
+    implementation(libs.kotlinx.io.core)
     implementation(libs.play.services.location)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

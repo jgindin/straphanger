@@ -1,5 +1,21 @@
 package com.straphanger.app
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.straphanger.app.data.local.FileRidePersistenceBackend
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.io.files.Path
+import platform.Foundation.NSDocumentDirectory
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSUserDomainMask
 
-fun MainViewController() = ComposeUIViewController { App() }
+@OptIn(ExperimentalForeignApi::class)
+fun MainViewController() = ComposeUIViewController {
+    val documents = NSFileManager.defaultManager.URLForDirectory(
+        directory = NSDocumentDirectory,
+        inDomain = NSUserDomainMask,
+        appropriateForURL = null,
+        create = true,
+        error = null
+    )?.path ?: error("Documents directory is not available")
+    App(FileRidePersistenceBackend(Path(documents, "rides.json")))
+}

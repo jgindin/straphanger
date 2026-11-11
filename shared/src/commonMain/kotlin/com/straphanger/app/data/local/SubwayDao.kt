@@ -3,16 +3,22 @@ package com.straphanger.app.data.local
 import com.straphanger.app.data.gtfs.ResolvedTripResult
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.TripLegRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.math.roundToInt
+import kotlin.time.Clock
 
 interface RidePersistenceBackend {
     fun loadSnapshotJson(): String?
     fun saveSnapshotJson(json: String)
+
+    /** Moves an unreadable snapshot aside, named with [suffix], so a later save cannot overwrite it. */
+    fun quarantineCorruptSnapshot(suffix: String) {}
 }
 
 class InMemoryPersistenceBackend(initialJson: String? = null) : RidePersistenceBackend {
@@ -24,7 +30,8 @@ class InMemoryPersistenceBackend(initialJson: String? = null) : RidePersistenceB
 }
 
 class SubwayDao(
-    private val backend: RidePersistenceBackend = InMemoryPersistenceBackend()
+    private val backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
+    private val clock: Clock = Clock.System
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -34,14 +41,47 @@ class SubwayDao(
     private val _ridesFlow = MutableStateFlow<List<CompleteRideRecord>>(emptyList())
     val ridesFlow: StateFlow<List<CompleteRideRecord>> = _ridesFlow.asStateFlow()
 
+    private val _loadError = MutableStateFlow<String?>(null)
+
+    /** Set when the stored rides could not be read at startup; the app then starts with no rides. */
+    val loadError: StateFlow<String?> = _loadError.asStateFlow()
+
+    // True when an unreadable file could not be set aside; saving would overwrite it.
+    private var savesBlocked = false
+
     init {
-        val raw = backend.loadSnapshotJson()
+        val raw = try {
+            backend.loadSnapshotJson()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            _loadError.value = "Could not read saved rides: ${e.message ?: "unknown error"}. " +
+                "Changes will not be saved until the app is restarted."
+            savesBlocked = true
+            null
+        }
         if (!raw.isNullOrBlank()) {
-            runCatching {
-                json.decodeFromString<List<CompleteRideRecord>>(raw)
-            }.onSuccess { loaded ->
+            try {
+                val loaded = json.decodeFromString<List<CompleteRideRecord>>(raw)
                 _ridesFlow.value = loaded.sortedByDescending { it.ride.startTimeEpochMs }
+            } catch (e: SerializationException) {
+                handleCorruptSnapshot(e)
+            } catch (e: IllegalArgumentException) {
+                handleCorruptSnapshot(e)
             }
+        }
+    }
+
+    private fun handleCorruptSnapshot(cause: Exception) {
+        val suffix = "corrupt-${clock.now().toEpochMilliseconds()}"
+        try {
+            backend.quarantineCorruptSnapshot(suffix)
+            _loadError.value = "Saved rides could not be read (${cause.message ?: "invalid data"}). " +
+                "The file was kept as a copy named like rides.$suffix.json and the app started with no rides."
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            savesBlocked = true
+            _loadError.value = "Saved rides could not be read and the file could not be set aside " +
+                "(${e.message ?: "unknown error"}). Changes will not be saved until the app is restarted."
         }
     }
 
@@ -122,6 +162,7 @@ class SubwayDao(
     private fun updateAndPersist(records: List<CompleteRideRecord>) {
         val sorted = records.sortedByDescending { it.ride.startTimeEpochMs }
         _ridesFlow.value = sorted
+        if (savesBlocked) return
         backend.saveSnapshotJson(json.encodeToString(sorted))
     }
 

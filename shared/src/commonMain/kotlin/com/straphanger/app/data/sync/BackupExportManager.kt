@@ -35,16 +35,22 @@ class BackupExportManager(
 
     /**
      * Restores rides from a backup produced by [exportToJson]. Rides are matched by id, so
-     * importing the same backup again does not create duplicates. Fails, without changing
-     * any rides, when the text is not a Straphanger backup.
+     * importing the same backup again does not create duplicates, and a backup that lists a ride
+     * id twice keeps the last entry. Returns a failure, without changing any rides, when the text
+     * is not a Straphanger backup. A failure to save the rides is thrown, not returned.
      */
-    fun importFromJson(backupJson: String): Result<Int> = runCatching {
-        val bundle = json.decodeFromString<StraphangerBackupBundle>(backupJson)
-        require(bundle.formatVersion in 1..SUPPORTED_FORMAT_VERSION) {
-            "Unsupported backup format version ${bundle.formatVersion}"
+    fun importFromJson(backupJson: String): Result<Int> {
+        val rides = try {
+            val bundle = json.decodeFromString<StraphangerBackupBundle>(backupJson)
+            require(bundle.formatVersion in 1..SUPPORTED_FORMAT_VERSION) {
+                "Unsupported backup format version ${bundle.formatVersion}"
+            }
+            bundle.rides.associateBy { it.ride.rideId }.values.toList()
+        } catch (e: IllegalArgumentException) {
+            return Result.failure(e)
         }
-        dao.insertOrReplaceRides(bundle.rides)
-        bundle.rides.size
+        dao.insertOrReplaceRides(rides)
+        return Result.success(rides.size)
     }
 
     private companion object {

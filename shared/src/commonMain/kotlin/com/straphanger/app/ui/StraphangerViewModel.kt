@@ -19,6 +19,8 @@ import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -58,19 +60,19 @@ data class StraphangerUiState(
     val passiveGeofenceEnabled: Boolean = true,
     val googleMapsNotificationEnabled: Boolean = true,
     val activeGeofenceCount: Int = 19,
-    val syncStatusMessage: String = "Rides are stored on this device."
+    val statusMessage: String = "Rides are stored on this device",
+    val loadError: String? = null
 )
 
 class StraphangerViewModel(
     backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
     private val clock: Clock = Clock.System,
-    seedInitialSampleRides: Boolean = true,
+    seedInitialSampleRides: Boolean = false,
     dispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.Unconfined
-) {
-    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+) : ViewModel(CoroutineScope(SupervisorJob() + dispatcher)) {
 
     val graphEngine = SubwayGraphEngine()
-    val dao = SubwayDao(backend)
+    val dao = SubwayDao(backend, clock)
     val statsCalculator = SubwayStatsCalculator(graphEngine)
     val timelineImporter = TimelineJsonImporter(graphEngine)
     val shareParser = GoogleMapsShareParser(graphEngine, clock = clock)
@@ -81,6 +83,7 @@ class StraphangerViewModel(
         StraphangerUiState(
             rides = dao.getAllRides(),
             stats = statsCalculator.computeStats(dao.getAllRides()),
+            loadError = dao.loadError.value,
             activeGeofenceCount = geofenceManager.computeRollingWindow(40.7347, -73.9899).activeGeofences.size
         )
     )
@@ -90,7 +93,10 @@ class StraphangerViewModel(
         if (seedInitialSampleRides && dao.getAllRides().isEmpty()) {
             seedStarterNycRides()
         }
-        scope.launch {
+        viewModelScope.launch {
+            dao.loadError.collect { error -> _uiState.update { it.copy(loadError = error) } }
+        }
+        viewModelScope.launch {
             dao.ridesFlow.collect { latestRides ->
                 val latestStats = statsCalculator.computeStats(latestRides)
                 _uiState.update {
@@ -101,7 +107,7 @@ class StraphangerViewModel(
                 }
             }
         }
-        scope.launch {
+        viewModelScope.launch {
             SharedRouteInbox.pendingSharedTexts.collect { pending ->
                 if (pending.isNotEmpty()) {
                     val items = SharedRouteInbox.consumeAll()
@@ -110,7 +116,7 @@ class StraphangerViewModel(
                         if (parsed != null) {
                             dao.insertOrReplaceRide(parsed)
                             _uiState.update {
-                                it.copy(syncStatusMessage = "Auto-captured ride from Google Maps: ${parsed.ride.originStationId} → ${parsed.ride.destinationStationId}")
+                                it.copy(statusMessage = "Auto-captured ride from Google Maps: ${parsed.ride.originStationId} → ${parsed.ride.destinationStationId}")
                             }
                         }
                     }
@@ -242,7 +248,7 @@ class StraphangerViewModel(
         _uiState.update {
             it.copy(
                 isLogRideSheetOpen = false,
-                syncStatusMessage = "Logged ride (${record.ride.totalDistanceMiles} mi across ${record.legs.size} leg(s))"
+                statusMessage = "Logged ride (${record.ride.totalDistanceMiles} mi across ${record.legs.size} leg(s))"
             )
         }
         return record
@@ -269,7 +275,7 @@ class StraphangerViewModel(
         dao.insertOrReplaceRide(record)
         _uiState.update {
             it.copy(
-                syncStatusMessage = "Passively detected 14 St–Union Sq → 86 St • Tap to confirm 4 Express vs 6 Local"
+                statusMessage = "Passively detected 14 St–Union Sq → 86 St • Tap to confirm 4 Express vs 6 Local"
             )
         }
         return record
@@ -279,7 +285,7 @@ class StraphangerViewModel(
         dao.confirmAmbiguousRide(rideId, routeId, isExpress, graphEngine)
         _uiState.update {
             it.copy(
-                syncStatusMessage = "Confirmed $routeId ${if (isExpress) "Express" else "Local"} for ride $rideId"
+                statusMessage = "Confirmed $routeId ${if (isExpress) "Express" else "Local"} for ride $rideId"
             )
         }
     }
@@ -312,7 +318,7 @@ class StraphangerViewModel(
         val summary = timelineImporter.importTimelineJson(sampleTimelineJson, dao)
         _uiState.update {
             it.copy(
-                syncStatusMessage = "Google Maps Timeline: imported ${summary.ridesImported} new ride(s), skipped ${summary.duplicatesSkipped} duplicate(s)"
+                statusMessage = "Google Maps Timeline: imported ${summary.ridesImported} new ride(s), skipped ${summary.duplicatesSkipped} duplicate(s)"
             )
         }
         return summary.ridesImported
@@ -322,7 +328,7 @@ class StraphangerViewModel(
         val summary = timelineImporter.importTimelineJson(rawJson, dao)
         _uiState.update {
             it.copy(
-                syncStatusMessage = "Timeline JSON imported ${summary.ridesImported} ride(s) (${summary.multiLegRidesMerged} transfer(s) merged)"
+                statusMessage = "Timeline JSON imported ${summary.ridesImported} ride(s) (${summary.multiLegRidesMerged} transfer(s) merged)"
             )
         }
         return summary.ridesImported
@@ -350,14 +356,23 @@ class StraphangerViewModel(
         setStatus("Backup export failed: ${reason ?: "unknown error"}")
 
     private fun setStatus(message: String): String {
-        _uiState.update { it.copy(syncStatusMessage = message) }
+        _uiState.update { it.copy(statusMessage = message) }
         return message
     }
 
-    /** Restores rides from the bytes of a backup file. Rides already present are replaced, not duplicated. */
-    suspend fun importBackup(bytes: ByteArray): Result<Int> =
-        runCatching { bytes.decodeToString(throwOnInvalidSequence = true) }
-            .mapCatching { backupManager.importFromJson(it).getOrThrow() }
+    /**
+     * Restores rides from the bytes of a backup file. Rides already present are replaced, not
+     * duplicated. Returns a failure when the bytes are not a Straphanger backup; a failure to
+     * save the rides is thrown.
+     */
+    suspend fun importBackup(bytes: ByteArray): Result<Int> {
+        val text = try {
+            bytes.decodeToString(throwOnInvalidSequence = true)
+        } catch (e: CharacterCodingException) {
+            return Result.failure(e)
+        }
+        return backupManager.importFromJson(text)
+    }
 
     /** Records the outcome of a restore in the status banner and returns the message. */
     fun reportBackupRestored(result: Result<Int>): String =
@@ -368,9 +383,19 @@ class StraphangerViewModel(
             )
         )
 
+    /** Records a restore that failed while reading or saving rides, as opposed to a file that is not a backup. */
+    fun reportBackupRestoreFailed(reason: String?): String =
+        setStatus("Could not restore: the rides could not be saved (${reason ?: "unknown error"})")
+
     fun clearAllRides() {
         dao.clearAll()
-        _uiState.update { it.copy(syncStatusMessage = "Cleared all local rides") }
+        _uiState.update { it.copy(statusMessage = "Cleared all local rides") }
+    }
+
+    /** Adds three sample rides so the map and statistics have something to show. */
+    fun loadDemoRides() {
+        seedStarterNycRides()
+        _uiState.update { it.copy(statusMessage = "Loaded 3 sample rides") }
     }
 
     fun seedStarterNycRides() {

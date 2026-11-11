@@ -1,11 +1,15 @@
 package com.straphanger.app
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -63,5 +67,23 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("export_backup_btn").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithTag("import_backup_btn").performScrollTo().assertIsDisplayed()
+    }
+
+    private fun headerRideCount(): Int =
+        composeTestRule.onNodeWithTag("header_total_rides").onChildAt(0).fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.Text)!!.first().text.toInt()
+
+    @Test
+    fun rideSurvivesActivityRecreation() {
+        composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
+        val before = headerRideCount()
+        composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
+        composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
+        assertEquals(before + 1, headerRideCount())
+
+        composeTestRule.activityRule.scenario.recreate()
+
+        composeTestRule.waitForIdle()
+        assertEquals(before + 1, headerRideCount())
     }
 }

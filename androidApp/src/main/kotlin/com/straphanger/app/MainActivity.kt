@@ -4,8 +4,10 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.straphanger.app.data.local.FileRidePersistenceBackend
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.init
+import kotlinx.io.files.Path
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -13,7 +15,7 @@ class MainActivity : ComponentActivity() {
         FileKit.init(this)
         handleIncomingShareIntent(intent)
         setContent {
-            App()
+            App(FileRidePersistenceBackend(Path(filesDir.path, "rides.json")))
         }
     }
 

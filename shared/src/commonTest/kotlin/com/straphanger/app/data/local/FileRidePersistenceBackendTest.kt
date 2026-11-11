@@ -1,0 +1,134 @@
+package com.straphanger.app.data.local
+
+import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.testutil.FixedClock
+import com.straphanger.app.ui.StraphangerViewModel
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.files.SystemTemporaryDirectory
+import kotlinx.io.readString
+import kotlinx.io.writeString
+import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Instant
+
+class FileRidePersistenceBackendTest {
+
+    private val engine = SubwayGraphEngine()
+    private val sampleTime = 1794250800000L
+    private val clock = FixedClock(Instant.fromEpochMilliseconds(sampleTime))
+
+    private fun newDirectory(): Path {
+        val dir = Path(SystemTemporaryDirectory, "straphanger-test-${Random.nextLong().toULong()}")
+        SystemFileSystem.createDirectories(dir)
+        return dir
+    }
+
+    private fun ride(id: String, offsetMs: Long = 0L): CompleteRideRecord =
+        SubwayDao.buildCompleteRideRecord(
+            rideId = id,
+            startTimeEpochMs = sampleTime + offsetMs,
+            endTimeEpochMs = sampleTime + offsetMs + 11 * 60_000L,
+            source = RideSource.MANUAL,
+            resolved = engine.resolveOriginToDestinationAuto(
+                originStationId = "LEX_14_USQ",
+                destinationStationId = "LEX_86",
+                preferredRouteId = "4",
+                timestampEpochMs = sampleTime
+            ),
+            graphEngine = engine
+        )
+
+    private fun Path.readText(): String = SystemFileSystem.source(this).buffered().use { it.readString() }
+
+    private fun Path.writeText(text: String) {
+        SystemFileSystem.sink(this).buffered().use { it.writeString(text) }
+    }
+
+    @Test
+    fun ridesSurviveNewDaoInstance() {
+        val file = Path(newDirectory(), "rides.json")
+        val first = SubwayDao(FileRidePersistenceBackend(file), clock)
+        first.insertOrReplaceRide(ride("a"))
+        first.insertOrReplaceRide(ride("b", 3_600_000L))
+
+        val second = SubwayDao(FileRidePersistenceBackend(file), clock)
+
+        assertEquals(2, second.getAllRides().size)
+        assertNull(second.loadError.value)
+    }
+
+    @Test
+    fun corruptFileIsPreservedAndNotOverwritten() {
+        val dir = newDirectory()
+        val file = Path(dir, "rides.json")
+        file.writeText("{not json")
+
+        val dao = SubwayDao(FileRidePersistenceBackend(file), clock)
+
+        assertNotNull(dao.loadError.value)
+        assertTrue(dao.getAllRides().isEmpty())
+        val corrupt = SystemFileSystem.list(dir).filter {
+            it.name.startsWith("rides.corrupt-") && it.name.endsWith(".json")
+        }
+        assertEquals(1, corrupt.size)
+        assertEquals("rides.corrupt-$sampleTime.json", corrupt.single().name)
+        assertEquals("{not json", corrupt.single().readText())
+
+        dao.insertOrReplaceRide(ride("a"))
+
+        assertEquals("{not json", corrupt.single().readText())
+        assertEquals(1, SubwayDao(FileRidePersistenceBackend(file), clock).getAllRides().size)
+    }
+
+    @Test
+    fun noLeftoverTmpFileAfterSave() {
+        val file = Path(newDirectory(), "rides.json")
+        val dao = SubwayDao(FileRidePersistenceBackend(file), clock)
+
+        dao.insertOrReplaceRide(ride("a"))
+
+        assertTrue(SystemFileSystem.exists(file))
+        assertFalse(SystemFileSystem.exists(Path(file.toString() + ".tmp")))
+    }
+
+    @Test
+    fun unreadableSnapshotThatCannotBeSetAsideIsNotOverwritten() {
+        val backend = object : RidePersistenceBackend {
+            var saves = 0
+            override fun loadSnapshotJson(): String = "{not json"
+            override fun saveSnapshotJson(json: String) {
+                saves++
+            }
+            override fun quarantineCorruptSnapshot(suffix: String) = throw IllegalStateException("read-only")
+        }
+
+        val dao = SubwayDao(backend, clock)
+        dao.insertOrReplaceRide(ride("a"))
+
+        assertNotNull(dao.loadError.value)
+        assertEquals(0, backend.saves)
+    }
+
+    @Test
+    fun viewModelDoesNotSeedByDefault() {
+        val vm = StraphangerViewModel(InMemoryPersistenceBackend())
+
+        assertTrue(vm.uiState.value.rides.isEmpty())
+    }
+
+    @Test
+    fun loadDemoRidesAddsSampleRides() {
+        val vm = StraphangerViewModel(InMemoryPersistenceBackend(), clock)
+
+        vm.loadDemoRides()
+
+        assertEquals(3, vm.uiState.value.rides.size)
+    }
+}

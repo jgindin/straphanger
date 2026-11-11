@@ -46,6 +46,7 @@ import io.github.vinceglb.filekit.dialogs.openFileSaver
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.writeString
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -55,6 +56,7 @@ fun RidesHistoryAndLoggerScreen(
     onUpdateLogForm: (String, String?, String, String?, Boolean?) -> Unit,
     onSubmitQuickRide: () -> Unit,
     onSimulateAmbiguousRide: () -> Unit,
+    onLoadDemoRides: () -> Unit,
     onConfirmAmbiguousRide: (String, String, Boolean) -> Unit
 ) {
     val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
@@ -68,6 +70,24 @@ fun RidesHistoryAndLoggerScreen(
             .testTag("rides_history_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        if (uiState.loadError != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF2A1416))
+                    .border(1.dp, Color(0xFFD64545), RoundedCornerShape(10.dp))
+                    .padding(12.dp)
+                    .testTag("storage_error_banner")
+            ) {
+                Text(
+                    text = uiState.loadError,
+                    color = Color.White,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
         // 1. "Needs Review" Banner for Ambiguous Express vs. Local Passive Rides
         if (pendingReviewRides.isNotEmpty()) {
             Column(
@@ -206,6 +226,14 @@ fun RidesHistoryAndLoggerScreen(
             }
         }
 
+        Button(
+            onClick = onLoadDemoRides,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
+            modifier = Modifier.testTag("load_demo_rides_btn")
+        ) {
+            Text("Load sample rides", fontSize = 12.sp)
+        }
+
         // 3. Ride History List
         Text(
             text = "Recorded Subway Rides (${uiState.rides.size})",
@@ -287,6 +315,7 @@ fun DataSourcesAndSyncScreen(
     onExportBackup: suspend () -> String,
     onBackupExported: (fileName: String?) -> String,
     onBackupExportFailed: (reason: String?) -> String,
+    onBackupRestoreFailed: (reason: String?) -> String,
     onImportBackup: suspend (ByteArray) -> Result<Int>,
     onBackupRestored: (Result<Int>) -> String,
     onBackupMessage: (String) -> Unit
@@ -302,10 +331,17 @@ fun DataSourcesAndSyncScreen(
                 val bytes = try {
                     file.readBytes()
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     onBackupMessage("Could not read the file: ${e.message ?: "unknown error"}")
                     return@launch
                 }
-                onBackupMessage(onBackupRestored(onImportBackup(bytes)))
+                val message = try {
+                    onBackupRestored(onImportBackup(bytes))
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    onBackupRestoreFailed(e.message)
+                }
+                onBackupMessage(message)
             }
         }
     }
@@ -334,10 +370,10 @@ fun DataSourcesAndSyncScreen(
                 .background(Color(0xFF162234))
                 .border(1.dp, Color(0xFF284268), RoundedCornerShape(10.dp))
                 .padding(12.dp)
-                .testTag("sync_status_banner")
+                .testTag("status_banner")
         ) {
             Text(
-                text = uiState.syncStatusMessage,
+                text = uiState.statusMessage,
                 color = MtaColors.AccentGold,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
@@ -460,6 +496,7 @@ fun DataSourcesAndSyncScreen(
                                     onBackupMessage(onBackupExported(file.name))
                                 }
                             } catch (e: Exception) {
+                                if (e is CancellationException) throw e
                                 onBackupMessage(onBackupExportFailed(e.message))
                             }
                         }

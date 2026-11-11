@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.StraphangerViewModel
 import com.straphanger.app.ui.map.SubwayMapScreen
@@ -39,9 +41,8 @@ import com.straphanger.app.ui.theme.MtaColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun App(
-    viewModel: StraphangerViewModel = remember { StraphangerViewModel() }
-) {
+fun App(backend: RidePersistenceBackend) {
+    val viewModel: StraphangerViewModel = viewModel { StraphangerViewModel(backend) }
     val uiState by viewModel.uiState.collectAsState()
     val stats = uiState.stats
     val snackbarHostState = remember { SnackbarHostState() }
@@ -141,6 +142,7 @@ fun App(
                         },
                         onSubmitQuickRide = { viewModel.submitQuickRide() },
                         onSimulateAmbiguousRide = { viewModel.simulateAmbiguousPassiveRide() },
+                        onLoadDemoRides = { viewModel.loadDemoRides() },
                         onConfirmAmbiguousRide = { id, r, exp ->
                             viewModel.confirmAmbiguousRide(id, r, exp)
                         }
@@ -153,6 +155,7 @@ fun App(
                         onExportBackup = { viewModel.exportBackup() },
                         onBackupExported = viewModel::reportBackupExported,
                         onBackupExportFailed = viewModel::reportBackupExportFailed,
+                        onBackupRestoreFailed = viewModel::reportBackupRestoreFailed,
                         onImportBackup = { viewModel.importBackup(it) },
                         onBackupRestored = viewModel::reportBackupRestored,
                         onBackupMessage = { message ->

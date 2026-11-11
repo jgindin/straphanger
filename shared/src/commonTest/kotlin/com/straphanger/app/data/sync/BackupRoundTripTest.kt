@@ -2,12 +2,16 @@ package com.straphanger.app.data.sync
 
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
+import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.testutil.FixedClock
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlin.time.Instant
 
 class BackupRoundTripTest {
@@ -114,5 +118,38 @@ class BackupRoundTripTest {
 
         assertEquals(Result.success(2), result)
         assertEquals(source.getAllRides(), target.getAllRides())
+    }
+
+    @Test
+    fun backupListingSameRideIdTwiceImportsOneRide() {
+        val source = daoWithTwoRides()
+        val first = source.getAllRides().first()
+        val later = first.copy(ride = first.ride.copy(notes = "later entry"))
+        val bundle = StraphangerBackupBundle(
+            exportedAtEpochMs = sampleTime,
+            rides = listOf(first, later)
+        )
+        val backup = Json.encodeToString(bundle)
+
+        val target = SubwayDao(InMemoryPersistenceBackend())
+        val result = BackupExportManager(target, clock).importFromJson(backup)
+
+        assertEquals(Result.success(1), result)
+        assertEquals(listOf(later), target.getAllRides())
+    }
+
+    @Test
+    fun storageFailureDuringImportIsThrownNotReportedAsInvalidBackup() {
+        val backup = BackupExportManager(daoWithTwoRides(), clock).exportToJson()
+        val failing = object : RidePersistenceBackend {
+            override fun loadSnapshotJson(): String? = null
+            override fun saveSnapshotJson(json: String) = throw IllegalStateException("disk full")
+        }
+
+        val error = assertFailsWith<IllegalStateException> {
+            BackupExportManager(SubwayDao(failing), clock).importFromJson(backup)
+        }
+
+        assertEquals("disk full", error.message)
     }
 }
