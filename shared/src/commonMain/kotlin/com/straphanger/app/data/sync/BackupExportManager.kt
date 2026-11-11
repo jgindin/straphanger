@@ -33,20 +33,21 @@ class BackupExportManager(
         return json.encodeToString(bundle)
     }
 
-    fun importFromJson(backupJson: String): Int {
+    /**
+     * Restores rides from a backup produced by [exportToJson]. Rides are matched by id, so
+     * importing the same backup again does not create duplicates. Fails, without changing
+     * any rides, when the text is not a Straphanger backup.
+     */
+    fun importFromJson(backupJson: String): Result<Int> = runCatching {
         val bundle = json.decodeFromString<StraphangerBackupBundle>(backupJson)
+        require(bundle.formatVersion in 1..SUPPORTED_FORMAT_VERSION) {
+            "Unsupported backup format version ${bundle.formatVersion}"
+        }
         dao.insertOrReplaceRides(bundle.rides)
-        return bundle.rides.size
+        bundle.rides.size
     }
 
-    fun exportToCsv(): String {
-        val header = "ride_id,start_time_epoch_ms,origin_station_id,destination_station_id,routes,distance_miles,duration_min,source"
-        val rows = dao.getAllRides().map { rec ->
-            val routes = rec.legs.joinToString("+") { leg ->
-                if (leg.isExpress) "${leg.routeId}X" else leg.routeId
-            }
-            "${rec.ride.rideId},${rec.ride.startTimeEpochMs},${rec.ride.originStationId},${rec.ride.destinationStationId},$routes,${rec.ride.totalDistanceMiles},${rec.ride.durationMinutes},${rec.ride.source.name}"
-        }
-        return (listOf(header) + rows).joinToString("\n")
+    private companion object {
+        const val SUPPORTED_FORMAT_VERSION = 1
     }
 }

@@ -73,21 +73,6 @@ class SubwayDao(
         updateAndPersist(emptyList())
     }
 
-    fun getUnsyncedRides(): List<CompleteRideRecord> =
-        _ridesFlow.value.filter { !it.ride.syncedToCloud }
-
-    fun markRidesSynced(rideIds: Set<String>) {
-        if (rideIds.isEmpty()) return
-        val updated = _ridesFlow.value.map { rec ->
-            if (rec.ride.rideId in rideIds) {
-                rec.copy(ride = rec.ride.copy(syncedToCloud = true))
-            } else {
-                rec
-            }
-        }
-        updateAndPersist(updated)
-    }
-
     /**
      * Resolves an ambiguous Express vs. Local passive ride when the user taps Confirm
      * in the "Needs Review" banner or notification.
@@ -170,7 +155,6 @@ class SubwayDao(
                 source = source,
                 needsReview = forceNeedsReview ?: resolved.isAmbiguous,
                 ambiguousCandidates = resolved.ambiguousCandidates,
-                syncedToCloud = false,
                 notes = notes
             )
 

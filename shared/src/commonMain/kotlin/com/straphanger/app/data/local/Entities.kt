@@ -26,7 +26,6 @@ data class RideEntity(
     val source: RideSource,
     val needsReview: Boolean = false,
     val ambiguousCandidates: List<AmbiguousRouteCandidate> = emptyList(),
-    val syncedToCloud: Boolean = false,
     val notes: String = ""
 )
 

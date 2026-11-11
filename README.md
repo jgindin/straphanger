@@ -38,8 +38,8 @@
   - **All Stations Stopped At** (excluding stations skipped by an express train) vs. **Boarded / Exited / Transferred Only**.
 - **Breakdowns & Badges**: Per-line completion bars with official MTA bullets, 5-borough breakdown, top stations & O-D pairs, monthly mileage trends, and 8 unlockable NYC Subway Achievements.
 
-### 5. Local-First Storage + Free Firebase Cloud Sync
-- Works 100% offline underground out of the box via `SubwayDao`, paired with a pure-KMP Ktor **Firebase Auth & Cloud Firestore REST Sync Client (`FirestoreKmpSyncClient.kt`)** compatible with Firebase's free **Spark Plan** and portable JSON/CSV backup export/import.
+### 5. Local Storage + File Backup
+- Rides are stored on the device via `SubwayDao` and work offline. There is no cloud sync. "Export backup…" writes all rides to a JSON file you choose, and "Restore from backup…" reads such a file back (rides are matched by id, so restoring twice does not duplicate them). File dialogs use FileKit.
 
 ---
 
@@ -53,7 +53,7 @@ straphanger/
 │   │   ├── data/gtfs/                 # NycSubwayNetworkCatalog, SubwayGraphEngine, SubwayModels
 │   │   ├── data/local/                # Entities (Ride -> RideLegs -> Segments & Stops), SubwayDao
 │   │   ├── data/capture/              # TimelineJsonImporter, GoogleMapsShareParser, DynamicGeofenceWindowManager
-│   │   ├── data/sync/                 # FirestoreKmpSyncClient, BackupExportManager
+│   │   ├── data/sync/                 # BackupExportManager (JSON export / import)
 │   │   ├── domain/stats/              # SubwayStatsCalculator, AchievementEngine
 │   │   └── ui/                        # SubwayMapScreen, StatsDashboardScreen, RidesAndCaptureScreen, StraphangerViewModel
 │   ├── src/commonTest/                # Multiplatform unit test suite (runs on the JVM via :shared:testAndroidHostTest)

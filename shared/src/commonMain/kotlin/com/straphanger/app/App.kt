@@ -12,12 +12,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +36,7 @@ import com.straphanger.app.ui.rides.DataSourcesAndSyncScreen
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
 import com.straphanger.app.ui.theme.MtaColors
+import kotlinx.coroutines.launch
 
 @Composable
 fun App(
@@ -40,6 +44,8 @@ fun App(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stats = uiState.stats
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -143,11 +149,23 @@ fun App(
                         uiState = uiState,
                         onImportSampleTimeline = { viewModel.importSampleGoogleMapsTimeline() },
                         onImportCustomTimelineJson = { viewModel.importCustomTimelineJson(it) },
-                        onTriggerCloudSync = { viewModel.triggerCloudSync() },
-                        onGenerateBackupPreview = { viewModel.generateBackupJsonPreview() }
+                        suggestedBackupName = viewModel.suggestedBackupName(),
+                        onExportBackup = { viewModel.exportBackup() },
+                        onBackupExported = viewModel::reportBackupExported,
+                        onBackupExportFailed = viewModel::reportBackupExportFailed,
+                        onImportBackup = { viewModel.importBackup(it) },
+                        onBackupRestored = viewModel::reportBackupRestored,
+                        onBackupMessage = { message ->
+                            scope.launch {
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar(message)
+                            }
+                        }
                     )
                 }
             }
+
+            SnackbarHost(snackbarHostState, modifier = Modifier.testTag("backup_snackbar"))
 
             // Bottom Navigation Bar
             Row(

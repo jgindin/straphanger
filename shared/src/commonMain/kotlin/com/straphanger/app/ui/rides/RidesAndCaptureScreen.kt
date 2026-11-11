@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,14 @@ import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
+import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.dialogs.openFileSaver
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
+import io.github.vinceglb.filekit.writeString
+import kotlinx.coroutines.launch
 
 @Composable
 fun RidesHistoryAndLoggerScreen(
@@ -274,10 +283,32 @@ fun DataSourcesAndSyncScreen(
     uiState: StraphangerUiState,
     onImportSampleTimeline: () -> Unit,
     onImportCustomTimelineJson: (String) -> Unit,
-    onTriggerCloudSync: () -> Unit,
-    onGenerateBackupPreview: () -> Unit
+    suggestedBackupName: String,
+    onExportBackup: suspend () -> String,
+    onBackupExported: (fileName: String?) -> String,
+    onBackupExportFailed: (reason: String?) -> String,
+    onImportBackup: suspend (ByteArray) -> Result<Int>,
+    onBackupRestored: (Result<Int>) -> String,
+    onBackupMessage: (String) -> Unit
 ) {
     var customTimelineText by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val restoreLauncher = rememberFilePickerLauncher(
+        type = FileKitType.File(listOf("json")),
+        onError = { failure -> onBackupMessage("Could not open the file picker: ${failure.message ?: "unknown error"}") }
+    ) { file ->
+        if (file != null) {
+            scope.launch {
+                val bytes = try {
+                    file.readBytes()
+                } catch (e: Exception) {
+                    onBackupMessage("Could not read the file: ${e.message ?: "unknown error"}")
+                    return@launch
+                }
+                onBackupMessage(onBackupRestored(onImportBackup(bytes)))
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -289,7 +320,7 @@ fun DataSourcesAndSyncScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            text = "Google Maps Capture & Firebase Sync",
+            text = "Google Maps Capture & Backup",
             color = Color.White,
             fontSize = 20.sp,
             fontWeight = FontWeight.ExtraBold
@@ -394,7 +425,7 @@ fun DataSourcesAndSyncScreen(
             )
         }
 
-        // 3. Firebase Cloud Firestore Sync (Spark Free Tier) & Local Backup
+        // 3. Backup and restore through files
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -405,39 +436,50 @@ fun DataSourcesAndSyncScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "3. Firebase Cloud Firestore Sync (Free Spark Tier) & Backup",
+                text = "3. Backup & Restore",
                 color = Color.White,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
+            Text(
+                text = "Export saves all rides to a JSON file you choose. Restore reads a file exported by this app; rides already on this device are replaced, not duplicated.",
+                color = MtaColors.TextSecondary,
+                fontSize = 12.sp
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
-                    onClick = onTriggerCloudSync,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6319)),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("sync_firestore_btn")
-                ) {
-                    Text("Sync to Firestore", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-                Button(
-                    onClick = onGenerateBackupPreview,
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val file = FileKit.openFileSaver(
+                                    suggestedName = suggestedBackupName,
+                                    defaultExtension = "json"
+                                )
+                                if (file != null) {
+                                    file.writeString(onExportBackup())
+                                    onBackupMessage(onBackupExported(file.name))
+                                }
+                            } catch (e: Exception) {
+                                onBackupMessage(onBackupExportFailed(e.message))
+                            }
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("export_backup_btn")
                 ) {
-                    Text("Export JSON Backup", fontSize = 12.sp)
+                    Text("Export backup…", fontSize = 12.sp)
                 }
-            }
-
-            if (!uiState.exportedBackupPreview.isNullOrBlank()) {
-                Text(
-                    text = uiState.exportedBackupPreview.take(280) + "...",
-                    color = MtaColors.TextSecondary,
-                    fontSize = 10.sp,
-                    modifier = Modifier.testTag("backup_json_preview")
-                )
+                Button(
+                    onClick = { restoreLauncher.launch() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("import_backup_btn")
+                ) {
+                    Text("Restore from backup…", fontSize = 12.sp)
+                }
             }
         }
     }

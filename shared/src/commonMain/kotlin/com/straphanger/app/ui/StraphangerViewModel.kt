@@ -12,12 +12,13 @@ import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.data.sync.BackupExportManager
-import com.straphanger.app.data.sync.FirestoreKmpSyncClient
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.domain.stats.SubwayStatsCalculator
 import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import kotlin.time.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,7 +37,7 @@ enum class AppTab(val label: String) {
     MAP("Subway Map"),
     STATS("Statistics"),
     RIDES("Rides & Log"),
-    SOURCES("Google Maps & Sync")
+    SOURCES("Google Maps & Backup")
 }
 
 data class StraphangerUiState(
@@ -57,8 +58,7 @@ data class StraphangerUiState(
     val passiveGeofenceEnabled: Boolean = true,
     val googleMapsNotificationEnabled: Boolean = true,
     val activeGeofenceCount: Int = 19,
-    val syncStatusMessage: String = "Local-first SQLite active • Offline-ready underground",
-    val exportedBackupPreview: String? = null
+    val syncStatusMessage: String = "Rides are stored on this device."
 )
 
 class StraphangerViewModel(
@@ -75,7 +75,6 @@ class StraphangerViewModel(
     val timelineImporter = TimelineJsonImporter(graphEngine)
     val shareParser = GoogleMapsShareParser(graphEngine, clock = clock)
     val geofenceManager = DynamicGeofenceWindowManager(graphEngine)
-    val firestoreSync = FirestoreKmpSyncClient(dao)
     val backupManager = BackupExportManager(dao, clock)
 
     private val _uiState = MutableStateFlow(
@@ -329,22 +328,45 @@ class StraphangerViewModel(
         return summary.ridesImported
     }
 
-    fun triggerCloudSync() {
-        scope.launch {
-            val res = firestoreSync.syncPendingRides()
-            _uiState.update { it.copy(syncStatusMessage = res.statusMessage) }
-        }
+    /** Returns the backup file contents (JSON) for all rides on this device. */
+    suspend fun exportBackup(): String = backupManager.exportToJson()
+
+    /** File name suggested in the save dialog, without extension: straphanger-backup-yyyy-MM-dd. */
+    fun suggestedBackupName(): String {
+        val today = clock.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        return "straphanger-backup-$today"
     }
 
-    fun generateBackupJsonPreview() {
-        val json = backupManager.exportToJson()
-        _uiState.update {
-            it.copy(
-                exportedBackupPreview = json,
-                syncStatusMessage = "Generated JSON backup (${dao.getAllRides().size} rides)"
-            )
-        }
+    /** Records the outcome of an export in the status banner and returns the message. */
+    fun reportBackupExported(fileName: String?): String =
+        setStatus(
+            buildString {
+                append("Exported ${dao.getAllRides().size} ride(s)")
+                if (!fileName.isNullOrBlank()) append(" to $fileName")
+            }
+        )
+
+    fun reportBackupExportFailed(reason: String?): String =
+        setStatus("Backup export failed: ${reason ?: "unknown error"}")
+
+    private fun setStatus(message: String): String {
+        _uiState.update { it.copy(syncStatusMessage = message) }
+        return message
     }
+
+    /** Restores rides from the bytes of a backup file. Rides already present are replaced, not duplicated. */
+    suspend fun importBackup(bytes: ByteArray): Result<Int> =
+        runCatching { bytes.decodeToString(throwOnInvalidSequence = true) }
+            .mapCatching { backupManager.importFromJson(it).getOrThrow() }
+
+    /** Records the outcome of a restore in the status banner and returns the message. */
+    fun reportBackupRestored(result: Result<Int>): String =
+        setStatus(
+            result.fold(
+                onSuccess = { n -> "Restored $n ride(s) from backup" },
+                onFailure = { "Could not restore: the file is not a Straphanger backup" }
+            )
+        )
 
     fun clearAllRides() {
         dao.clearAll()

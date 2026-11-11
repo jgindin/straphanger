@@ -57,11 +57,11 @@ class SubwayTrackerEmulatorTest {
         composeTestRule.onNodeWithTag("toggle_grouping_INDIVIDUAL_472").performScrollTo().performClick()
         composeTestRule.onNodeWithTag("toggle_visit_STOPPED_AT").performScrollTo().performClick()
 
-        // 6. Navigate to Google Maps & Sync tab and import Timeline.json sample
+        // 6. Navigate to Google Maps & Backup tab and import Timeline.json sample
         composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
         composeTestRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
         composeTestRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()
-        composeTestRule.onNodeWithTag("export_backup_btn").performScrollTo().performClick()
-        composeTestRule.onNodeWithTag("backup_json_preview").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("export_backup_btn").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag("import_backup_btn").performScrollTo().assertIsDisplayed()
     }
 }
