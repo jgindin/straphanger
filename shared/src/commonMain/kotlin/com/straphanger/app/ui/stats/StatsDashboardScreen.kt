@@ -153,7 +153,7 @@ fun StatsDashboardScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (active) Color(0xFF00933C) else Color(0xFF1E2636))
+                            .background(if (active) MtaColors.ActionGreen else Color(0xFF1E2636))
                             .clickable { onVisitFilterModeChange(mode) }
                             .padding(vertical = 8.dp)
                             .testTag("toggle_visit_${mode.name}"),

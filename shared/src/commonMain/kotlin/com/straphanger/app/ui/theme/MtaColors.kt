@@ -27,6 +27,9 @@ object MtaColors {
     val AccentGold = Color(0xFFFCCC0A)
     val AccentGreen = Color(0xFF00E676)
 
+    /** Filled-button green; white text on it is 5.5:1 (the line green 0xFF00933C gives 4.0:1). */
+    val ActionGreen = Color(0xFF007A33)
+
     fun parseHexColor(hex: String): Color {
         val clean = hex.removePrefix("#").trim()
         val rgb = clean.toLongOrNull(16) ?: return Color(0xFF0039A6)

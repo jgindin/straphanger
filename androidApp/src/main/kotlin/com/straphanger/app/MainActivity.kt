@@ -1,10 +1,13 @@
 package com.straphanger.app
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
@@ -26,6 +29,11 @@ class MainActivity : ComponentActivity() {
     private val captureAccess = mutableStateOf(CaptureAccessState())
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The app is always dark, so the system bar icons are always light.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
         FileKit.init(this)
         handleIncomingShareIntent(intent)

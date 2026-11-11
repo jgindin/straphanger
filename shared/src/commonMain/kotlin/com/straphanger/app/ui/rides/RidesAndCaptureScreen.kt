@@ -100,7 +100,7 @@ fun RidesHistoryAndLoggerScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
                             onClick = { onConfirmAmbiguousRide(rec.ride.rideId, "4", true) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00933C)),
+                            colors = ButtonDefaults.buttonColors(containerColor = MtaColors.ActionGreen),
                             modifier = Modifier.testTag("confirm_express_btn")
                         ) {
                             Text("Confirm 4 Express", fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -422,7 +422,7 @@ fun DataSourcesAndSyncScreen(
             Button(
                 onClick = { timelineLauncher.launch() },
                 enabled = !uiState.timelineImportInProgress,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00933C)),
+                colors = ButtonDefaults.buttonColors(containerColor = MtaColors.ActionGreen),
                 modifier = Modifier.testTag("pick_timeline_file_btn")
             ) {
                 Text("Choose Timeline file…", fontSize = 12.sp, fontWeight = FontWeight.Bold)

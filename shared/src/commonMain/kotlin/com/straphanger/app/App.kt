@@ -7,16 +7,26 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -106,9 +116,16 @@ fun App(
         colorScheme = darkColorScheme(
             background = MtaColors.DarkBg,
             surface = MtaColors.CardBg,
-            primary = Color(0xFF0039A6)
+            primary = Color(0xFF0039A6),
+            onPrimary = Color.White,
+            secondary = Color(0xFF2B3548),
+            onSecondary = Color.White,
+            onBackground = MtaColors.TextPrimary,
+            onSurface = MtaColors.TextPrimary,
+            onSurfaceVariant = MtaColors.TextSecondary
         )
     ) {
+      CompositionLocalProvider(LocalContentColor provides MtaColors.TextPrimary) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -120,6 +137,7 @@ fun App(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF10151F))
+                    .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -292,6 +310,7 @@ fun App(
                     .fillMaxWidth()
                     .background(Color(0xFF10151F))
                     .border(1.dp, MtaColors.CardBorder)
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
@@ -324,6 +343,7 @@ fun App(
                 }
             }
         }
+      }
     }
 }
 

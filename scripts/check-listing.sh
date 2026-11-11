@@ -10,7 +10,7 @@ fail=0
 check_len() { # file max
   local f="$lang/$1" max="$2" n
   if [ ! -f "$f" ]; then echo "FAIL: $f is missing"; fail=1; return; fi
-  n=$(wc -m < "$f" | tr -d ' ')
+  n=$(python3 -I -c 'import sys; print(len(open(sys.argv[1], encoding="utf-8").read()))' "$f")
   if [ "$n" -gt "$max" ]; then
     echo "FAIL: $1 is $n characters, limit is $max"; fail=1
   else
