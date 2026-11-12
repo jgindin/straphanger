@@ -146,30 +146,90 @@ data class SubwayStatsSnapshot(
     }
 }
 
+/** How often each segment was ridden, and on which routes. */
+private class SegmentUsage(
+  val rideCounts: Map<String, Int>,
+  val dominantRoutes: Map<String, String>,
+  val routesRidden: Map<String, Set<String>>,
+)
+
+/** The stations and complexes ridden through or boarded at and exited from. */
+private class StationCoverage(
+  val stoppedStationIds: Set<String>,
+  val stoppedComplexIds: Set<String>,
+  val boardedExitedStationIds: Set<String>,
+  val boardedExitedComplexIds: Set<String>,
+  val boardExitCounts: Map<String, Int>,
+)
+
+private class MonthTotals(val rideCount: Int, val miles: Double, val newUniqueMiles: Double)
+
+private const val TOP_LIST_SIZE = 5
+
+private fun round2(v: Double): Double = (v * 100.0).roundToInt() / 100.0
+
 class SubwayStatsCalculator(private val graphEngine: SubwayGraphEngine) {
   fun computeStats(rides: List<CompleteRideRecord>): SubwayStatsSnapshot {
     val network = graphEngine.network
     val totalGraphMiles = network.segments.sumOf { it.distanceMiles }.coerceAtLeast(1.0)
+    val usage = segmentUsage(rides)
+    val uniqueCorridorMiles =
+      round2(
+        usage.rideCounts.keys.sumOf { segId -> graphEngine.getSegment(segId)?.distanceMiles ?: 0.0 }
+      )
+    val completionFraction = (uniqueCorridorMiles / totalGraphMiles).coerceIn(0.0, 1.0)
+    val coverage = stationCoverage(rides)
+    val lineStats = lineStats(rides)
+    val boroughStats = boroughStats(rides, coverage.stoppedStationIds)
 
-    val totalRides = rides.size
-    val trackingStart = rides.minOfOrNull { it.ride.startTimeEpochMs }
-    val totalMiles = round2(rides.sumOf { it.ride.totalDistanceMiles })
-    val totalHours = round2(rides.sumOf { it.ride.durationMinutes } / 60.0)
-    val longestRide = round2(rides.maxOfOrNull { it.ride.totalDistanceMiles } ?: 0.0)
-    val shortestRide = round2(rides.minOfOrNull { it.ride.totalDistanceMiles } ?: 0.0)
-    val pendingReviews = rides.count { it.ride.needsReview }
+    return SubwayStatsSnapshot(
+      totalRides = rides.size,
+      trackingStartEpochMs = rides.minOfOrNull { it.ride.startTimeEpochMs },
+      totalMilesRidden = round2(rides.sumOf { it.ride.totalDistanceMiles }),
+      uniqueCorridorMilesRidden = uniqueCorridorMiles,
+      totalGraphCorridorMiles = round2(totalGraphMiles),
+      scaledUniqueSystemMiles = round2(uniqueCorridorMiles),
+      systemCompletionPercent = round2(completionFraction * 100.0),
+      totalHoursUnderground = round2(rides.sumOf { it.ride.durationMinutes } / 60.0),
+      longestRideMiles = round2(rides.maxOfOrNull { it.ride.totalDistanceMiles } ?: 0.0),
+      shortestRideMiles = round2(rides.minOfOrNull { it.ride.totalDistanceMiles } ?: 0.0),
+      pendingReviewCount = rides.count { it.ride.needsReview },
+      totalStationsInNetwork = network.stationCount,
+      totalComplexesInNetwork = network.complexCount,
+      stoppedAtIndividualStationsCount = coverage.stoppedStationIds.size,
+      stoppedAtComplexesCount = coverage.stoppedComplexIds.size,
+      boardedExitedIndividualStationsCount = coverage.boardedExitedStationIds.size,
+      boardedExitedComplexesCount = coverage.boardedExitedComplexIds.size,
+      visitedStationIdsStoppedAt = coverage.stoppedStationIds,
+      visitedStationIdsBoardedExited = coverage.boardedExitedStationIds,
+      segmentRideCounts = usage.rideCounts,
+      segmentDominantRoutes = usage.dominantRoutes,
+      segmentRoutesRidden = usage.routesRidden,
+      lineCompletionStats = lineStats,
+      boroughStats = boroughStats,
+      topStations = topStations(coverage.boardExitCounts),
+      topRoutePairs = topRoutePairs(rides),
+      monthlyTrends = monthlyTrends(rides),
+      achievements =
+        AchievementEngine.evaluateAchievements(
+          rides = rides,
+          uniqueCorridorMiles = uniqueCorridorMiles,
+          lineStats = lineStats,
+          boroughStats = boroughStats,
+        ),
+    )
+  }
 
-    // Segment frequency & unique physical corridor coverage
+  // Segment frequency & unique physical corridor coverage. Segments missing from the current
+  // network (rides saved against older data) are skipped.
+  private fun segmentUsage(rides: List<CompleteRideRecord>): SegmentUsage {
     val segRideCounts = mutableMapOf<String, Int>()
     val segRouteCounts = mutableMapOf<String, MutableMap<String, Int>>()
     val segRoutesSet = mutableMapOf<String, MutableSet<String>>()
-
     for (rec in rides) {
       // Count each segment once per ride for heatmap frequency
       val seenSegInRide = mutableSetOf<String>()
-      // Segments missing from the current network (rides saved against older data) are skipped.
-      for (seg in rec.segments) {
-        if (graphEngine.getSegment(seg.segmentId) == null) continue
+      for (seg in rec.segments.filter { graphEngine.getSegment(it.segmentId) != null }) {
         if (seenSegInRide.add(seg.segmentId)) {
           segRideCounts[seg.segmentId] = (segRideCounts[seg.segmentId] ?: 0) + 1
         }
@@ -178,32 +238,26 @@ class SubwayStatsCalculator(private val graphEngine: SubwayGraphEngine) {
         segRoutesSet.getOrPut(seg.segmentId) { mutableSetOf() }.add(seg.routeId)
       }
     }
+    return SegmentUsage(
+      rideCounts = segRideCounts,
+      dominantRoutes =
+        segRouteCounts.mapValues { (_, rCounts) ->
+          rCounts.maxByOrNull { it.value }?.key.orEmpty()
+        },
+      routesRidden = segRoutesSet.mapValues { it.value.toSet() },
+    )
+  }
 
-    val segDominantRoutes = segRouteCounts.mapValues { (_, rCounts) ->
-      rCounts.maxByOrNull { it.value }?.key.orEmpty()
-    }
-
-    val uniqueCorridorMiles =
-      round2(
-        segRideCounts.keys.sumOf { segId -> graphEngine.getSegment(segId)?.distanceMiles ?: 0.0 }
-      )
-
-    val completionFraction = (uniqueCorridorMiles / totalGraphMiles).coerceIn(0.0, 1.0)
-    val systemCompletionPct = round2(completionFraction * 100.0)
-    val scaledUniqueSystemMiles = round2(uniqueCorridorMiles)
-
-    // Station coverage sets
+  // Station IDs missing from the current network (rides saved against older data) are skipped.
+  private fun stationCoverage(rides: List<CompleteRideRecord>): StationCoverage {
     val stoppedStationIds = mutableSetOf<String>()
     val stoppedComplexIds = mutableSetOf<String>()
     val boardedExitedStationIds = mutableSetOf<String>()
     val boardedExitedComplexIds = mutableSetOf<String>()
     val stationBoardExitCount = mutableMapOf<String, Int>()
-
-    for (rec in rides) {
-      for (stop in rec.stationStops) {
-        // Station IDs missing from the current network (rides saved against older data) are
-        // skipped.
-        val station = graphEngine.getStation(stop.stationId) ?: continue
+    for (stop in rides.flatMap { it.stationStops }) {
+      val station = graphEngine.getStation(stop.stationId)
+      if (station != null) {
         stoppedStationIds.add(station.id)
         stoppedComplexIds.add(station.complexId)
         if (stop.stopRole != StopRole.STOPPED_THROUGH) {
@@ -213,74 +267,69 @@ class SubwayStatsCalculator(private val graphEngine: SubwayGraphEngine) {
         }
       }
     }
+    return StationCoverage(
+      stoppedStationIds,
+      stoppedComplexIds,
+      boardedExitedStationIds,
+      boardedExitedComplexIds,
+      stationBoardExitCount,
+    )
+  }
 
-    // Per-Line completion stats
-    val lineStats =
-      network.routes.map { routeInfo ->
-        val rId = routeInfo.routeId
-        val routeSegmentsInGraph = network.segments.filter { rId in it.routes }
-        val routeAvailableMiles = round2(routeSegmentsInGraph.sumOf { it.distanceMiles })
-        val legsOnRoute = rides.flatMap { it.legs }.filter { it.routeId == rId }
-        val totalMilesOnRoute = round2(legsOnRoute.sumOf { it.distanceMiles })
-        val uniqueSegIdsOnRoute =
-          rides
-            .flatMap { it.segments }
-            .filter { it.routeId == rId && graphEngine.getSegment(it.segmentId) != null }
-            .map { it.segmentId }
-            .toSet()
-        val uniqueMilesOnRoute =
-          round2(uniqueSegIdsOnRoute.sumOf { graphEngine.getSegment(it)?.distanceMiles ?: 0.0 })
-        val routeCompletionPct =
+  private fun lineStats(rides: List<CompleteRideRecord>): List<LineCompletionStat> =
+    graphEngine.network.routes.map { routeInfo ->
+      val rId = routeInfo.routeId
+      val routeAvailableMiles =
+        round2(graphEngine.network.segments.filter { rId in it.routes }.sumOf { it.distanceMiles })
+      val legsOnRoute = rides.flatMap { it.legs }.filter { it.routeId == rId }
+      val uniqueSegIdsOnRoute =
+        rides
+          .flatMap { it.segments }
+          .filter { it.routeId == rId && graphEngine.getSegment(it.segmentId) != null }
+          .map { it.segmentId }
+          .toSet()
+      val uniqueMilesOnRoute =
+        round2(uniqueSegIdsOnRoute.sumOf { graphEngine.getSegment(it)?.distanceMiles ?: 0.0 })
+      LineCompletionStat(
+        routeInfo = routeInfo,
+        legRideCount = legsOnRoute.size,
+        totalMilesRidden = round2(legsOnRoute.sumOf { it.distanceMiles }),
+        uniqueCorridorMilesRidden = uniqueMilesOnRoute,
+        totalCorridorMilesAvailable = routeAvailableMiles,
+        completionPercent =
           if (routeAvailableMiles <= 0.0) 0.0
-          else round2(((uniqueMilesOnRoute / routeAvailableMiles) * 100.0).coerceIn(0.0, 100.0))
+          else round2(((uniqueMilesOnRoute / routeAvailableMiles) * 100.0).coerceIn(0.0, 100.0)),
+      )
+    }
 
-        LineCompletionStat(
-          routeInfo = routeInfo,
-          legRideCount = legsOnRoute.size,
-          totalMilesRidden = totalMilesOnRoute,
-          uniqueCorridorMilesRidden = uniqueMilesOnRoute,
-          totalCorridorMilesAvailable = routeAvailableMiles,
-          completionPercent = routeCompletionPct,
-        )
+  private fun boroughStats(
+    rides: List<CompleteRideRecord>,
+    stoppedStationIds: Set<String>,
+  ): List<BoroughStat> =
+    Borough.entries.map { boro ->
+      val stationsInBoro = graphEngine.network.stations.filter { it.borough == boro }
+      // Each ridden segment counts toward the borough of the station it starts from.
+      val milesPerRide = rides.map { rec ->
+        rec.segments.filter { segmentBorough(it.segmentId) == boro }.map { it.distanceMiles }
       }
+      BoroughStat(
+        borough = boro,
+        stationsVisited = stationsInBoro.count { it.id in stoppedStationIds },
+        totalStationsInGraph = stationsInBoro.size,
+        milesRidden = round2(milesPerRide.flatten().sum()),
+        rideTouches = milesPerRide.count { it.isNotEmpty() },
+      )
+    }
 
-    // Borough breakdown
-    val boroughStats =
-      Borough.entries.map { boro ->
-        val stationsInBoro = network.stations.filter { it.borough == boro }
-        val visitedInBoro = stationsInBoro.count { it.id in stoppedStationIds }
-        var boroMiles = 0.0
-        var boroTouches = 0
-        for (rec in rides) {
-          var touchedThisRide = false
-          for (seg in rec.segments) {
-            val fromBoro =
-              graphEngine
-                .getStation(graphEngine.getSegment(seg.segmentId)?.fromStationId.orEmpty())
-                ?.borough
-            if (fromBoro == boro) {
-              boroMiles += seg.distanceMiles
-              touchedThisRide = true
-            }
-          }
-          if (touchedThisRide) boroTouches++
-        }
-        BoroughStat(
-          borough = boro,
-          stationsVisited = visitedInBoro,
-          totalStationsInGraph = stationsInBoro.size,
-          milesRidden = round2(boroMiles),
-          rideTouches = boroTouches,
-        )
-      }
+  private fun segmentBorough(segmentId: String): Borough? =
+    graphEngine.getStation(graphEngine.getSegment(segmentId)?.fromStationId.orEmpty())?.borough
 
-    // Top Stations & Top O-D Pairs
-    val topStations =
-      stationBoardExitCount.entries
-        .sortedByDescending { it.value }
-        .take(5)
-        .mapNotNull { (stId, cnt) ->
-          val st = graphEngine.getStation(stId) ?: return@mapNotNull null
+  private fun topStations(boardExitCounts: Map<String, Int>): List<FavoriteStationStat> =
+    boardExitCounts.entries
+      .sortedByDescending { it.value }
+      .take(TOP_LIST_SIZE)
+      .mapNotNull { (stId, cnt) ->
+        graphEngine.getStation(stId)?.let { st ->
           FavoriteStationStat(
             stationId = stId,
             stationName = st.name,
@@ -288,7 +337,9 @@ class SubwayStatsCalculator(private val graphEngine: SubwayGraphEngine) {
             visitCount = cnt,
           )
         }
+      }
 
+  private fun topRoutePairs(rides: List<CompleteRideRecord>): List<RoutePairStat> {
     val pairCounts = mutableMapOf<Pair<String, String>, Int>()
     for (rec in rides) {
       val origName =
@@ -298,95 +349,159 @@ class SubwayStatsCalculator(private val graphEngine: SubwayGraphEngine) {
       val key = origName to destName
       pairCounts[key] = (pairCounts[key] ?: 0) + 1
     }
-    val topRoutePairs =
-      pairCounts.entries
-        .sortedByDescending { it.value }
-        .take(5)
-        .map { (pair, cnt) ->
-          RoutePairStat(
-            originName = pair.first,
-            destinationName = pair.second,
-            rideCount = cnt,
-          )
-        }
+    return pairCounts.entries
+      .sortedByDescending { it.value }
+      .take(TOP_LIST_SIZE)
+      .map { (pair, cnt) ->
+        RoutePairStat(originName = pair.first, destinationName = pair.second, rideCount = cnt)
+      }
+  }
 
-    // Monthly Trends (chronological)
-    val chronologicalRides = rides.sortedBy { it.ride.startTimeEpochMs }
+  // Chronological; newUniqueMiles counts each segment in the month it was first ridden.
+  private fun monthlyTrends(rides: List<CompleteRideRecord>): List<MonthlyTrendBucket> {
     val seenSegmentsEver = mutableSetOf<String>()
-    val monthlyMap = linkedMapOf<String, Triple<Int, Double, Double>>()
-
-    for (rec in chronologicalRides) {
+    val monthlyMap = linkedMapOf<String, MonthTotals>()
+    for (rec in rides.sortedBy { it.ride.startTimeEpochMs }) {
       val dt =
         Instant.fromEpochMilliseconds(rec.ride.startTimeEpochMs)
           .toLocalDateTime(TimeZone.of("America/New_York"))
       val ym = "${dt.year}-${dt.month.number.toString().padStart(2, '0')}"
       var newlyUnlockedMiles = 0.0
-      for (seg in rec.segments) {
-        if (graphEngine.getSegment(seg.segmentId) == null) continue
-        if (seenSegmentsEver.add(seg.segmentId)) {
-          newlyUnlockedMiles += seg.distanceMiles
-        }
+      for (seg in rec.segments.filter { graphEngine.getSegment(it.segmentId) != null }) {
+        if (seenSegmentsEver.add(seg.segmentId)) newlyUnlockedMiles += seg.distanceMiles
       }
-      val prev = monthlyMap[ym] ?: Triple(0, 0.0, 0.0)
+      val prev = monthlyMap[ym] ?: MonthTotals(0, 0.0, 0.0)
       monthlyMap[ym] =
-        Triple(
-          prev.first + 1,
-          prev.second + rec.ride.totalDistanceMiles,
-          prev.third + newlyUnlockedMiles,
+        MonthTotals(
+          prev.rideCount + 1,
+          prev.miles + rec.ride.totalDistanceMiles,
+          prev.newUniqueMiles + newlyUnlockedMiles,
         )
     }
-
-    val monthlyTrends = monthlyMap.map { (ym, triple) ->
+    return monthlyMap.map { (ym, totals) ->
       MonthlyTrendBucket(
         yearMonth = ym,
-        rideCount = triple.first,
-        totalMiles = round2(triple.second),
-        newUniqueMiles = round2(triple.third),
+        rideCount = totals.rideCount,
+        totalMiles = round2(totals.miles),
+        newUniqueMiles = round2(totals.newUniqueMiles),
       )
     }
+  }
+}
 
-    val achievements =
-      AchievementEngine.evaluateAchievements(
-        rides = rides,
-        uniqueCorridorMiles = uniqueCorridorMiles,
-        lineStats = lineStats,
-        boroughStats = boroughStats,
-      )
+/** The counts that achievements measure progress against. */
+private class AchievementProgress(
+  val totalRides: Double,
+  val mainlandBoroughsVisited: Double,
+  val expressLegs: Double,
+  val completedLines: Double,
+  val uniqueCorridorMiles: Double,
+  val shuttleRides: Double,
+  val rushPeakRides: Double,
+  val lateNightRides: Double,
+)
 
-    return SubwayStatsSnapshot(
-      totalRides = totalRides,
-      trackingStartEpochMs = trackingStart,
-      totalMilesRidden = totalMiles,
-      uniqueCorridorMilesRidden = uniqueCorridorMiles,
-      totalGraphCorridorMiles = round2(totalGraphMiles),
-      scaledUniqueSystemMiles = scaledUniqueSystemMiles,
-      systemCompletionPercent = systemCompletionPct,
-      totalHoursUnderground = totalHours,
-      longestRideMiles = longestRide,
-      shortestRideMiles = shortestRide,
-      pendingReviewCount = pendingReviews,
-      totalStationsInNetwork = network.stationCount,
-      totalComplexesInNetwork = network.complexCount,
-      stoppedAtIndividualStationsCount = stoppedStationIds.size,
-      stoppedAtComplexesCount = stoppedComplexIds.size,
-      boardedExitedIndividualStationsCount = boardedExitedStationIds.size,
-      boardedExitedComplexesCount = boardedExitedComplexIds.size,
-      visitedStationIdsStoppedAt = stoppedStationIds,
-      visitedStationIdsBoardedExited = boardedExitedStationIds,
-      segmentRideCounts = segRideCounts,
-      segmentDominantRoutes = segDominantRoutes,
-      segmentRoutesRidden = segRoutesSet.mapValues { it.value.toSet() },
-      lineCompletionStats = lineStats,
-      boroughStats = boroughStats,
-      topStations = topStations,
-      topRoutePairs = topRoutePairs,
-      monthlyTrends = monthlyTrends,
-      achievements = achievements,
+/** An achievement, unlocked once [current] reaches [targetValue]. */
+private class AchievementDefinition(
+  val id: String,
+  val title: String,
+  val description: String,
+  val iconCode: String,
+  val targetValue: Double,
+  val current: (AchievementProgress) -> Double,
+) {
+  fun evaluate(progress: AchievementProgress): SubwayAchievement {
+    val currentValue = current(progress)
+    return SubwayAchievement(
+      id = id,
+      title = title,
+      description = description,
+      iconCode = iconCode,
+      currentValue = currentValue,
+      targetValue = targetValue,
+      isUnlocked = currentValue >= targetValue,
     )
   }
-
-  private fun round2(v: Double): Double = (v * 100.0).roundToInt() / 100.0
 }
+
+/** A line counts as complete from this completion percentage. */
+private const val LINE_COMPLETE_PERCENT = 99.0
+
+private val ACHIEVEMENTS =
+  listOf(
+    AchievementDefinition(
+      id = "FIRST_SWIPE",
+      title = "First Swipe",
+      description = "Log your first NYC Subway ride",
+      iconCode = "OMNY",
+      targetValue = 1.0,
+    ) {
+      it.totalRides
+    },
+    AchievementDefinition(
+      id = "BOROUGH_EXPLORER",
+      title = "Four-Borough Straphanger",
+      description = "Visit stations across Manhattan, Brooklyn, Queens, and The Bronx",
+      iconCode = "NYC4",
+      targetValue = 4.0,
+    ) {
+      it.mainlandBoroughsVisited
+    },
+    AchievementDefinition(
+      id = "EXPRESS_MASTER",
+      title = "Express Track Master",
+      description = "Ride 3 or more Express subway legs skipping local stops",
+      iconCode = "EXP",
+      targetValue = 3.0,
+    ) {
+      it.expressLegs
+    },
+    AchievementDefinition(
+      id = "LINE_COMPLETIONIST",
+      title = "End-to-End Line Finisher",
+      description = "Complete 100% of the corridor segments on any NYC Subway line",
+      iconCode = "100%",
+      targetValue = 1.0,
+    ) {
+      it.completedLines
+    },
+    AchievementDefinition(
+      id = "MILEAGE_EXPLORER",
+      title = "25 Unique System Miles",
+      description = "Unlock 25+ unique miles of physical NYC Subway track",
+      iconCode = "25MI",
+      targetValue = 25.0,
+    ) {
+      it.uniqueCorridorMiles
+    },
+    AchievementDefinition(
+      id = "SHUTTLE_COLLECTOR",
+      title = "Shuttle Master",
+      description = "Ride the 42 St, Franklin Ave, or Rockaway Park Shuttle (S)",
+      iconCode = "S",
+      targetValue = 1.0,
+    ) {
+      it.shuttleRides
+    },
+    AchievementDefinition(
+      id = "RUSH_HOUR_WARRIOR",
+      title = "Rush Hour Warrior",
+      description = "Complete 5+ rides during weekday Rush Peak hours",
+      iconCode = "PEAK",
+      targetValue = 5.0,
+    ) {
+      it.rushPeakRides
+    },
+    AchievementDefinition(
+      id = "LATE_NIGHT_OWL",
+      title = "Night Owl Local",
+      description = "Take a late-night subway ride between 11:45 PM and 5:30 AM",
+      iconCode = "OWL",
+      targetValue = 1.0,
+    ) {
+      it.lateNightRides
+    },
+  )
 
 object AchievementEngine {
   /** GTFS route IDs of the 42 St, Franklin Av and Rockaway Park shuttles. */
@@ -398,96 +513,25 @@ object AchievementEngine {
     lineStats: List<LineCompletionStat>,
     boroughStats: List<BoroughStat>,
   ): List<SubwayAchievement> {
-    val totalRides = rides.size.toDouble()
-    val mainlandBoroughsVisited =
-      boroughStats
-        .filter { it.borough != Borough.STATEN_ISLAND }
-        .count { it.stationsVisited > 0 }
-        .toDouble()
-    val expressLegs = rides.flatMap { it.legs }.count { it.isExpress }.toDouble()
-    val completedLines = lineStats.count { it.completionPercent >= 99.0 }.toDouble()
-    val shuttleRides =
-      rides.flatMap { it.legs }.count { it.routeId in SHUTTLE_ROUTE_IDS }.toDouble()
-    val rushPeakRides =
-      rides.count { rec -> rec.legs.any { it.servicePeriod == ServicePeriod.RUSH_PEAK } }.toDouble()
-    val lateNightRides =
-      rides
-        .count { rec -> rec.legs.any { it.servicePeriod == ServicePeriod.LATE_NIGHT } }
-        .toDouble()
-
-    return listOf(
-      SubwayAchievement(
-        id = "FIRST_SWIPE",
-        title = "First Swipe",
-        description = "Log your first NYC Subway ride",
-        iconCode = "OMNY",
-        currentValue = totalRides,
-        targetValue = 1.0,
-        isUnlocked = totalRides >= 1.0,
-      ),
-      SubwayAchievement(
-        id = "BOROUGH_EXPLORER",
-        title = "Four-Borough Straphanger",
-        description = "Visit stations across Manhattan, Brooklyn, Queens, and The Bronx",
-        iconCode = "NYC4",
-        currentValue = mainlandBoroughsVisited,
-        targetValue = 4.0,
-        isUnlocked = mainlandBoroughsVisited >= 4.0,
-      ),
-      SubwayAchievement(
-        id = "EXPRESS_MASTER",
-        title = "Express Track Master",
-        description = "Ride 3 or more Express subway legs skipping local stops",
-        iconCode = "EXP",
-        currentValue = expressLegs,
-        targetValue = 3.0,
-        isUnlocked = expressLegs >= 3.0,
-      ),
-      SubwayAchievement(
-        id = "LINE_COMPLETIONIST",
-        title = "End-to-End Line Finisher",
-        description = "Complete 100% of the corridor segments on any NYC Subway line",
-        iconCode = "100%",
-        currentValue = completedLines,
-        targetValue = 1.0,
-        isUnlocked = completedLines >= 1.0,
-      ),
-      SubwayAchievement(
-        id = "MILEAGE_EXPLORER",
-        title = "25 Unique System Miles",
-        description = "Unlock 25+ unique miles of physical NYC Subway track",
-        iconCode = "25MI",
-        currentValue = uniqueCorridorMiles,
-        targetValue = 25.0,
-        isUnlocked = uniqueCorridorMiles >= 25.0,
-      ),
-      SubwayAchievement(
-        id = "SHUTTLE_COLLECTOR",
-        title = "Shuttle Master",
-        description = "Ride the 42 St, Franklin Ave, or Rockaway Park Shuttle (S)",
-        iconCode = "S",
-        currentValue = shuttleRides,
-        targetValue = 1.0,
-        isUnlocked = shuttleRides >= 1.0,
-      ),
-      SubwayAchievement(
-        id = "RUSH_HOUR_WARRIOR",
-        title = "Rush Hour Warrior",
-        description = "Complete 5+ rides during weekday Rush Peak hours",
-        iconCode = "PEAK",
-        currentValue = rushPeakRides,
-        targetValue = 5.0,
-        isUnlocked = rushPeakRides >= 5.0,
-      ),
-      SubwayAchievement(
-        id = "LATE_NIGHT_OWL",
-        title = "Night Owl Local",
-        description = "Take a late-night subway ride between 11:45 PM and 5:30 AM",
-        iconCode = "OWL",
-        currentValue = lateNightRides,
-        targetValue = 1.0,
-        isUnlocked = lateNightRides >= 1.0,
-      ),
-    )
+    val legs = rides.flatMap { it.legs }
+    fun ridesDuring(period: ServicePeriod): Double =
+      rides.count { rec -> rec.legs.any { it.servicePeriod == period } }.toDouble()
+    val progress =
+      AchievementProgress(
+        totalRides = rides.size.toDouble(),
+        mainlandBoroughsVisited =
+          boroughStats
+            .filter { it.borough != Borough.STATEN_ISLAND }
+            .count { it.stationsVisited > 0 }
+            .toDouble(),
+        expressLegs = legs.count { it.isExpress }.toDouble(),
+        completedLines =
+          lineStats.count { it.completionPercent >= LINE_COMPLETE_PERCENT }.toDouble(),
+        uniqueCorridorMiles = uniqueCorridorMiles,
+        shuttleRides = legs.count { it.routeId in SHUTTLE_ROUTE_IDS }.toDouble(),
+        rushPeakRides = ridesDuring(ServicePeriod.RUSH_PEAK),
+        lateNightRides = ridesDuring(ServicePeriod.LATE_NIGHT),
+      )
+    return ACHIEVEMENTS.map { it.evaluate(progress) }
   }
 }
