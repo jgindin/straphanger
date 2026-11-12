@@ -55,21 +55,41 @@ fun AboutScreen(
   // Back closes the licenses view first; otherwise App's handler closes About.
   BackHandler(enabled = showLicenses) { showLicenses = false }
   if (showLicenses && licensesContent != null) {
-    Column(
-      modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen")
-    ) {
-      OutlinedButton(
-        onClick = { showLicenses = false },
-        modifier = Modifier.padding(12.dp).testTag("licenses_back_btn"),
-      ) {
-        Text("Back", color = Color.White)
-      }
-      licensesContent()
-    }
-    return
+    LicensesView(onBack = { showLicenses = false }, licensesContent = licensesContent)
+  } else {
+    AboutContent(
+      appVersion = appVersion,
+      sourceDate = sourceDate,
+      onBack = onBack,
+      licensesAvailable = licensesContent != null,
+      onOpenLicenses = { showLicenses = true },
+    )
   }
+}
 
-  val uriHandler = LocalUriHandler.current
+@Composable
+private fun LicensesView(onBack: () -> Unit, licensesContent: @Composable () -> Unit) {
+  Column(
+    modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen")
+  ) {
+    OutlinedButton(
+      onClick = onBack,
+      modifier = Modifier.padding(12.dp).testTag("licenses_back_btn"),
+    ) {
+      Text("Back", color = Color.White)
+    }
+    licensesContent()
+  }
+}
+
+@Composable
+private fun AboutContent(
+  appVersion: String,
+  sourceDate: String,
+  onBack: () -> Unit,
+  licensesAvailable: Boolean,
+  onOpenLicenses: () -> Unit,
+) {
   Column(
     modifier =
       Modifier.fillMaxSize()
@@ -94,45 +114,57 @@ fun AboutScreen(
       fontSize = 13.sp,
       modifier = Modifier.testTag("about_version"),
     )
-    Text(
-      "Subway data: MTA GTFS, $sourceDate",
-      color = Color.White,
-      fontSize = 14.sp,
-      fontWeight = FontWeight.SemiBold,
-      modifier = Modifier.testTag("about_data_date"),
-    )
-    Text(
-      mtaAttributionText(sourceDate),
-      color = MtaColors.TextSecondary,
-      fontSize = 13.sp,
-      modifier = Modifier.testTag("about_attribution"),
-    )
-    Text(
-      NOT_AFFILIATED_TEXT,
-      color = Color.White,
-      fontSize = 13.sp,
-      modifier = Modifier.testTag("about_disclaimer"),
-    )
-    Text(
-      "Privacy policy",
-      color = Color(0xFF8AB4F8),
-      fontSize = 14.sp,
-      textDecoration = TextDecoration.Underline,
-      modifier =
-        Modifier.clickable { uriHandler.openUri(PRIVACY_POLICY_URL) }
-          .padding(vertical = 8.dp)
-          .testTag("about_privacy_policy_link"),
-    )
+    DataSourceText(sourceDate)
+    PrivacyPolicyLink()
     Button(
-      onClick = { showLicenses = true },
-      enabled = licensesContent != null,
+      onClick = onOpenLicenses,
+      enabled = licensesAvailable,
       colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
       modifier = Modifier.testTag("about_licenses_btn"),
     ) {
       Text(
-        if (licensesContent != null) "Open-source licenses"
+        if (licensesAvailable) "Open-source licenses"
         else "Open-source licenses are not listed on this platform"
       )
     }
   }
+}
+
+/** The data date, the MTA attribution and the disclaimer. */
+@Composable
+private fun DataSourceText(sourceDate: String) {
+  Text(
+    "Subway data: MTA GTFS, $sourceDate",
+    color = Color.White,
+    fontSize = 14.sp,
+    fontWeight = FontWeight.SemiBold,
+    modifier = Modifier.testTag("about_data_date"),
+  )
+  Text(
+    mtaAttributionText(sourceDate),
+    color = MtaColors.TextSecondary,
+    fontSize = 13.sp,
+    modifier = Modifier.testTag("about_attribution"),
+  )
+  Text(
+    NOT_AFFILIATED_TEXT,
+    color = Color.White,
+    fontSize = 13.sp,
+    modifier = Modifier.testTag("about_disclaimer"),
+  )
+}
+
+@Composable
+private fun PrivacyPolicyLink() {
+  val uriHandler = LocalUriHandler.current
+  Text(
+    "Privacy policy",
+    color = Color(0xFF8AB4F8),
+    fontSize = 14.sp,
+    textDecoration = TextDecoration.Underline,
+    modifier =
+      Modifier.clickable { uriHandler.openUri(PRIVACY_POLICY_URL) }
+        .padding(vertical = 8.dp)
+        .testTag("about_privacy_policy_link"),
+  )
 }
