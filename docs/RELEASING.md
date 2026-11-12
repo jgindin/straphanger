@@ -44,7 +44,7 @@ R8 minification and resource shrinking are on for release. Keep `androidApp/buil
 
 ## Releasing a version
 
-1. Edit `version.properties` to the new `versionName`.
+1. Edit `version.properties` to the new `versionName`, run `./gradlew syncIosVersion` (iOS reads `iosApp/Configuration/Version.xcconfig`; CI fails if it is stale), and add an entry to `CHANGELOG.md`.
 2. Write the release notes in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 3. Run `scripts/check-listing.sh` if you changed anything under `androidApp/src/main/play/listings`.
 4. `jj commit -m "release: vX.Y.Z"`, then move `main` to that commit and push it.
