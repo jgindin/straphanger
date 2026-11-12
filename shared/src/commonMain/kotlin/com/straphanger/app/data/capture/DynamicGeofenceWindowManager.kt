@@ -96,7 +96,7 @@ class DynamicGeofenceWindowManager(
         newLng,
       )
     val movedMeters = movedMiles * 1609.34
-    return movedMeters >= (macroAnchorRadiusMeters * 0.7)
+    return movedMeters >= (macroAnchorRadiusMeters * ANCHOR_REFRESH_FRACTION)
   }
 
   companion object {
@@ -280,3 +280,6 @@ class PassiveRideReconstructor(
     const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
   }
 }
+
+/** A macro anchor is refreshed once the user has moved this fraction of its radius. */
+private const val ANCHOR_REFRESH_FRACTION = 0.7

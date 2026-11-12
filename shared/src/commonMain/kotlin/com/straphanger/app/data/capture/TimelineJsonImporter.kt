@@ -359,7 +359,7 @@ class TimelineJsonImporter(private val graphEngine: SubwayGraphEngine) {
       val latE7 = element["latitudeE7"]?.jsonPrimitive?.intOrNull
       val lngE7 = element["longitudeE7"]?.jsonPrimitive?.intOrNull
       if (latE7 != null && lngE7 != null) {
-        return GeoPoint(latE7 / 1e7, lngE7 / 1e7)
+        return GeoPoint(latE7 / E7_PER_DEGREE, lngE7 / E7_PER_DEGREE)
       }
       val lat =
         element["lat"]?.jsonPrimitive?.doubleOrNull
@@ -424,3 +424,6 @@ class TimelineJsonImporter(private val graphEngine: SubwayGraphEngine) {
     return cleaned.takeIf { graphEngine.getRoute(it) != null }
   }
 }
+
+/** Google stores latitude and longitude as integer degrees times 10^7. */
+private const val E7_PER_DEGREE = 1e7

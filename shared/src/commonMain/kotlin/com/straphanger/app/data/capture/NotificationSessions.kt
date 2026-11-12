@@ -80,7 +80,7 @@ class FileNotificationSessionStore(
         NotificationSessionState.serializer(),
         fileSystem.source(file).buffered().use { it.readString() },
       )
-    } catch (e: Exception) {
+    } catch (ignored: Exception) {
       NotificationSessionState()
     }
   }

@@ -373,7 +373,11 @@ class NetworkBuilder(
     val j = nearestIndex(shape, to.lat, to.lng, i)
     val stretch = shape.subList(i, j + 1)
     val miles = stretch.zipWithNext().sumOf { (p, q) -> haversineMiles(p.lat, p.lng, q.lat, q.lng) }
-    if (stretch.size < 2 || miles < straight * 0.95 - 0.01 || miles > straight * 3.0 + 0.05) {
+    if (
+      stretch.size < 2 ||
+        miles < straight * SHAPE_MIN_RATIO - SHAPE_MIN_SLACK ||
+        miles > straight * SHAPE_MAX_RATIO + SHAPE_MAX_SLACK
+    ) {
       report.shapeFallbacks++
       return fallback
     }
@@ -447,3 +451,9 @@ class NetworkBuilder(
     }
   }
 }
+
+/** A shape stretch must be 0.95x to 3x the straight-line distance, with a little slack in miles. */
+private const val SHAPE_MIN_RATIO = 0.95
+private const val SHAPE_MIN_SLACK = 0.01
+private const val SHAPE_MAX_RATIO = 3.0
+private const val SHAPE_MAX_SLACK = 0.05

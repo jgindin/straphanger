@@ -22,8 +22,8 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Check formatting (ktfmt)
-        run: ./gradlew ktfmtCheck --stacktrace
+      - name: Check formatting and static analysis (ktfmt, detekt)
+        run: ./gradlew ktfmtCheck detekt checkIosVersion --stacktrace
 
       - name: Run Shared KMP Unit Tests
         run: ./gradlew :shared:testAndroidHostTest --stacktrace

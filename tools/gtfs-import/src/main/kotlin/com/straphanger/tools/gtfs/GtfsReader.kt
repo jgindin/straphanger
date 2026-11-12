@@ -105,14 +105,14 @@ object GtfsReader {
         )
       }
     val routes =
-      table("routes.txt").mapIndexed { idx, it ->
+      table("routes.txt").mapIndexed { idx, row ->
         GtfsRoute(
-          routeId = it.getValue("route_id"),
-          shortName = it["route_short_name"].orEmpty(),
-          longName = it["route_long_name"].orEmpty(),
-          color = it["route_color"].orEmpty().ifBlank { "808183" },
-          textColor = it["route_text_color"].orEmpty().ifBlank { "FFFFFF" },
-          sortOrder = it["route_sort_order"]?.toIntOrNull() ?: idx,
+          routeId = row.getValue("route_id"),
+          shortName = row["route_short_name"].orEmpty(),
+          longName = row["route_long_name"].orEmpty(),
+          color = row["route_color"].orEmpty().ifBlank { "808183" },
+          textColor = row["route_text_color"].orEmpty().ifBlank { "FFFFFF" },
+          sortOrder = row["route_sort_order"]?.toIntOrNull() ?: idx,
         )
       }
     val trips =

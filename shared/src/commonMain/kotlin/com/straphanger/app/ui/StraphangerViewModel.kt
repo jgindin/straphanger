@@ -657,7 +657,7 @@ class StraphangerViewModel(
           val text =
             try {
               bytes.decodeToString(throwOnInvalidSequence = true)
-            } catch (e: CharacterCodingException) {
+            } catch (ignored: CharacterCodingException) {
               return@withContext emptyImportSummary()
             }
           timelineImporter.resolveTimelineJson(text, existingRides)

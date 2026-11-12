@@ -108,7 +108,11 @@ class SubwayGraphEngine(val network: SubwayNetworkData) {
     val hour = dt.hour
     val minute = dt.minute
     // Late night: 11:45 PM - 5:29 AM
-    if (hour in 0..4 || (hour == 23 && minute >= 45) || (hour == 5 && minute < 30)) {
+    if (
+      hour in 0..4 ||
+        (hour == LATE_NIGHT_START_HOUR && minute >= LATE_NIGHT_START_MINUTE) ||
+        (hour == LATE_NIGHT_END_HOUR && minute < LATE_NIGHT_END_MINUTE)
+    ) {
       return ServicePeriod.LATE_NIGHT
     }
     if (dt.dayOfWeek == DayOfWeek.SATURDAY || dt.dayOfWeek == DayOfWeek.SUNDAY) {
@@ -242,8 +246,8 @@ class SubwayGraphEngine(val network: SubwayNetworkData) {
       val allStops = StopPlan(orderedStations, emptyList())
 
       fun estimatedMinutes(stopCount: Int, express: Boolean): Double =
-        if (express) (legDistance / 24.0) * 60.0 + (stopCount - 1) * 0.45
-        else (legDistance / 15.5) * 60.0 + (stopCount - 1) * 0.55
+        if (express) (legDistance / EXPRESS_MPH) * 60.0 + (stopCount - 1) * EXPRESS_DWELL_MINUTES
+        else (legDistance / LOCAL_MPH) * 60.0 + (stopCount - 1) * LOCAL_DWELL_MINUTES
 
       val chosenRouteId: String
       val chosenPlan: StopPlan
@@ -533,3 +537,15 @@ class SubwayGraphEngine(val network: SubwayNetworkData) {
     const val PLATFORM_WALK_PENALTY_MILES = 0.35
   }
 }
+
+/** Late night runs 23:45 to 05:30. */
+private const val LATE_NIGHT_START_HOUR = 23
+private const val LATE_NIGHT_START_MINUTE = 45
+private const val LATE_NIGHT_END_HOUR = 5
+private const val LATE_NIGHT_END_MINUTE = 30
+
+/** Rough average speeds and per-stop dwell times used to estimate trip durations. */
+private const val EXPRESS_MPH = 24.0
+private const val LOCAL_MPH = 15.5
+private const val EXPRESS_DWELL_MINUTES = 0.45
+private const val LOCAL_DWELL_MINUTES = 0.55

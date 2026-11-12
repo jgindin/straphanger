@@ -74,7 +74,7 @@ class FilePendingGeofenceEventStore(
           serializer,
           fileSystem.source(file).buffered().use { it.readString() },
         )
-      } catch (e: Exception) {
+      } catch (ignored: Exception) {
         return emptyList()
       }
     return entries.map { GeofenceEvent.Entered(it.geofenceId, it.epochMs, it.lat, it.lng) }

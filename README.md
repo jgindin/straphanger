@@ -39,6 +39,7 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 ./gradlew :shared:iosSimulatorArm64Test           # iOS simulator tests; macOS only, not run so far
 ./gradlew ktfmtCheck                              # formatting check (Google style, 100 columns)
 ./gradlew ktfmtFormat                             # fix formatting
+./gradlew detekt                                  # static analysis (config/detekt/detekt.yml)
 scripts/check-listing.sh                          # Play listing text checks
 ```
 
