@@ -3,6 +3,8 @@ package com.straphanger.app.data.capture
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.testutil.TestNetwork
+import com.straphanger.app.ui.NOT_A_TIMELINE_MESSAGE
+import com.straphanger.app.ui.NOT_TEXT_TIMELINE_MESSAGE
 import com.straphanger.app.ui.SAMPLE_TIMELINE_JSON
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.concurrent.Volatile
@@ -11,6 +13,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
@@ -73,8 +76,33 @@ class TimelineImportFileTest {
     val summary = vm.importTimelineFile("not json at all".encodeToByteArray())
     assertEquals(0, summary.rawSegmentsFound)
     assertEquals(0, summary.ridesImported)
-    assertNotNull(vm.uiState.value.lastImportSummary)
+    // The user is told the file is not a Timeline file instead of seeing an empty summary.
+    assertEquals(NOT_A_TIMELINE_MESSAGE, vm.uiState.value.statusMessage)
+    assertNull(vm.uiState.value.lastImportSummary)
     assertTrue(vm.dao.getAllRides().isEmpty())
+    assertFalse(vm.uiState.value.timelineImportInProgress)
+  }
+
+  @Test
+  fun fileThatIsNotTextIsReportedAsNotATimeline() = runTest {
+    val vm = newViewModel()
+    vm.importTimelineFile(SAMPLE_TIMELINE_JSON.encodeToByteArray())
+    assertNotNull(vm.uiState.value.lastImportSummary)
+
+    val summary = vm.importTimelineFile(byteArrayOf(0x7B, 0xC3.toByte(), 0x28, 0x7D))
+
+    assertEquals(0, summary.ridesImported)
+    assertEquals(NOT_TEXT_TIMELINE_MESSAGE, vm.uiState.value.statusMessage)
+    assertNull(vm.uiState.value.lastImportSummary)
+  }
+
+  @Test
+  fun jsonWithoutSubwayRidesShowsAnEmptySummary() = runTest {
+    val vm = newViewModel()
+    val summary = vm.importTimelineFile("""{"semanticSegments": []}""".encodeToByteArray())
+    assertEquals(0, summary.rawSegmentsFound)
+    assertEquals("No subway rides found in that file", vm.uiState.value.statusMessage)
+    assertNotNull(vm.uiState.value.lastImportSummary)
   }
 
   @Test
