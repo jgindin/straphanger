@@ -5,14 +5,17 @@ import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.TripLegRequest
 import kotlin.math.roundToInt
 import kotlin.time.Clock
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+/**
+ * Where [SubwayDao] keeps its rides. Each call reports a failure by throwing a
+ * [kotlinx.io.IOException] (the file could not be read or written) or an [IllegalStateException]
+ * (the store cannot be used); the DAO handles those two and lets anything else propagate.
+ */
 interface RidePersistenceBackend {
   fun loadSnapshotJson(): String?
 
@@ -39,17 +42,19 @@ class InMemoryPersistenceBackend(initialJson: String? = null) : RidePersistenceB
 
 class SubwayDao(
   private val backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
-  private val clock: Clock = Clock.System,
+  clock: Clock = Clock.System,
 ) {
   private val json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
   }
 
-  private val _ridesFlow = MutableStateFlow<List<CompleteRideRecord>>(emptyList())
+  private val initialLoad = RideSnapshotLoader(backend, json, clock).load()
+
+  private val _ridesFlow = MutableStateFlow(initialLoad.rides)
   val ridesFlow: StateFlow<List<CompleteRideRecord>> = _ridesFlow.asStateFlow()
 
-  private val _loadError = MutableStateFlow<String?>(null)
+  private val _loadError = MutableStateFlow(initialLoad.error)
 
   /** Set when the stored rides could not be read at startup; the app then starts with no rides. */
   val loadError: StateFlow<String?> = _loadError.asStateFlow()
@@ -59,88 +64,7 @@ class SubwayDao(
     private set
 
   // True when an unreadable file could not be set aside; saving would overwrite it.
-  private var savesBlocked = false
-
-  init {
-    val raw =
-      try {
-        backend.loadSnapshotJson()
-      } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        _loadError.value =
-          "Could not read saved rides: ${e.message ?: "unknown error"}. " +
-            "Changes will not be saved until the app is restarted."
-        savesBlocked = true
-        null
-      }
-    if (!savesBlocked) {
-      var loaded: List<CompleteRideRecord>? = null
-      var corruption: Exception? = null
-      if (!raw.isNullOrBlank()) {
-        try {
-          loaded = decode(raw)
-        } catch (e: SerializationException) {
-          corruption = e
-        } catch (e: IllegalArgumentException) {
-          corruption = e
-        }
-      }
-      // A missing, blank or unreadable file falls back to the copy kept by the previous save.
-      val restored = if (loaded == null) loadBackupOrNull() else null
-      when {
-        loaded != null -> _ridesFlow.value = loaded
-        corruption != null || (raw != null && restored != null) ->
-          handleBadSnapshot(corruption, restored)
-        restored != null -> {
-          // rides.json is missing (a save stopped between its two renames): use the copy.
-          _ridesFlow.value = restored
-          _loadError.value = "Saved rides were missing, so the previous copy was restored."
-        }
-      }
-    }
-  }
-
-  private fun decode(raw: String): List<CompleteRideRecord> =
-    json.decodeFromString<List<CompleteRideRecord>>(raw).sortedByDescending {
-      it.ride.startTimeEpochMs
-    }
-
-  private fun loadBackupOrNull(): List<CompleteRideRecord>? =
-    try {
-      backend.loadBackupSnapshotJson()?.takeIf { it.isNotBlank() }?.let { decode(it) }
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-      null
-    }
-
-  /**
-   * Sets a blank or unreadable snapshot aside; [restored] is the previous copy, when one could be
-   * read.
-   */
-  private fun handleBadSnapshot(cause: Exception?, restored: List<CompleteRideRecord>?) {
-    val suffix = "corrupt-${clock.now().toEpochMilliseconds()}"
-    val problem = cause?.message ?: if (cause == null) "the file is empty" else "invalid data"
-    try {
-      backend.quarantineCorruptSnapshot(suffix)
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-      savesBlocked = true
-      _loadError.value =
-        "Saved rides could not be read and the file could not be set aside " +
-          "(${e.message ?: "unknown error"}). Changes will not be saved until the app is restarted."
-      return
-    }
-    if (restored != null) {
-      _ridesFlow.value = restored
-      _loadError.value =
-        "Saved rides could not be read ($problem). The file was kept as a copy named " +
-          "like rides.$suffix.json and the previous copy of your rides was restored."
-    } else {
-      _loadError.value =
-        "Saved rides could not be read ($problem). " +
-          "The file was kept as a copy named like rides.$suffix.json and the app started with no rides."
-    }
-  }
+  private val savesBlocked = initialLoad.savesBlocked
 
   fun getAllRides(): List<CompleteRideRecord> = _ridesFlow.value
 
@@ -149,20 +73,17 @@ class SubwayDao(
 
   fun insertOrReplaceRide(record: CompleteRideRecord) {
     val updated = _ridesFlow.value.filterNot { it.ride.rideId == record.ride.rideId } + record
-    updateAndPersistReporting(updated)
+    reportingSaveFailure { persistThenPublish(updated) }
   }
 
   fun insertOrReplaceRides(records: List<CompleteRideRecord>) {
-    try {
-      replaceRidesOrThrow(records)
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-      reportSaveFailure(e)
-    }
+    reportingSaveFailure { replaceRidesOrThrow(records) }
   }
 
   /**
    * Like [insertOrReplaceRides], but a failure to save is thrown and the rides are left unchanged.
+   * The failure is the backend's [kotlinx.io.IOException] or [IllegalStateException], or an
+   * [IllegalStateException] when saves are blocked.
    */
   fun replaceRidesOrThrow(records: List<CompleteRideRecord>) {
     if (records.isEmpty()) return
@@ -173,11 +94,11 @@ class SubwayDao(
 
   fun deleteRide(rideId: String) {
     val updated = _ridesFlow.value.filterNot { it.ride.rideId == rideId }
-    updateAndPersistReporting(updated)
+    reportingSaveFailure { persistThenPublish(updated) }
   }
 
   fun clearAll() {
-    updateAndPersistReporting(emptyList())
+    reportingSaveFailure { persistThenPublish(emptyList()) }
   }
 
   /**
@@ -191,24 +112,7 @@ class SubwayDao(
     graphEngine: SubwayGraphEngine,
   ): CompleteRideRecord? {
     val existing = getRideById(rideId) ?: return null
-    val legRequests =
-      existing.legs.mapIndexed { idx, leg ->
-        if (idx == 0) {
-          TripLegRequest(
-            fromStationId = leg.fromStationId,
-            toStationId = leg.toStationId,
-            preferredRouteId = confirmedRouteId,
-            forceExpress = confirmedIsExpress,
-          )
-        } else {
-          TripLegRequest(
-            fromStationId = leg.fromStationId,
-            toStationId = leg.toStationId,
-            preferredRouteId = leg.routeId,
-            forceExpress = leg.isExpress,
-          )
-        }
-      }
+    val legRequests = confirmedLegRequests(existing, confirmedRouteId, confirmedIsExpress)
     val resolved =
       graphEngine.resolveTrip(
         legs = legRequests,
@@ -243,39 +147,25 @@ class SubwayDao(
     return updated
   }
 
-  private fun updateAndPersistReporting(records: List<CompleteRideRecord>) {
-    try {
-      persistThenPublish(records)
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-      reportSaveFailure(e)
-    }
+  // Records a failure to save in [loadError]; the rides stay as they were.
+  private inline fun reportingSaveFailure(save: () -> Unit) {
+    val failure = catchingBackendFailure(save).exceptionOrNull() ?: return
+    lastSaveSucceeded = false
+    _loadError.value =
+      "$SAVE_ERROR_PREFIX ${failure.message?.removeSuffix(".") ?: "unknown error"}. " +
+        "The change was not applied."
   }
 
   // Saves first and publishes only on success, so memory never holds rides that were not saved.
   // While saves are blocked nothing can be saved, so nothing is published either.
   private fun persistThenPublish(records: List<CompleteRideRecord>) {
-    if (savesBlocked) {
-      lastSaveSucceeded = false
-      throw IllegalStateException(SAVES_BLOCKED_MESSAGE)
-    }
+    lastSaveSucceeded = false
+    check(!savesBlocked) { SAVES_BLOCKED_MESSAGE }
     val sorted = records.sortedByDescending { it.ride.startTimeEpochMs }
-    try {
-      backend.saveSnapshotJson(json.encodeToString(sorted))
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
-      lastSaveSucceeded = false
-      throw e
-    }
+    backend.saveSnapshotJson(json.encodeToString(sorted))
     lastSaveSucceeded = true
     if (_loadError.value?.startsWith(SAVE_ERROR_PREFIX) == true) _loadError.value = null
     _ridesFlow.value = sorted
-  }
-
-  private fun reportSaveFailure(cause: Exception) {
-    lastSaveSucceeded = false
-    _loadError.value =
-      "$SAVE_ERROR_PREFIX ${cause.message?.removeSuffix(".") ?: "unknown error"}. The change was not applied."
   }
 
   companion object {
@@ -293,15 +183,7 @@ class SubwayDao(
       notes: String = "",
       forceNeedsReview: Boolean? = null,
     ): CompleteRideRecord {
-      val originId = resolved.legs.firstOrNull()?.fromStationId.orEmpty()
-      val destId = resolved.legs.lastOrNull()?.toStationId.orEmpty()
-      val durationMin =
-        if (endTimeEpochMs > startTimeEpochMs) {
-          ((endTimeEpochMs - startTimeEpochMs) / 60000.0 * 10.0).roundToInt() / 10.0
-        } else {
-          (resolved.totalDistanceMiles / 18.0 * 60.0 * 10.0).roundToInt() / 10.0
-        }
-
+      val durationMin = rideDurationMinutes(startTimeEpochMs, endTimeEpochMs, resolved)
       val rideEntity =
         RideEntity(
           rideId = rideId,
@@ -309,8 +191,8 @@ class SubwayDao(
           endTimeEpochMs =
             if (endTimeEpochMs > startTimeEpochMs) endTimeEpochMs
             else startTimeEpochMs + (durationMin * 60000).toLong(),
-          originStationId = originId,
-          destinationStationId = destId,
+          originStationId = resolved.legs.firstOrNull()?.fromStationId.orEmpty(),
+          destinationStationId = resolved.legs.lastOrNull()?.toStationId.orEmpty(),
           totalDistanceMiles = resolved.totalDistanceMiles,
           durationMinutes = durationMin,
           source = source,
@@ -318,53 +200,94 @@ class SubwayDao(
           ambiguousCandidates = resolved.ambiguousCandidates,
           notes = notes,
         )
-
-      val legEntities =
-        resolved.legs.map { leg ->
-          RideLegEntity(
-            legId = "${rideId}_leg_${leg.legIndex}",
-            rideId = rideId,
-            legIndex = leg.legIndex,
-            routeId = leg.routeId,
-            isExpress = leg.isExpress,
-            servicePeriod = leg.servicePeriod,
-            fromStationId = leg.fromStationId,
-            toStationId = leg.toStationId,
-            distanceMiles = leg.distanceMiles,
-          )
-        }
-
-      val segmentEntities =
-        resolved.legs.flatMap { leg ->
-          leg.segmentIds.mapNotNull { segId ->
-            val seg = graphEngine.getSegment(segId) ?: return@mapNotNull null
-            RideSegmentEntity(
-              rideId = rideId,
-              legIndex = leg.legIndex,
-              segmentId = segId,
-              routeId = leg.routeId,
-              distanceMiles = seg.distanceMiles,
-            )
-          }
-        }
-
-      val stopEntities =
-        resolved.stationStops.map { stop ->
-          RideStationStopEntity(
-            rideId = rideId,
-            stationId = stop.stationId,
-            complexId = stop.complexId,
-            stopRole = stop.role,
-            legIndex = stop.legIndex,
-          )
-        }
-
       return CompleteRideRecord(
         ride = rideEntity,
-        legs = legEntities,
-        segments = segmentEntities,
-        stationStops = stopEntities,
+        legs = legEntities(rideId, resolved),
+        segments = segmentEntities(rideId, resolved, graphEngine),
+        stationStops = stopEntities(rideId, resolved),
       )
     }
   }
 }
+
+private const val MS_PER_MINUTE = 60000.0
+private const val ESTIMATED_SPEED_MPH = 18.0
+private const val MINUTES_PER_HOUR = 60.0
+
+// The clock time when the ride has one, otherwise an estimate at 18 mph; rounded to 0.1 minute.
+private fun rideDurationMinutes(
+  startTimeEpochMs: Long,
+  endTimeEpochMs: Long,
+  resolved: ResolvedTripResult,
+): Double {
+  val minutes =
+    if (endTimeEpochMs > startTimeEpochMs) {
+      (endTimeEpochMs - startTimeEpochMs) / MS_PER_MINUTE
+    } else {
+      resolved.totalDistanceMiles / ESTIMATED_SPEED_MPH * MINUTES_PER_HOUR
+    }
+  return (minutes * 10.0).roundToInt() / 10.0
+}
+
+private fun legEntities(rideId: String, resolved: ResolvedTripResult): List<RideLegEntity> =
+  resolved.legs.map { leg ->
+    RideLegEntity(
+      legId = "${rideId}_leg_${leg.legIndex}",
+      rideId = rideId,
+      legIndex = leg.legIndex,
+      routeId = leg.routeId,
+      isExpress = leg.isExpress,
+      servicePeriod = leg.servicePeriod,
+      fromStationId = leg.fromStationId,
+      toStationId = leg.toStationId,
+      distanceMiles = leg.distanceMiles,
+    )
+  }
+
+private fun segmentEntities(
+  rideId: String,
+  resolved: ResolvedTripResult,
+  graphEngine: SubwayGraphEngine,
+): List<RideSegmentEntity> =
+  resolved.legs.flatMap { leg ->
+    leg.segmentIds.mapNotNull { segId ->
+      graphEngine.getSegment(segId)?.let { seg ->
+        RideSegmentEntity(
+          rideId = rideId,
+          legIndex = leg.legIndex,
+          segmentId = segId,
+          routeId = leg.routeId,
+          distanceMiles = seg.distanceMiles,
+        )
+      }
+    }
+  }
+
+private fun stopEntities(
+  rideId: String,
+  resolved: ResolvedTripResult,
+): List<RideStationStopEntity> =
+  resolved.stationStops.map { stop ->
+    RideStationStopEntity(
+      rideId = rideId,
+      stationId = stop.stationId,
+      complexId = stop.complexId,
+      stopRole = stop.role,
+      legIndex = stop.legIndex,
+    )
+  }
+
+// The first leg takes the confirmed route; the others keep theirs.
+private fun confirmedLegRequests(
+  existing: CompleteRideRecord,
+  confirmedRouteId: String,
+  confirmedIsExpress: Boolean,
+): List<TripLegRequest> =
+  existing.legs.mapIndexed { idx, leg ->
+    TripLegRequest(
+      fromStationId = leg.fromStationId,
+      toStationId = leg.toStationId,
+      preferredRouteId = if (idx == 0) confirmedRouteId else leg.routeId,
+      forceExpress = if (idx == 0) confirmedIsExpress else leg.isExpress,
+    )
+  }

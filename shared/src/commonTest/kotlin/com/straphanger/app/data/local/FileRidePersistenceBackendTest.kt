@@ -286,4 +286,24 @@ class FileRidePersistenceBackendTest {
     assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime + 2_000L))
     assertNull(vm.uiState.value.loadError)
   }
+
+  @Test
+  fun unreadablePreviousCopyIsReportedWhenTheSnapshotIsMissing() {
+    val backend =
+      object : RidePersistenceBackend {
+        override fun loadSnapshotJson(): String? = null
+
+        override fun saveSnapshotJson(json: String) = Unit
+
+        override fun loadBackupSnapshotJson(): String = "{not json"
+      }
+
+    val dao = SubwayDao(backend, clock)
+
+    assertTrue(dao.getAllRides().isEmpty())
+    assertTrue(
+      dao.loadError.value!!.contains("previous copy could not be read"),
+      dao.loadError.value,
+    )
+  }
 }
