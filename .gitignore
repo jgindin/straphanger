@@ -33,3 +33,4 @@ play-service-account*.json
 
 # play-policy-insights scratch output
 /.scratch/
+.superpowers/
