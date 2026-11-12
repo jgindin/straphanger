@@ -39,7 +39,8 @@ fun main(args: Array<String>) {
   )
   println("routes=${network.routes.joinToString(" ") { it.routeId }}")
   println(
-    "expandedPairs=${builder.report.expandedPairs} keptPairs=${builder.report.keptPairs} shapeFallbacks=${builder.report.shapeFallbacks}"
+    "expandedPairs=${builder.report.expandedPairs} keptPairs=${builder.report.keptPairs} " +
+      "shapeFallbacks=${builder.report.shapeFallbacks}"
   )
   builder.report.crossTrunkExpansions.forEach { println("cross-trunk expansion: $it") }
 }

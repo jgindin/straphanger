@@ -86,97 +86,13 @@ object GtfsReader {
   }
 
   private fun readFeed(open: (String) -> InputStream?): GtfsFeed {
-    fun table(name: String): List<Map<String, String>> {
-      val stream = open(name) ?: error("GTFS feed has no $name")
-      val rows = mutableListOf<Map<String, String>>()
-      stream.bufferedReader().use { r -> Csv.forEachRow(r) { rows.add(it) } }
-      return rows
-    }
-
-    val stops =
-      table("stops.txt").map {
-        GtfsStop(
-          stopId = it.getValue("stop_id"),
-          name = it.getValue("stop_name"),
-          lat = it.getValue("stop_lat").toDouble(),
-          lng = it.getValue("stop_lon").toDouble(),
-          locationType = it["location_type"]?.toIntOrNull() ?: 0,
-          parentStation = it["parent_station"]?.takeIf { p -> p.isNotBlank() },
-        )
-      }
-    val routes =
-      table("routes.txt").mapIndexed { idx, row ->
-        GtfsRoute(
-          routeId = row.getValue("route_id"),
-          shortName = row["route_short_name"].orEmpty(),
-          longName = row["route_long_name"].orEmpty(),
-          color = row["route_color"].orEmpty().ifBlank { "808183" },
-          textColor = row["route_text_color"].orEmpty().ifBlank { "FFFFFF" },
-          sortOrder = row["route_sort_order"]?.toIntOrNull() ?: idx,
-        )
-      }
-    val trips =
-      table("trips.txt").map {
-        GtfsTrip(
-          tripId = it.getValue("trip_id"),
-          routeId = it.getValue("route_id"),
-          serviceId = it.getValue("service_id"),
-          directionId = it["direction_id"]?.toIntOrNull() ?: 0,
-          shapeId = it["shape_id"]?.takeIf { s -> s.isNotBlank() },
-        )
-      }
-    val calendars =
-      table("calendar.txt").map { row ->
-        GtfsCalendar(
-          serviceId = row.getValue("service_id"),
-          days =
-            listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-              .map { row[it] == "1" },
-        )
-      }
-
-    data class StopTime(val stopId: String, val sequence: Int, val departure: String)
-    val byTrip = HashMap<String, MutableList<StopTime>>()
-    val stopTimesStream = open("stop_times.txt") ?: error("GTFS feed has no stop_times.txt")
-    stopTimesStream.bufferedReader().use { reader ->
-      Csv.forEachRow(reader) { row ->
-        byTrip
-          .getOrPut(row.getValue("trip_id")) { mutableListOf() }
-          .add(
-            StopTime(
-              stopId = row.getValue("stop_id"),
-              sequence = row.getValue("stop_sequence").toInt(),
-              departure = row["departure_time"].orEmpty().ifBlank { row["arrival_time"].orEmpty() },
-            )
-          )
-      }
-    }
-    val tripStops = trips.mapNotNull { trip ->
-      val times = byTrip[trip.tripId]?.sortedBy { it.sequence } ?: return@mapNotNull null
-      GtfsTripStops(
-        tripId = trip.tripId,
-        stopIds = times.map { it.stopId },
-        firstDepartureSeconds = parseGtfsTime(times.first().departure),
-      )
-    }
-
-    val shapePoints = HashMap<String, MutableList<Pair<Int, GeoPoint>>>()
-    open("shapes.txt")?.bufferedReader()?.use { reader ->
-      Csv.forEachRow(reader) { row ->
-        shapePoints
-          .getOrPut(row.getValue("shape_id")) { mutableListOf() }
-          .add(
-            row.getValue("shape_pt_sequence").toInt() to
-              GeoPoint(
-                row.getValue("shape_pt_lat").toDouble(),
-                row.getValue("shape_pt_lon").toDouble(),
-              )
-          )
-      }
-    }
-    val shapes = shapePoints.mapValues { (_, pts) -> pts.sortedBy { it.first }.map { it.second } }
-
-    return GtfsFeed(stops, routes, trips, calendars, tripStops, shapes)
+    val tables = FeedTables(open)
+    val stops = tables.stops()
+    val routes = tables.routes()
+    val trips = tables.trips()
+    val calendars = tables.calendars()
+    val tripStops = tables.tripStops(trips)
+    return GtfsFeed(stops, routes, trips, calendars, tripStops, tables.shapes())
   }
 
   fun readStationListings(file: File): List<StationListing> = readStationListings(file.readText())
@@ -209,6 +125,114 @@ object GtfsReader {
   }
 }
 
+/** Reads each table of a GTFS feed whose files [open] returns, or null when one is missing. */
+private class FeedTables(private val open: (String) -> InputStream?) {
+  private fun table(name: String): List<Map<String, String>> {
+    val rows = mutableListOf<Map<String, String>>()
+    forEachRow(name) { rows.add(it) }
+    return rows
+  }
+
+  private fun forEachRow(name: String, onRow: (Map<String, String>) -> Unit) {
+    val stream = open(name) ?: error("GTFS feed has no $name")
+    stream.bufferedReader().use { r -> Csv.forEachRow(r, onRow) }
+  }
+
+  fun stops(): List<GtfsStop> =
+    table("stops.txt").map {
+      GtfsStop(
+        stopId = it.getValue("stop_id"),
+        name = it.getValue("stop_name"),
+        lat = it.getValue("stop_lat").toDouble(),
+        lng = it.getValue("stop_lon").toDouble(),
+        locationType = it["location_type"]?.toIntOrNull() ?: 0,
+        parentStation = it["parent_station"]?.takeIf { p -> p.isNotBlank() },
+      )
+    }
+
+  fun routes(): List<GtfsRoute> =
+    table("routes.txt").mapIndexed { idx, row ->
+      GtfsRoute(
+        routeId = row.getValue("route_id"),
+        shortName = row["route_short_name"].orEmpty(),
+        longName = row["route_long_name"].orEmpty(),
+        color = row["route_color"].orEmpty().ifBlank { "808183" },
+        textColor = row["route_text_color"].orEmpty().ifBlank { "FFFFFF" },
+        sortOrder = row["route_sort_order"]?.toIntOrNull() ?: idx,
+      )
+    }
+
+  fun trips(): List<GtfsTrip> =
+    table("trips.txt").map {
+      GtfsTrip(
+        tripId = it.getValue("trip_id"),
+        routeId = it.getValue("route_id"),
+        serviceId = it.getValue("service_id"),
+        directionId = it["direction_id"]?.toIntOrNull() ?: 0,
+        shapeId = it["shape_id"]?.takeIf { s -> s.isNotBlank() },
+      )
+    }
+
+  fun calendars(): List<GtfsCalendar> =
+    table("calendar.txt").map { row ->
+      GtfsCalendar(
+        serviceId = row.getValue("service_id"),
+        days =
+          listOf("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday").map {
+            row[it] == "1"
+          },
+      )
+    }
+
+  private data class StopTime(val stopId: String, val sequence: Int, val departure: String)
+
+  /** Streams stop_times.txt, which is too large to hold as rows. */
+  fun tripStops(trips: List<GtfsTrip>): List<GtfsTripStops> {
+    val byTrip = HashMap<String, MutableList<StopTime>>()
+    forEachRow("stop_times.txt") { row ->
+      byTrip
+        .getOrPut(row.getValue("trip_id")) { mutableListOf() }
+        .add(
+          StopTime(
+            stopId = row.getValue("stop_id"),
+            sequence = row.getValue("stop_sequence").toInt(),
+            departure = row["departure_time"].orEmpty().ifBlank { row["arrival_time"].orEmpty() },
+          )
+        )
+    }
+    return trips.mapNotNull { trip ->
+      byTrip[trip.tripId]
+        ?.sortedBy { it.sequence }
+        ?.let { times ->
+          GtfsTripStops(
+            tripId = trip.tripId,
+            stopIds = times.map { it.stopId },
+            firstDepartureSeconds = GtfsReader.parseGtfsTime(times.first().departure),
+          )
+        }
+    }
+  }
+
+  /** shapes.txt is optional; a feed without it has no shapes. */
+  fun shapes(): Map<String, List<GeoPoint>> {
+    val shapePoints = HashMap<String, MutableList<Pair<Int, GeoPoint>>>()
+    open("shapes.txt")?.bufferedReader()?.use { reader ->
+      Csv.forEachRow(reader) { row ->
+        shapePoints
+          .getOrPut(row.getValue("shape_id")) { mutableListOf() }
+          .add(
+            row.getValue("shape_pt_sequence").toInt() to
+              GeoPoint(
+                row.getValue("shape_pt_lat").toDouble(),
+                row.getValue("shape_pt_lon").toDouble(),
+              )
+          )
+      }
+    }
+    return shapePoints.mapValues { (_, pts) -> pts.sortedBy { it.first }.map { it.second } }
+  }
+}
+
 /**
  * Minimal RFC 4180 CSV reader: quoted fields, doubled quotes, CRLF or LF line ends, optional BOM.
  */
@@ -238,49 +262,66 @@ object Csv {
   }
 
   private fun forEachRecord(input: BufferedReader, onRecord: (List<String>) -> Unit) {
-    var fields = ArrayList<String>()
-    val field = StringBuilder()
-    var inQuotes = false
-    var sawAny = false
-    while (true) {
-      val code = input.read()
-      if (code < 0) break
+    CsvRecordReader(input, onRecord).readAll()
+  }
+}
+
+/** Splits [input] into records of fields, handing each to [onRecord]. */
+private class CsvRecordReader(
+  private val input: BufferedReader,
+  private val onRecord: (List<String>) -> Unit,
+) {
+  private var fields = ArrayList<String>()
+  private val field = StringBuilder()
+  private var inQuotes = false
+  private var sawAny = false
+
+  fun readAll() {
+    var code = input.read()
+    while (code >= 0) {
       val c = code.toChar()
       sawAny = true
-      if (inQuotes) {
-        if (c == '"') {
-          input.mark(1)
-          val next = input.read()
-          if (next == '"'.code) field.append('"')
-          else {
-            inQuotes = false
-            if (next >= 0) input.reset()
-          }
-        } else {
-          field.append(c)
-        }
-      } else {
-        when (c) {
-          '"' -> inQuotes = true
-          ',' -> {
-            fields.add(field.toString())
-            field.setLength(0)
-          }
-          '\r' -> {}
-          '\n' -> {
-            fields.add(field.toString())
-            field.setLength(0)
-            onRecord(fields)
-            fields = ArrayList(fields.size)
-            sawAny = false
-          }
-          else -> field.append(c)
-        }
-      }
+      if (inQuotes) readQuoted(c) else readUnquoted(c)
+      code = input.read()
     }
     if (sawAny) {
-      fields.add(field.toString())
+      endField()
       onRecord(fields)
     }
+  }
+
+  private fun readQuoted(c: Char) {
+    if (c == '"') {
+      input.mark(1)
+      val next = input.read()
+      if (next == '"'.code) {
+        field.append('"')
+      } else {
+        inQuotes = false
+        if (next >= 0) input.reset()
+      }
+    } else {
+      field.append(c)
+    }
+  }
+
+  private fun readUnquoted(c: Char) {
+    when (c) {
+      '"' -> inQuotes = true
+      ',' -> endField()
+      '\r' -> Unit
+      '\n' -> {
+        endField()
+        onRecord(fields)
+        fields = ArrayList(fields.size)
+        sawAny = false
+      }
+      else -> field.append(c)
+    }
+  }
+
+  private fun endField() {
+    fields.add(field.toString())
+    field.setLength(0)
   }
 }
