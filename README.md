@@ -37,6 +37,8 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 ./gradlew :androidApp:assembleDebug               # debug APK
 ./gradlew :androidApp:connectedDebugAndroidTest   # instrumented tests; needs a device or emulator
 ./gradlew :shared:iosSimulatorArm64Test           # iOS simulator tests; macOS only, not run so far
+./gradlew ktfmtCheck                              # formatting check (Google style, 100 columns)
+./gradlew ktfmtFormat                             # fix formatting
 scripts/check-listing.sh                          # Play listing text checks
 ```
 

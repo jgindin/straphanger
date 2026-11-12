@@ -1,0 +1,5 @@
+# Commits that only reformat code. Locally, run once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Format all Kotlin and build scripts with ktfmt
+9a5cefb29744c2f27bab5b381f898b60d8cd087e
