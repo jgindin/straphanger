@@ -15,24 +15,29 @@ import kotlinx.serialization.json.Json
  * running are not lost. The receiver appends every entry; [PassiveCaptureCoordinator] replays the
  * entries and keeps only those of the chain it has not yet closed.
  *
- * Calls are synchronous and not thread-safe. On Android the receiver and the coordinator both run on
- * the main thread, so they never overlap.
+ * Calls are synchronous and not thread-safe. On Android the receiver and the coordinator both run
+ * on the main thread, so they never overlap.
  */
 interface PendingGeofenceEventStore {
-    fun readAll(): List<GeofenceEvent.Entered>
-    fun append(event: GeofenceEvent.Entered)
-    fun replaceAll(events: List<GeofenceEvent.Entered>)
+  fun readAll(): List<GeofenceEvent.Entered>
+
+  fun append(event: GeofenceEvent.Entered)
+
+  fun replaceAll(events: List<GeofenceEvent.Entered>)
 }
 
 class InMemoryPendingGeofenceEventStore : PendingGeofenceEventStore {
-    private var events = emptyList<GeofenceEvent.Entered>()
-    override fun readAll(): List<GeofenceEvent.Entered> = events
-    override fun append(event: GeofenceEvent.Entered) {
-        events = events + event
-    }
-    override fun replaceAll(events: List<GeofenceEvent.Entered>) {
-        this.events = events
-    }
+  private var events = emptyList<GeofenceEvent.Entered>()
+
+  override fun readAll(): List<GeofenceEvent.Entered> = events
+
+  override fun append(event: GeofenceEvent.Entered) {
+    events = events + event
+  }
+
+  override fun replaceAll(events: List<GeofenceEvent.Entered>) {
+    this.events = events
+  }
 }
 
 /**
@@ -41,42 +46,55 @@ class InMemoryPendingGeofenceEventStore : PendingGeofenceEventStore {
  * treated as empty.
  */
 class FilePendingGeofenceEventStore(
-    private val file: Path,
-    private val fileSystem: FileSystem = SystemFileSystem
+  private val file: Path,
+  private val fileSystem: FileSystem = SystemFileSystem,
 ) : PendingGeofenceEventStore {
 
-    @Serializable
-    private data class StoredEntry(val geofenceId: String, val epochMs: Long, val lat: Double, val lng: Double)
+  @Serializable
+  private data class StoredEntry(
+    val geofenceId: String,
+    val epochMs: Long,
+    val lat: Double,
+    val lng: Double,
+  )
 
-    private val tmpFile = Path(file.toString() + ".tmp")
-    private val serializer = ListSerializer(StoredEntry.serializer())
-    private val json = Json { ignoreUnknownKeys = true }
+  private val tmpFile = Path(file.toString() + ".tmp")
+  private val serializer = ListSerializer(StoredEntry.serializer())
+  private val json = Json { ignoreUnknownKeys = true }
 
-    init {
-        file.parent?.let { fileSystem.createDirectories(it) }
+  init {
+    file.parent?.let { fileSystem.createDirectories(it) }
+  }
+
+  override fun readAll(): List<GeofenceEvent.Entered> {
+    if (!fileSystem.exists(file)) return emptyList()
+    val entries =
+      try {
+        json.decodeFromString(
+          serializer,
+          fileSystem.source(file).buffered().use { it.readString() },
+        )
+      } catch (e: Exception) {
+        return emptyList()
+      }
+    return entries.map { GeofenceEvent.Entered(it.geofenceId, it.epochMs, it.lat, it.lng) }
+  }
+
+  override fun append(event: GeofenceEvent.Entered) {
+    replaceAll(readAll() + event)
+  }
+
+  override fun replaceAll(events: List<GeofenceEvent.Entered>) {
+    if (events.isEmpty()) {
+      if (fileSystem.exists(file)) fileSystem.delete(file)
+      return
     }
-
-    override fun readAll(): List<GeofenceEvent.Entered> {
-        if (!fileSystem.exists(file)) return emptyList()
-        val entries = try {
-            json.decodeFromString(serializer, fileSystem.source(file).buffered().use { it.readString() })
-        } catch (e: Exception) {
-            return emptyList()
-        }
-        return entries.map { GeofenceEvent.Entered(it.geofenceId, it.epochMs, it.lat, it.lng) }
-    }
-
-    override fun append(event: GeofenceEvent.Entered) {
-        replaceAll(readAll() + event)
-    }
-
-    override fun replaceAll(events: List<GeofenceEvent.Entered>) {
-        if (events.isEmpty()) {
-            if (fileSystem.exists(file)) fileSystem.delete(file)
-            return
-        }
-        val text = json.encodeToString(serializer, events.map { StoredEntry(it.geofenceId, it.epochMs, it.lat, it.lng) })
-        fileSystem.sink(tmpFile).buffered().use { it.writeString(text) }
-        fileSystem.atomicMove(tmpFile, file)
-    }
+    val text =
+      json.encodeToString(
+        serializer,
+        events.map { StoredEntry(it.geofenceId, it.epochMs, it.lat, it.lng) },
+      )
+    fileSystem.sink(tmpFile).buffered().use { it.writeString(text) }
+    fileSystem.atomicMove(tmpFile, file)
+  }
 }

@@ -17,44 +17,48 @@ import kotlinx.coroutines.withTimeoutOrNull
  * [BroadcastReceiver.goAsync] with a bounded coroutine; nothing here touches the rides.
  */
 object BackgroundGeofenceRefresher {
-    private const val TAG = AndroidGeofenceRegistrar.TAG
-    private const val TIMEOUT_MS = 20_000L
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+  private const val TAG = AndroidGeofenceRegistrar.TAG
+  private const val TIMEOUT_MS = 20_000L
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** True when the user turned passive capture on and fine and background location are granted. */
-    fun captureAllowed(context: Context): Boolean =
-        PassiveCaptureStorage.isTurnedOn(context) &&
-            CapturePermissions.fineLocationGranted(context) &&
-            CapturePermissions.backgroundLocationGranted(context)
+  /** True when the user turned passive capture on and fine and background location are granted. */
+  fun captureAllowed(context: Context): Boolean =
+    PassiveCaptureStorage.isTurnedOn(context) &&
+      CapturePermissions.fineLocationGranted(context) &&
+      CapturePermissions.backgroundLocationGranted(context)
 
-    /** Registers the window around a location; [location] runs first and returns null to skip. */
-    fun refresh(
-        receiver: BroadcastReceiver,
-        context: Context,
-        reason: String,
-        location: suspend () -> Pair<Double, Double>?
-    ) {
-        val appContext = context.applicationContext
-        val pending = receiver.goAsync()
-        scope.launch {
-            try {
-                val done = withTimeoutOrNull(TIMEOUT_MS) {
-                    val point = location()
-                    if (point == null) {
-                        Log.i(TAG, "$reason: no location, geofences not registered")
-                        return@withTimeoutOrNull
-                    }
-                    val network = NycSubwayNetworkCatalog.loadBundled()
-                    val specs = BackgroundWindowRefresh.windowAt(network, point.first, point.second)
-                    AndroidGeofenceRegistrar(appContext).replaceAll(specs)
-                    Log.i(TAG, "$reason: registered ${specs.size} geofences around ${point.first},${point.second}")
-                }
-                if (done == null) Log.w(TAG, "$reason: timed out registering geofences")
-            } catch (e: Exception) {
-                Log.w(TAG, "$reason: geofences not registered", e)
-            } finally {
-                pending.finish()
+  /** Registers the window around a location; [location] runs first and returns null to skip. */
+  fun refresh(
+    receiver: BroadcastReceiver,
+    context: Context,
+    reason: String,
+    location: suspend () -> Pair<Double, Double>?,
+  ) {
+    val appContext = context.applicationContext
+    val pending = receiver.goAsync()
+    scope.launch {
+      try {
+        val done =
+          withTimeoutOrNull(TIMEOUT_MS) {
+            val point = location()
+            if (point == null) {
+              Log.i(TAG, "$reason: no location, geofences not registered")
+              return@withTimeoutOrNull
             }
-        }
+            val network = NycSubwayNetworkCatalog.loadBundled()
+            val specs = BackgroundWindowRefresh.windowAt(network, point.first, point.second)
+            AndroidGeofenceRegistrar(appContext).replaceAll(specs)
+            Log.i(
+              TAG,
+              "$reason: registered ${specs.size} geofences around ${point.first},${point.second}",
+            )
+          }
+        if (done == null) Log.w(TAG, "$reason: timed out registering geofences")
+      } catch (e: Exception) {
+        Log.w(TAG, "$reason: geofences not registered", e)
+      } finally {
+        pending.finish()
+      }
     }
+  }
 }

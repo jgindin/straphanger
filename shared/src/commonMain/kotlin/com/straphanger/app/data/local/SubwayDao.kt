@@ -3,6 +3,8 @@ package com.straphanger.app.data.local
 import com.straphanger.app.data.gtfs.ResolvedTripResult
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.TripLegRequest
+import kotlin.math.roundToInt
+import kotlin.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -10,328 +12,359 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlin.math.roundToInt
-import kotlin.time.Clock
 
 interface RidePersistenceBackend {
-    fun loadSnapshotJson(): String?
-    fun saveSnapshotJson(json: String)
+  fun loadSnapshotJson(): String?
 
-    /** The previous good snapshot kept by the last save, or null when there is none. */
-    fun loadBackupSnapshotJson(): String? = null
+  fun saveSnapshotJson(json: String)
 
-    /** Moves an unreadable snapshot aside, named with [suffix], so a later save cannot overwrite it. */
-    fun quarantineCorruptSnapshot(suffix: String) {}
+  /** The previous good snapshot kept by the last save, or null when there is none. */
+  fun loadBackupSnapshotJson(): String? = null
+
+  /**
+   * Moves an unreadable snapshot aside, named with [suffix], so a later save cannot overwrite it.
+   */
+  fun quarantineCorruptSnapshot(suffix: String) {}
 }
 
 class InMemoryPersistenceBackend(initialJson: String? = null) : RidePersistenceBackend {
-    private var stored: String? = initialJson
-    override fun loadSnapshotJson(): String? = stored
-    override fun saveSnapshotJson(json: String) {
-        stored = json
-    }
+  private var stored: String? = initialJson
+
+  override fun loadSnapshotJson(): String? = stored
+
+  override fun saveSnapshotJson(json: String) {
+    stored = json
+  }
 }
 
 class SubwayDao(
-    private val backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
-    private val clock: Clock = Clock.System
+  private val backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
+  private val clock: Clock = Clock.System,
 ) {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
+  private val json = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+  }
 
-    private val _ridesFlow = MutableStateFlow<List<CompleteRideRecord>>(emptyList())
-    val ridesFlow: StateFlow<List<CompleteRideRecord>> = _ridesFlow.asStateFlow()
+  private val _ridesFlow = MutableStateFlow<List<CompleteRideRecord>>(emptyList())
+  val ridesFlow: StateFlow<List<CompleteRideRecord>> = _ridesFlow.asStateFlow()
 
-    private val _loadError = MutableStateFlow<String?>(null)
+  private val _loadError = MutableStateFlow<String?>(null)
 
-    /** Set when the stored rides could not be read at startup; the app then starts with no rides. */
-    val loadError: StateFlow<String?> = _loadError.asStateFlow()
+  /** Set when the stored rides could not be read at startup; the app then starts with no rides. */
+  val loadError: StateFlow<String?> = _loadError.asStateFlow()
 
-    /** False when the most recent change could not be saved; the rides are then left as they were. */
-    var lastSaveSucceeded: Boolean = true
-        private set
+  /** False when the most recent change could not be saved; the rides are then left as they were. */
+  var lastSaveSucceeded: Boolean = true
+    private set
 
-    // True when an unreadable file could not be set aside; saving would overwrite it.
-    private var savesBlocked = false
+  // True when an unreadable file could not be set aside; saving would overwrite it.
+  private var savesBlocked = false
 
-    init {
-        val raw = try {
-            backend.loadSnapshotJson()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            _loadError.value = "Could not read saved rides: ${e.message ?: "unknown error"}. " +
-                "Changes will not be saved until the app is restarted."
-            savesBlocked = true
-            null
-        }
-        if (!savesBlocked) {
-            var loaded: List<CompleteRideRecord>? = null
-            var corruption: Exception? = null
-            if (!raw.isNullOrBlank()) {
-                try {
-                    loaded = decode(raw)
-                } catch (e: SerializationException) {
-                    corruption = e
-                } catch (e: IllegalArgumentException) {
-                    corruption = e
-                }
-            }
-            // A missing, blank or unreadable file falls back to the copy kept by the previous save.
-            val restored = if (loaded == null) loadBackupOrNull() else null
-            when {
-                loaded != null -> _ridesFlow.value = loaded
-                corruption != null || (raw != null && restored != null) ->
-                    handleBadSnapshot(corruption, restored)
-                restored != null -> {
-                    // rides.json is missing (a save stopped between its two renames): use the copy.
-                    _ridesFlow.value = restored
-                    _loadError.value = "Saved rides were missing, so the previous copy was restored."
-                }
-            }
-        }
-    }
-
-    private fun decode(raw: String): List<CompleteRideRecord> =
-        json.decodeFromString<List<CompleteRideRecord>>(raw).sortedByDescending { it.ride.startTimeEpochMs }
-
-    private fun loadBackupOrNull(): List<CompleteRideRecord>? = try {
-        backend.loadBackupSnapshotJson()?.takeIf { it.isNotBlank() }?.let { decode(it) }
-    } catch (e: Exception) {
+  init {
+    val raw =
+      try {
+        backend.loadSnapshotJson()
+      } catch (e: Exception) {
         if (e is CancellationException) throw e
+        _loadError.value =
+          "Could not read saved rides: ${e.message ?: "unknown error"}. " +
+            "Changes will not be saved until the app is restarted."
+        savesBlocked = true
         null
+      }
+    if (!savesBlocked) {
+      var loaded: List<CompleteRideRecord>? = null
+      var corruption: Exception? = null
+      if (!raw.isNullOrBlank()) {
+        try {
+          loaded = decode(raw)
+        } catch (e: SerializationException) {
+          corruption = e
+        } catch (e: IllegalArgumentException) {
+          corruption = e
+        }
+      }
+      // A missing, blank or unreadable file falls back to the copy kept by the previous save.
+      val restored = if (loaded == null) loadBackupOrNull() else null
+      when {
+        loaded != null -> _ridesFlow.value = loaded
+        corruption != null || (raw != null && restored != null) ->
+          handleBadSnapshot(corruption, restored)
+        restored != null -> {
+          // rides.json is missing (a save stopped between its two renames): use the copy.
+          _ridesFlow.value = restored
+          _loadError.value = "Saved rides were missing, so the previous copy was restored."
+        }
+      }
+    }
+  }
+
+  private fun decode(raw: String): List<CompleteRideRecord> =
+    json.decodeFromString<List<CompleteRideRecord>>(raw).sortedByDescending {
+      it.ride.startTimeEpochMs
     }
 
-    /** Sets a blank or unreadable snapshot aside; [restored] is the previous copy, when one could be read. */
-    private fun handleBadSnapshot(cause: Exception?, restored: List<CompleteRideRecord>?) {
-        val suffix = "corrupt-${clock.now().toEpochMilliseconds()}"
-        val problem = cause?.message ?: if (cause == null) "the file is empty" else "invalid data"
-        try {
-            backend.quarantineCorruptSnapshot(suffix)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            savesBlocked = true
-            _loadError.value = "Saved rides could not be read and the file could not be set aside " +
-                "(${e.message ?: "unknown error"}). Changes will not be saved until the app is restarted."
-            return
-        }
-        if (restored != null) {
-            _ridesFlow.value = restored
-            _loadError.value = "Saved rides could not be read ($problem). The file was kept as a copy named " +
-                "like rides.$suffix.json and the previous copy of your rides was restored."
+  private fun loadBackupOrNull(): List<CompleteRideRecord>? =
+    try {
+      backend.loadBackupSnapshotJson()?.takeIf { it.isNotBlank() }?.let { decode(it) }
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+      null
+    }
+
+  /**
+   * Sets a blank or unreadable snapshot aside; [restored] is the previous copy, when one could be
+   * read.
+   */
+  private fun handleBadSnapshot(cause: Exception?, restored: List<CompleteRideRecord>?) {
+    val suffix = "corrupt-${clock.now().toEpochMilliseconds()}"
+    val problem = cause?.message ?: if (cause == null) "the file is empty" else "invalid data"
+    try {
+      backend.quarantineCorruptSnapshot(suffix)
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+      savesBlocked = true
+      _loadError.value =
+        "Saved rides could not be read and the file could not be set aside " +
+          "(${e.message ?: "unknown error"}). Changes will not be saved until the app is restarted."
+      return
+    }
+    if (restored != null) {
+      _ridesFlow.value = restored
+      _loadError.value =
+        "Saved rides could not be read ($problem). The file was kept as a copy named " +
+          "like rides.$suffix.json and the previous copy of your rides was restored."
+    } else {
+      _loadError.value =
+        "Saved rides could not be read ($problem). " +
+          "The file was kept as a copy named like rides.$suffix.json and the app started with no rides."
+    }
+  }
+
+  fun getAllRides(): List<CompleteRideRecord> = _ridesFlow.value
+
+  fun getRideById(rideId: String): CompleteRideRecord? =
+    _ridesFlow.value.firstOrNull { it.ride.rideId == rideId }
+
+  fun insertOrReplaceRide(record: CompleteRideRecord) {
+    val updated = _ridesFlow.value.filterNot { it.ride.rideId == record.ride.rideId } + record
+    updateAndPersistReporting(updated)
+  }
+
+  fun insertOrReplaceRides(records: List<CompleteRideRecord>) {
+    try {
+      replaceRidesOrThrow(records)
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+      reportSaveFailure(e)
+    }
+  }
+
+  /**
+   * Like [insertOrReplaceRides], but a failure to save is thrown and the rides are left unchanged.
+   */
+  fun replaceRidesOrThrow(records: List<CompleteRideRecord>) {
+    if (records.isEmpty()) return
+    val incomingIds = records.map { it.ride.rideId }.toSet()
+    val updated = _ridesFlow.value.filterNot { it.ride.rideId in incomingIds } + records
+    persistThenPublish(updated)
+  }
+
+  fun deleteRide(rideId: String) {
+    val updated = _ridesFlow.value.filterNot { it.ride.rideId == rideId }
+    updateAndPersistReporting(updated)
+  }
+
+  fun clearAll() {
+    updateAndPersistReporting(emptyList())
+  }
+
+  /**
+   * Resolves an ambiguous Express vs. Local passive ride when the user taps Confirm in the "Needs
+   * Review" banner or notification.
+   */
+  fun confirmAmbiguousRide(
+    rideId: String,
+    confirmedRouteId: String,
+    confirmedIsExpress: Boolean,
+    graphEngine: SubwayGraphEngine,
+  ): CompleteRideRecord? {
+    val existing = getRideById(rideId) ?: return null
+    val legRequests =
+      existing.legs.mapIndexed { idx, leg ->
+        if (idx == 0) {
+          TripLegRequest(
+            fromStationId = leg.fromStationId,
+            toStationId = leg.toStationId,
+            preferredRouteId = confirmedRouteId,
+            forceExpress = confirmedIsExpress,
+          )
         } else {
-            _loadError.value = "Saved rides could not be read ($problem). " +
-                "The file was kept as a copy named like rides.$suffix.json and the app started with no rides."
+          TripLegRequest(
+            fromStationId = leg.fromStationId,
+            toStationId = leg.toStationId,
+            preferredRouteId = leg.routeId,
+            forceExpress = leg.isExpress,
+          )
         }
+      }
+    val resolved =
+      graphEngine.resolveTrip(
+        legs = legRequests,
+        timestampEpochMs = existing.ride.startTimeEpochMs,
+        actualDurationMinutes = existing.ride.durationMinutes,
+      )
+    val updatedRecord =
+      buildCompleteRideRecord(
+        rideId = existing.ride.rideId,
+        startTimeEpochMs = existing.ride.startTimeEpochMs,
+        endTimeEpochMs = existing.ride.endTimeEpochMs,
+        source = existing.ride.source,
+        resolved = resolved.copy(isAmbiguous = false, ambiguousCandidates = emptyList()),
+        graphEngine = graphEngine,
+        notes = existing.ride.notes,
+      )
+    insertOrReplaceRide(updatedRecord)
+    return updatedRecord
+  }
+
+  /**
+   * Clears the review flag of [rideId] and keeps its legs. Returns the updated ride, or null if
+   * there is none.
+   */
+  fun markReviewed(rideId: String): CompleteRideRecord? {
+    val existing = getRideById(rideId) ?: return null
+    val updated =
+      existing.copy(
+        ride = existing.ride.copy(needsReview = false, ambiguousCandidates = emptyList())
+      )
+    insertOrReplaceRide(updated)
+    return updated
+  }
+
+  private fun updateAndPersistReporting(records: List<CompleteRideRecord>) {
+    try {
+      persistThenPublish(records)
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+      reportSaveFailure(e)
     }
+  }
 
-    fun getAllRides(): List<CompleteRideRecord> = _ridesFlow.value
-
-    fun getRideById(rideId: String): CompleteRideRecord? =
-        _ridesFlow.value.firstOrNull { it.ride.rideId == rideId }
-
-    fun insertOrReplaceRide(record: CompleteRideRecord) {
-        val updated = _ridesFlow.value
-            .filterNot { it.ride.rideId == record.ride.rideId } + record
-        updateAndPersistReporting(updated)
+  // Saves first and publishes only on success, so memory never holds rides that were not saved.
+  // While saves are blocked nothing can be saved, so nothing is published either.
+  private fun persistThenPublish(records: List<CompleteRideRecord>) {
+    if (savesBlocked) {
+      lastSaveSucceeded = false
+      throw IllegalStateException(SAVES_BLOCKED_MESSAGE)
     }
+    val sorted = records.sortedByDescending { it.ride.startTimeEpochMs }
+    try {
+      backend.saveSnapshotJson(json.encodeToString(sorted))
+    } catch (e: Exception) {
+      if (e is CancellationException) throw e
+      lastSaveSucceeded = false
+      throw e
+    }
+    lastSaveSucceeded = true
+    if (_loadError.value?.startsWith(SAVE_ERROR_PREFIX) == true) _loadError.value = null
+    _ridesFlow.value = sorted
+  }
 
-    fun insertOrReplaceRides(records: List<CompleteRideRecord>) {
-        try {
-            replaceRidesOrThrow(records)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            reportSaveFailure(e)
+  private fun reportSaveFailure(cause: Exception) {
+    lastSaveSucceeded = false
+    _loadError.value =
+      "$SAVE_ERROR_PREFIX ${cause.message?.removeSuffix(".") ?: "unknown error"}. The change was not applied."
+  }
+
+  companion object {
+    private const val SAVE_ERROR_PREFIX = "Rides could not be saved:"
+    private const val SAVES_BLOCKED_MESSAGE =
+      "Saves are blocked because the existing rides file could not be read or moved aside."
+
+    fun buildCompleteRideRecord(
+      rideId: String,
+      startTimeEpochMs: Long,
+      endTimeEpochMs: Long,
+      source: RideSource,
+      resolved: ResolvedTripResult,
+      graphEngine: SubwayGraphEngine,
+      notes: String = "",
+      forceNeedsReview: Boolean? = null,
+    ): CompleteRideRecord {
+      val originId = resolved.legs.firstOrNull()?.fromStationId.orEmpty()
+      val destId = resolved.legs.lastOrNull()?.toStationId.orEmpty()
+      val durationMin =
+        if (endTimeEpochMs > startTimeEpochMs) {
+          ((endTimeEpochMs - startTimeEpochMs) / 60000.0 * 10.0).roundToInt() / 10.0
+        } else {
+          (resolved.totalDistanceMiles / 18.0 * 60.0 * 10.0).roundToInt() / 10.0
         }
-    }
 
-    /** Like [insertOrReplaceRides], but a failure to save is thrown and the rides are left unchanged. */
-    fun replaceRidesOrThrow(records: List<CompleteRideRecord>) {
-        if (records.isEmpty()) return
-        val incomingIds = records.map { it.ride.rideId }.toSet()
-        val updated = _ridesFlow.value
-            .filterNot { it.ride.rideId in incomingIds } + records
-        persistThenPublish(updated)
-    }
-
-    fun deleteRide(rideId: String) {
-        val updated = _ridesFlow.value.filterNot { it.ride.rideId == rideId }
-        updateAndPersistReporting(updated)
-    }
-
-    fun clearAll() {
-        updateAndPersistReporting(emptyList())
-    }
-
-    /**
-     * Resolves an ambiguous Express vs. Local passive ride when the user taps Confirm
-     * in the "Needs Review" banner or notification.
-     */
-    fun confirmAmbiguousRide(
-        rideId: String,
-        confirmedRouteId: String,
-        confirmedIsExpress: Boolean,
-        graphEngine: SubwayGraphEngine
-    ): CompleteRideRecord? {
-        val existing = getRideById(rideId) ?: return null
-        val legRequests = existing.legs.mapIndexed { idx, leg ->
-            if (idx == 0) {
-                TripLegRequest(
-                    fromStationId = leg.fromStationId,
-                    toStationId = leg.toStationId,
-                    preferredRouteId = confirmedRouteId,
-                    forceExpress = confirmedIsExpress
-                )
-            } else {
-                TripLegRequest(
-                    fromStationId = leg.fromStationId,
-                    toStationId = leg.toStationId,
-                    preferredRouteId = leg.routeId,
-                    forceExpress = leg.isExpress
-                )
-            }
-        }
-        val resolved = graphEngine.resolveTrip(
-            legs = legRequests,
-            timestampEpochMs = existing.ride.startTimeEpochMs,
-            actualDurationMinutes = existing.ride.durationMinutes
+      val rideEntity =
+        RideEntity(
+          rideId = rideId,
+          startTimeEpochMs = startTimeEpochMs,
+          endTimeEpochMs =
+            if (endTimeEpochMs > startTimeEpochMs) endTimeEpochMs
+            else startTimeEpochMs + (durationMin * 60000).toLong(),
+          originStationId = originId,
+          destinationStationId = destId,
+          totalDistanceMiles = resolved.totalDistanceMiles,
+          durationMinutes = durationMin,
+          source = source,
+          needsReview = forceNeedsReview ?: resolved.isAmbiguous,
+          ambiguousCandidates = resolved.ambiguousCandidates,
+          notes = notes,
         )
-        val updatedRecord = buildCompleteRideRecord(
-            rideId = existing.ride.rideId,
-            startTimeEpochMs = existing.ride.startTimeEpochMs,
-            endTimeEpochMs = existing.ride.endTimeEpochMs,
-            source = existing.ride.source,
-            resolved = resolved.copy(isAmbiguous = false, ambiguousCandidates = emptyList()),
-            graphEngine = graphEngine,
-            notes = existing.ride.notes
-        )
-        insertOrReplaceRide(updatedRecord)
-        return updatedRecord
-    }
 
-    /** Clears the review flag of [rideId] and keeps its legs. Returns the updated ride, or null if there is none. */
-    fun markReviewed(rideId: String): CompleteRideRecord? {
-        val existing = getRideById(rideId) ?: return null
-        val updated = existing.copy(ride = existing.ride.copy(needsReview = false, ambiguousCandidates = emptyList()))
-        insertOrReplaceRide(updated)
-        return updated
-    }
-
-    private fun updateAndPersistReporting(records: List<CompleteRideRecord>) {
-        try {
-            persistThenPublish(records)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            reportSaveFailure(e)
+      val legEntities =
+        resolved.legs.map { leg ->
+          RideLegEntity(
+            legId = "${rideId}_leg_${leg.legIndex}",
+            rideId = rideId,
+            legIndex = leg.legIndex,
+            routeId = leg.routeId,
+            isExpress = leg.isExpress,
+            servicePeriod = leg.servicePeriod,
+            fromStationId = leg.fromStationId,
+            toStationId = leg.toStationId,
+            distanceMiles = leg.distanceMiles,
+          )
         }
-    }
 
-    // Saves first and publishes only on success, so memory never holds rides that were not saved.
-    // While saves are blocked nothing can be saved, so nothing is published either.
-    private fun persistThenPublish(records: List<CompleteRideRecord>) {
-        if (savesBlocked) {
-            lastSaveSucceeded = false
-            throw IllegalStateException(SAVES_BLOCKED_MESSAGE)
-        }
-        val sorted = records.sortedByDescending { it.ride.startTimeEpochMs }
-        try {
-            backend.saveSnapshotJson(json.encodeToString(sorted))
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            lastSaveSucceeded = false
-            throw e
-        }
-        lastSaveSucceeded = true
-        if (_loadError.value?.startsWith(SAVE_ERROR_PREFIX) == true) _loadError.value = null
-        _ridesFlow.value = sorted
-    }
-
-    private fun reportSaveFailure(cause: Exception) {
-        lastSaveSucceeded = false
-        _loadError.value = "$SAVE_ERROR_PREFIX ${cause.message?.removeSuffix(".") ?: "unknown error"}. The change was not applied."
-    }
-
-    companion object {
-        private const val SAVE_ERROR_PREFIX = "Rides could not be saved:"
-        private const val SAVES_BLOCKED_MESSAGE =
-            "Saves are blocked because the existing rides file could not be read or moved aside."
-
-        fun buildCompleteRideRecord(
-            rideId: String,
-            startTimeEpochMs: Long,
-            endTimeEpochMs: Long,
-            source: RideSource,
-            resolved: ResolvedTripResult,
-            graphEngine: SubwayGraphEngine,
-            notes: String = "",
-            forceNeedsReview: Boolean? = null
-        ): CompleteRideRecord {
-            val originId = resolved.legs.firstOrNull()?.fromStationId.orEmpty()
-            val destId = resolved.legs.lastOrNull()?.toStationId.orEmpty()
-            val durationMin = if (endTimeEpochMs > startTimeEpochMs) {
-                ((endTimeEpochMs - startTimeEpochMs) / 60000.0 * 10.0).roundToInt() / 10.0
-            } else {
-                (resolved.totalDistanceMiles / 18.0 * 60.0 * 10.0).roundToInt() / 10.0
-            }
-
-            val rideEntity = RideEntity(
-                rideId = rideId,
-                startTimeEpochMs = startTimeEpochMs,
-                endTimeEpochMs = if (endTimeEpochMs > startTimeEpochMs) endTimeEpochMs else startTimeEpochMs + (durationMin * 60000).toLong(),
-                originStationId = originId,
-                destinationStationId = destId,
-                totalDistanceMiles = resolved.totalDistanceMiles,
-                durationMinutes = durationMin,
-                source = source,
-                needsReview = forceNeedsReview ?: resolved.isAmbiguous,
-                ambiguousCandidates = resolved.ambiguousCandidates,
-                notes = notes
+      val segmentEntities =
+        resolved.legs.flatMap { leg ->
+          leg.segmentIds.mapNotNull { segId ->
+            val seg = graphEngine.getSegment(segId) ?: return@mapNotNull null
+            RideSegmentEntity(
+              rideId = rideId,
+              legIndex = leg.legIndex,
+              segmentId = segId,
+              routeId = leg.routeId,
+              distanceMiles = seg.distanceMiles,
             )
-
-            val legEntities = resolved.legs.map { leg ->
-                RideLegEntity(
-                    legId = "${rideId}_leg_${leg.legIndex}",
-                    rideId = rideId,
-                    legIndex = leg.legIndex,
-                    routeId = leg.routeId,
-                    isExpress = leg.isExpress,
-                    servicePeriod = leg.servicePeriod,
-                    fromStationId = leg.fromStationId,
-                    toStationId = leg.toStationId,
-                    distanceMiles = leg.distanceMiles
-                )
-            }
-
-            val segmentEntities = resolved.legs.flatMap { leg ->
-                leg.segmentIds.mapNotNull { segId ->
-                    val seg = graphEngine.getSegment(segId) ?: return@mapNotNull null
-                    RideSegmentEntity(
-                        rideId = rideId,
-                        legIndex = leg.legIndex,
-                        segmentId = segId,
-                        routeId = leg.routeId,
-                        distanceMiles = seg.distanceMiles
-                    )
-                }
-            }
-
-            val stopEntities = resolved.stationStops.map { stop ->
-                RideStationStopEntity(
-                    rideId = rideId,
-                    stationId = stop.stationId,
-                    complexId = stop.complexId,
-                    stopRole = stop.role,
-                    legIndex = stop.legIndex
-                )
-            }
-
-            return CompleteRideRecord(
-                ride = rideEntity,
-                legs = legEntities,
-                segments = segmentEntities,
-                stationStops = stopEntities
-            )
+          }
         }
+
+      val stopEntities =
+        resolved.stationStops.map { stop ->
+          RideStationStopEntity(
+            rideId = rideId,
+            stationId = stop.stationId,
+            complexId = stop.complexId,
+            stopRole = stop.role,
+            legIndex = stop.legIndex,
+          )
+        }
+
+      return CompleteRideRecord(
+        ride = rideEntity,
+        legs = legEntities,
+        segments = segmentEntities,
+        stationStops = stopEntities,
+      )
     }
+  }
 }

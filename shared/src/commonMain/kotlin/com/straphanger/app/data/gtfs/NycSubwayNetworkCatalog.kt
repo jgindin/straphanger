@@ -19,30 +19,33 @@ import straphanger.shared.generated.resources.Res
  */
 object NycSubwayNetworkCatalog {
 
-    const val BUNDLED_RESOURCE_PATH = "files/nyc_subway_network.json"
+  const val BUNDLED_RESOURCE_PATH = "files/nyc_subway_network.json"
 
-    private val json = Json
+  private val json = Json
 
-    private val mutex = Mutex()
-    private var cached: SubwayNetworkData? = null
+  private val mutex = Mutex()
+  private var cached: SubwayNetworkData? = null
 
-    /** Reads and parses the bundled network once; later calls return the same instance. */
-    suspend fun loadBundled(): SubwayNetworkData = mutex.withLock {
-        cached ?: withContext(Dispatchers.IO) {
-            parse(Res.readBytes(BUNDLED_RESOURCE_PATH).decodeToString())
-        }.also { cached = it }
-    }
+  /** Reads and parses the bundled network once; later calls return the same instance. */
+  suspend fun loadBundled(): SubwayNetworkData = mutex.withLock {
+    cached
+      ?: withContext(Dispatchers.IO) {
+          parse(Res.readBytes(BUNDLED_RESOURCE_PATH).decodeToString())
+        }
+        .also { cached = it }
+  }
 
-    fun parse(json: String): SubwayNetworkData = this.json.decodeFromString(SubwayNetworkData.serializer(), json)
+  fun parse(json: String): SubwayNetworkData =
+    this.json.decodeFromString(SubwayNetworkData.serializer(), json)
 
-    fun haversineMiles(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val rMiles = 3958.8
-        val dLat = (lat2 - lat1) * PI / 180.0
-        val dLon = (lon2 - lon1) * PI / 180.0
-        val a = sin(dLat / 2.0) * sin(dLat / 2.0) +
-            cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) *
-            sin(dLon / 2.0) * sin(dLon / 2.0)
-        val c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
-        return rMiles * c
-    }
+  fun haversineMiles(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val rMiles = 3958.8
+    val dLat = (lat2 - lat1) * PI / 180.0
+    val dLon = (lon2 - lon1) * PI / 180.0
+    val a =
+      sin(dLat / 2.0) * sin(dLat / 2.0) +
+        cos(lat1 * PI / 180.0) * cos(lat2 * PI / 180.0) * sin(dLon / 2.0) * sin(dLon / 2.0)
+    val c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
+    return rMiles * c
+  }
 }

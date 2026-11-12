@@ -11,15 +11,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
 object CapturePermissions {
-    fun fineLocationGranted(context: Context): Boolean = granted(context, Manifest.permission.ACCESS_FINE_LOCATION)
+  fun fineLocationGranted(context: Context): Boolean =
+    granted(context, Manifest.permission.ACCESS_FINE_LOCATION)
 
-    /** Always true before Android 10, where foreground location also covers the background. */
-    fun backgroundLocationGranted(context: Context): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-            granted(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+  /** Always true before Android 10, where foreground location also covers the background. */
+  fun backgroundLocationGranted(context: Context): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+      granted(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
 
-    private fun granted(context: Context, permission: String): Boolean =
-        ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+  private fun granted(context: Context, permission: String): Boolean =
+    ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 }
 
 /**
@@ -29,24 +30,32 @@ object CapturePermissions {
  */
 @Composable
 fun rememberPassiveCapturePermissionRequest(onResult: () -> Unit): () -> Unit {
-    val context = LocalContext.current
-    val backgroundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        onResult()
+  val context = LocalContext.current
+  val backgroundLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { onResult() }
+  val foregroundLauncher =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+      results ->
+      onResult()
+      if (
+        results[Manifest.permission.ACCESS_FINE_LOCATION] == true &&
+          !CapturePermissions.backgroundLocationGranted(context)
+      ) {
+        backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+      }
     }
-    val foregroundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-        onResult()
-        if (results[Manifest.permission.ACCESS_FINE_LOCATION] == true && !CapturePermissions.backgroundLocationGranted(context)) {
-            backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
+  return {
+    when {
+      !CapturePermissions.fineLocationGranted(context) ->
+        foregroundLauncher.launch(
+          arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+          )
+        )
+      !CapturePermissions.backgroundLocationGranted(context) ->
+        backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+      else -> onResult()
     }
-    return {
-        when {
-            !CapturePermissions.fineLocationGranted(context) -> foregroundLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            )
-            !CapturePermissions.backgroundLocationGranted(context) ->
-                backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            else -> onResult()
-        }
-    }
+  }
 }

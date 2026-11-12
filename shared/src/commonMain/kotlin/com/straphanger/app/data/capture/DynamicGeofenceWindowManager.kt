@@ -9,21 +9,21 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ActiveGeofenceSpec(
-    val geofenceId: String,
-    val complexId: String?,
-    val stationId: String?,
-    val displayName: String,
-    val lat: Double,
-    val lng: Double,
-    val radiusMeters: Double,
-    val isMacroAnchor: Boolean = false
+  val geofenceId: String,
+  val complexId: String?,
+  val stationId: String?,
+  val displayName: String,
+  val lat: Double,
+  val lng: Double,
+  val radiusMeters: Double,
+  val isMacroAnchor: Boolean = false,
 )
 
 @Serializable
 data class GeofenceWindowSnapshot(
-    val anchorLat: Double,
-    val anchorLng: Double,
-    val activeGeofences: List<ActiveGeofenceSpec>
+  val anchorLat: Double,
+  val anchorLng: Double,
+  val activeGeofences: List<ActiveGeofenceSpec>,
 )
 
 /**
@@ -32,82 +32,88 @@ data class GeofenceWindowSnapshot(
  * geofence (19 in total) and recomputes the window when the user leaves the anchor.
  */
 class DynamicGeofenceWindowManager(
-    private val graphEngine: SubwayGraphEngine,
-    val maxStationComplexes: Int = 18,
-    val stationRadiusMeters: Double = 160.0,
-    val macroAnchorRadiusMeters: Double = 1200.0
+  private val graphEngine: SubwayGraphEngine,
+  val maxStationComplexes: Int = 18,
+  val stationRadiusMeters: Double = 160.0,
+  val macroAnchorRadiusMeters: Double = 1200.0,
 ) {
-    private var currentWindow: GeofenceWindowSnapshot? = null
+  private var currentWindow: GeofenceWindowSnapshot? = null
 
-    fun computeRollingWindow(userLat: Double, userLng: Double): GeofenceWindowSnapshot {
-        val representativeStationsByComplex = graphEngine.network.stations
-            .groupBy { it.complexId }
-            .values
-            .map { it.first() }
+  fun computeRollingWindow(userLat: Double, userLng: Double): GeofenceWindowSnapshot {
+    val representativeStationsByComplex =
+      graphEngine.network.stations.groupBy { it.complexId }.values.map { it.first() }
 
-        val nearestComplexStations = representativeStationsByComplex
-            .map { st ->
-                val distMiles = NycSubwayNetworkCatalog.haversineMiles(userLat, userLng, st.lat, st.lng)
-                st to distMiles
-            }
-            .sortedBy { it.second }
-            .take(maxStationComplexes)
-            .map { (st, _) ->
-                ActiveGeofenceSpec(
-                    geofenceId = stationGeofenceId(st.complexId),
-                    complexId = st.complexId,
-                    stationId = st.id,
-                    displayName = st.complexName,
-                    lat = st.lat,
-                    lng = st.lng,
-                    radiusMeters = stationRadiusMeters,
-                    isMacroAnchor = false
-                )
-            }
+    val nearestComplexStations =
+      representativeStationsByComplex
+        .map { st ->
+          val distMiles = NycSubwayNetworkCatalog.haversineMiles(userLat, userLng, st.lat, st.lng)
+          st to distMiles
+        }
+        .sortedBy { it.second }
+        .take(maxStationComplexes)
+        .map { (st, _) ->
+          ActiveGeofenceSpec(
+            geofenceId = stationGeofenceId(st.complexId),
+            complexId = st.complexId,
+            stationId = st.id,
+            displayName = st.complexName,
+            lat = st.lat,
+            lng = st.lng,
+            radiusMeters = stationRadiusMeters,
+            isMacroAnchor = false,
+          )
+        }
 
-        val macroAnchor = ActiveGeofenceSpec(
-            geofenceId = MACRO_ANCHOR_ID,
-            complexId = null,
-            stationId = null,
-            displayName = "Rolling Geofence Window Anchor",
-            lat = userLat,
-            lng = userLng,
-            radiusMeters = macroAnchorRadiusMeters,
-            isMacroAnchor = true
-        )
+    val macroAnchor =
+      ActiveGeofenceSpec(
+        geofenceId = MACRO_ANCHOR_ID,
+        complexId = null,
+        stationId = null,
+        displayName = "Rolling Geofence Window Anchor",
+        lat = userLat,
+        lng = userLng,
+        radiusMeters = macroAnchorRadiusMeters,
+        isMacroAnchor = true,
+      )
 
-        val snapshot = GeofenceWindowSnapshot(
-            anchorLat = userLat,
-            anchorLng = userLng,
-            activeGeofences = nearestComplexStations + macroAnchor
-        )
-        currentWindow = snapshot
-        return snapshot
-    }
+    val snapshot =
+      GeofenceWindowSnapshot(
+        anchorLat = userLat,
+        anchorLng = userLng,
+        activeGeofences = nearestComplexStations + macroAnchor,
+      )
+    currentWindow = snapshot
+    return snapshot
+  }
 
-    fun shouldRefreshWindow(newLat: Double, newLng: Double): Boolean {
-        val existing = currentWindow ?: return true
-        val movedMiles = NycSubwayNetworkCatalog.haversineMiles(
-            existing.anchorLat,
-            existing.anchorLng,
-            newLat,
-            newLng
-        )
-        val movedMeters = movedMiles * 1609.34
-        return movedMeters >= (macroAnchorRadiusMeters * 0.7)
-    }
+  fun shouldRefreshWindow(newLat: Double, newLng: Double): Boolean {
+    val existing = currentWindow ?: return true
+    val movedMiles =
+      NycSubwayNetworkCatalog.haversineMiles(
+        existing.anchorLat,
+        existing.anchorLng,
+        newLat,
+        newLng,
+      )
+    val movedMeters = movedMiles * 1609.34
+    return movedMeters >= (macroAnchorRadiusMeters * 0.7)
+  }
 
-    companion object {
-        const val MACRO_ANCHOR_ID = "ANCHOR_MACRO_WINDOW"
-        const val IOS_MAX_REGION_LIMIT = 20
-        private const val STATION_GEOFENCE_PREFIX = "ST_"
+  companion object {
+    const val MACRO_ANCHOR_ID = "ANCHOR_MACRO_WINDOW"
+    const val IOS_MAX_REGION_LIMIT = 20
+    private const val STATION_GEOFENCE_PREFIX = "ST_"
 
-        fun stationGeofenceId(complexId: String): String = STATION_GEOFENCE_PREFIX + complexId
+    fun stationGeofenceId(complexId: String): String = STATION_GEOFENCE_PREFIX + complexId
 
-        /** The station complex a station geofence covers, or null for the macro anchor and unknown IDs. */
-        fun complexIdForGeofence(geofenceId: String): String? =
-            if (geofenceId.startsWith(STATION_GEOFENCE_PREFIX)) geofenceId.removePrefix(STATION_GEOFENCE_PREFIX) else null
-    }
+    /**
+     * The station complex a station geofence covers, or null for the macro anchor and unknown IDs.
+     */
+    fun complexIdForGeofence(geofenceId: String): String? =
+      if (geofenceId.startsWith(STATION_GEOFENCE_PREFIX))
+        geofenceId.removePrefix(STATION_GEOFENCE_PREFIX)
+      else null
+  }
 }
 
 /**
@@ -119,147 +125,158 @@ class DynamicGeofenceWindowManager(
  * [idleCloseMs] passes with no new station entry ([closeIfIdle], or the next entry).
  *
  * Closing records a ride from origin to last only if they are different complexes, the trip took 2
- * to 120 minutes, and the effective distance is at least 0.3 miles and at least 6 mph. The effective
- * distance is the straight-line distance between the stations less two geofence radii, because a
- * walker is detected at the facing edges of the two geofences. The hop check uses the plain
- * centre-to-centre distance.
+ * to 120 minutes, and the effective distance is at least 0.3 miles and at least 6 mph. The
+ * effective distance is the straight-line distance between the stations less two geofence radii,
+ * because a walker is detected at the facing edges of the two geofences. The hop check uses the
+ * plain centre-to-centre distance.
  */
 class PassiveRideReconstructor(
-    private val graphEngine: SubwayGraphEngine,
-    private val dao: SubwayDao,
-    val idleCloseMs: Long = DEFAULT_IDLE_CLOSE_MS,
-    /** Radius of the station geofences; [DynamicGeofenceWindowManager.stationRadiusMeters]. */
-    stationRadiusMeters: Double = 160.0
+  private val graphEngine: SubwayGraphEngine,
+  private val dao: SubwayDao,
+  val idleCloseMs: Long = DEFAULT_IDLE_CLOSE_MS,
+  /** Radius of the station geofences; [DynamicGeofenceWindowManager.stationRadiusMeters]. */
+  stationRadiusMeters: Double = 160.0,
 ) {
-    private val stationRadiusMiles = stationRadiusMeters / METERS_PER_MILE
+  private val stationRadiusMiles = stationRadiusMeters / METERS_PER_MILE
 
-    private class Visit(val complexId: String, val timeMs: Long)
+  private class Visit(val complexId: String, val timeMs: Long)
 
-    private var origin: Visit? = null
-    private var last: Visit? = null
+  private var origin: Visit? = null
+  private var last: Visit? = null
 
-    val chainOriginComplexId: String? get() = origin?.complexId
-    val chainOriginTimeMs: Long? get() = origin?.timeMs
-    val chainLastComplexId: String? get() = last?.complexId
-    val chainLastTimeMs: Long? get() = last?.timeMs
+  val chainOriginComplexId: String?
+    get() = origin?.complexId
 
-    /**
-     * Start time of the oldest chain whose ride could not be saved, or null. Its station entries
-     * must be kept so the ride is recorded again on the next start.
-     */
-    var unsavedChainOriginTimeMs: Long? = null
-        private set
+  val chainOriginTimeMs: Long?
+    get() = origin?.timeMs
 
-    /** Returns the ride recorded because this entry closed the previous chain, or null. */
-    fun onStationGeofenceEntered(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
-        val previous = last
-        if (previous == null) {
-            startChain(complexId, timestampEpochMs)
-            return null
+  val chainLastComplexId: String?
+    get() = last?.complexId
+
+  val chainLastTimeMs: Long?
+    get() = last?.timeMs
+
+  /**
+   * Start time of the oldest chain whose ride could not be saved, or null. Its station entries must
+   * be kept so the ride is recorded again on the next start.
+   */
+  var unsavedChainOriginTimeMs: Long? = null
+    private set
+
+  /** Returns the ride recorded because this entry closed the previous chain, or null. */
+  fun onStationGeofenceEntered(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
+    val previous = last
+    if (previous == null) {
+      startChain(complexId, timestampEpochMs)
+      return null
+    }
+    val gapMs = timestampEpochMs - previous.timeMs
+    if (gapMs < 0) return null // older than the chain; out-of-order delivery
+    if (gapMs >= idleCloseMs) {
+      val record = close()
+      startChain(complexId, timestampEpochMs)
+      return record
+    }
+    if (complexId == previous.complexId) {
+      // Still at the only station of the chain: the latest entry is closest to boarding.
+      if (origin === previous) startChain(complexId, timestampEpochMs)
+      return null
+    }
+    val hopMph = mph(previous.complexId, complexId, gapMs)
+    if (hopMph != null && hopMph >= MIN_SPEED_MPH && gapMs <= MAX_HOP_MS) {
+      last = Visit(complexId, timestampEpochMs)
+      return null
+    }
+    val record = close()
+    startChain(complexId, timestampEpochMs)
+    return record
+  }
+
+  /**
+   * Closes the chain if [idleCloseMs] has passed since its last entry; returns the recorded ride,
+   * or null.
+   */
+  fun closeIfIdle(nowEpochMs: Long): CompleteRideRecord? {
+    val previous = last ?: return null
+    return if (nowEpochMs - previous.timeMs >= idleCloseMs) close() else null
+  }
+
+  private fun startChain(complexId: String, timestampEpochMs: Long) {
+    val visit = Visit(complexId, timestampEpochMs)
+    origin = visit
+    last = visit
+  }
+
+  private fun close(): CompleteRideRecord? {
+    val from = origin
+    val to = last
+    origin = null
+    last = null
+    if (from == null || to == null || from.complexId == to.complexId) return null
+    val durationMs = to.timeMs - from.timeMs
+    val durationMin = durationMs / 60_000.0
+    if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
+    val centreMiles = miles(from.complexId, to.complexId) ?: return null
+    val effectiveMiles = maxOf(0.0, centreMiles - 2 * stationRadiusMiles)
+    if (effectiveMiles < MIN_EFFECTIVE_MILES) return null
+    if (effectiveMiles / (durationMs / 3_600_000.0) < MIN_SPEED_MPH) return null
+    val record = buildRide(from, to, durationMin) ?: return null
+    dao.insertOrReplaceRide(record)
+    if (dao.lastSaveSucceeded) return record
+    unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
+    return null
+  }
+
+  /** Straight-line miles between the complexes' first stations; null for an unknown complex. */
+  private fun miles(fromComplex: String, toComplex: String): Double? {
+    val a = graphEngine.getStationsInComplex(fromComplex).firstOrNull() ?: return null
+    val b = graphEngine.getStationsInComplex(toComplex).firstOrNull() ?: return null
+    return NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
+  }
+
+  /** Centre-to-centre speed between the complexes; null for an unknown complex. */
+  private fun mph(fromComplex: String, toComplex: String, durationMs: Long): Double? {
+    val miles = miles(fromComplex, toComplex) ?: return null
+    if (durationMs <= 0) return Double.POSITIVE_INFINITY
+    return miles / (durationMs / 3_600_000.0)
+  }
+
+  private fun buildRide(from: Visit, to: Visit, durationMin: Double): CompleteRideRecord? {
+    val boardStations = graphEngine.getStationsInComplex(from.complexId)
+    val exitStations = graphEngine.getStationsInComplex(to.complexId)
+    // Pick the platform pair with the fewest legs, then the shortest distance.
+    val resolved =
+      boardStations
+        .flatMap { a ->
+          exitStations.map { b ->
+            graphEngine.resolveOriginToDestinationAuto(
+              originStationId = a.id,
+              destinationStationId = b.id,
+              timestampEpochMs = from.timeMs,
+              actualDurationMinutes = durationMin,
+            )
+          }
         }
-        val gapMs = timestampEpochMs - previous.timeMs
-        if (gapMs < 0) return null // older than the chain; out-of-order delivery
-        if (gapMs >= idleCloseMs) {
-            val record = close()
-            startChain(complexId, timestampEpochMs)
-            return record
-        }
-        if (complexId == previous.complexId) {
-            // Still at the only station of the chain: the latest entry is closest to boarding.
-            if (origin === previous) startChain(complexId, timestampEpochMs)
-            return null
-        }
-        val hopMph = mph(previous.complexId, complexId, gapMs)
-        if (hopMph != null && hopMph >= MIN_SPEED_MPH && gapMs <= MAX_HOP_MS) {
-            last = Visit(complexId, timestampEpochMs)
-            return null
-        }
-        val record = close()
-        startChain(complexId, timestampEpochMs)
-        return record
-    }
+        .filter { it.legs.isNotEmpty() }
+        .minWithOrNull(compareBy({ it.legs.size }, { it.totalDistanceMiles })) ?: return null
 
-    /** Closes the chain if [idleCloseMs] has passed since its last entry; returns the recorded ride, or null. */
-    fun closeIfIdle(nowEpochMs: Long): CompleteRideRecord? {
-        val previous = last ?: return null
-        return if (nowEpochMs - previous.timeMs >= idleCloseMs) close() else null
-    }
+    return SubwayDao.buildCompleteRideRecord(
+      rideId = "passive_${from.timeMs}",
+      startTimeEpochMs = from.timeMs,
+      endTimeEpochMs = to.timeMs,
+      source = RideSource.PASSIVE_GPS,
+      resolved = resolved,
+      graphEngine = graphEngine,
+    )
+  }
 
-    private fun startChain(complexId: String, timestampEpochMs: Long) {
-        val visit = Visit(complexId, timestampEpochMs)
-        origin = visit
-        last = visit
-    }
-
-    private fun close(): CompleteRideRecord? {
-        val from = origin
-        val to = last
-        origin = null
-        last = null
-        if (from == null || to == null || from.complexId == to.complexId) return null
-        val durationMs = to.timeMs - from.timeMs
-        val durationMin = durationMs / 60_000.0
-        if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
-        val centreMiles = miles(from.complexId, to.complexId) ?: return null
-        val effectiveMiles = maxOf(0.0, centreMiles - 2 * stationRadiusMiles)
-        if (effectiveMiles < MIN_EFFECTIVE_MILES) return null
-        if (effectiveMiles / (durationMs / 3_600_000.0) < MIN_SPEED_MPH) return null
-        val record = buildRide(from, to, durationMin) ?: return null
-        dao.insertOrReplaceRide(record)
-        if (dao.lastSaveSucceeded) return record
-        unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
-        return null
-    }
-
-    /** Straight-line miles between the complexes' first stations; null for an unknown complex. */
-    private fun miles(fromComplex: String, toComplex: String): Double? {
-        val a = graphEngine.getStationsInComplex(fromComplex).firstOrNull() ?: return null
-        val b = graphEngine.getStationsInComplex(toComplex).firstOrNull() ?: return null
-        return NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
-    }
-
-    /** Centre-to-centre speed between the complexes; null for an unknown complex. */
-    private fun mph(fromComplex: String, toComplex: String, durationMs: Long): Double? {
-        val miles = miles(fromComplex, toComplex) ?: return null
-        if (durationMs <= 0) return Double.POSITIVE_INFINITY
-        return miles / (durationMs / 3_600_000.0)
-    }
-
-    private fun buildRide(from: Visit, to: Visit, durationMin: Double): CompleteRideRecord? {
-        val boardStations = graphEngine.getStationsInComplex(from.complexId)
-        val exitStations = graphEngine.getStationsInComplex(to.complexId)
-        // Pick the platform pair with the fewest legs, then the shortest distance.
-        val resolved = boardStations.flatMap { a ->
-            exitStations.map { b ->
-                graphEngine.resolveOriginToDestinationAuto(
-                    originStationId = a.id,
-                    destinationStationId = b.id,
-                    timestampEpochMs = from.timeMs,
-                    actualDurationMinutes = durationMin
-                )
-            }
-        }
-            .filter { it.legs.isNotEmpty() }
-            .minWithOrNull(compareBy({ it.legs.size }, { it.totalDistanceMiles }))
-            ?: return null
-
-        return SubwayDao.buildCompleteRideRecord(
-            rideId = "passive_${from.timeMs}",
-            startTimeEpochMs = from.timeMs,
-            endTimeEpochMs = to.timeMs,
-            source = RideSource.PASSIVE_GPS,
-            resolved = resolved,
-            graphEngine = graphEngine
-        )
-    }
-
-    companion object {
-        const val MIN_RIDE_MINUTES = 2.0
-        const val MAX_RIDE_MINUTES = 120.0
-        const val MIN_SPEED_MPH = 6.0
-        const val MIN_EFFECTIVE_MILES = 0.3
-        private const val METERS_PER_MILE = 1609.344
-        const val MAX_HOP_MS = 30 * 60_000L
-        const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
-    }
+  companion object {
+    const val MIN_RIDE_MINUTES = 2.0
+    const val MAX_RIDE_MINUTES = 120.0
+    const val MIN_SPEED_MPH = 6.0
+    const val MIN_EFFECTIVE_MILES = 0.3
+    private const val METERS_PER_MILE = 1609.344
+    const val MAX_HOP_MS = 30 * 60_000L
+    const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
+  }
 }
