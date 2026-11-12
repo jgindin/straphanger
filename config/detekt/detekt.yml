@@ -1,32 +1,10 @@
 # Overrides of detekt's default rule set only (buildUponDefaultConfig is on); each one says why.
-# There is no baseline: fix findings rather than suppress them. The rules switched off below are
-# the structural-size rules. The code they flag (route search, Timeline parser, stats calculator,
-# the big Compose screens) was written as single long functions and is covered by tests; splitting
-# it is refactoring backlog, not something to do blind in a formatting-and-lint change.
-
-complexity:
-  LongMethod:
-    active: false
-  CyclomaticComplexMethod:
-    active: false
-  NestedBlockDepth:
-    active: false
-  ComplexCondition:
-    active: false
-  TooManyFunctions:
-    # StraphangerViewModel, SubwayDao and SubwayGraphEngine are facades over many small operations.
-    active: false
+# There is no baseline: fix findings rather than suppress them.
 
 style:
-  ReturnCount:
-    # Guard clauses with early returns are how the parsers and capture rules are written.
-    active: false
-  LoopWithTooManyJumpStatements:
-    active: false
-  ThrowsCount:
-    active: false
   MagicNumber:
-    # Colours, dp/sp sizes, map geometry and thresholds in composables and tests read better inline.
+    # Dp/sp sizes, colours and map geometry inside composables and the theme read better inline, and
+    #  test fixtures use literal values on purpose. Everything else needs a named constant.
     ignoreAnnotated: ['Composable']
     ignoreRanges: true
     # Unit conversions (minutes, hours, percent, milliseconds) are not magic.
@@ -37,10 +15,6 @@ style:
       - '**/commonTest/**'
       - '**/androidTest/**'
       - '**/ui/theme/**'
-  MaxLineLength:
-    # ktfmt owns line wrapping at 100 columns; what it cannot wrap are long string literals
-    #  (user-visible copy and test fixtures).
-    active: false
   ForbiddenComment:
     comments:
       - 'FIXME:'
@@ -50,12 +24,5 @@ naming:
   FunctionNaming:
     # Composables and the iOS entry point are PascalCase by convention.
     ignoreAnnotated: ['Composable']
-    functionPattern: '[a-z][a-zA-Z0-9]*'
     excludes:
       - '**/iosMain/**'
-
-exceptions:
-  TooGenericExceptionCaught:
-    # Persistence, import and capture code catches broadly on purpose, to show an error message or
-    #  skip a bad record instead of crashing the app.
-    active: false
