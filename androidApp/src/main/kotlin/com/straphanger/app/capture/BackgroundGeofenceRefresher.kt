@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.util.Log
 import com.straphanger.app.data.capture.BackgroundWindowRefresh
+import com.straphanger.app.data.capture.GeofenceRegistrationException
 import com.straphanger.app.data.gtfs.NycSubwayNetworkCatalog
 import com.straphanger.app.permissions.CapturePermissions
 import kotlinx.coroutines.CoroutineScope
@@ -38,27 +39,33 @@ object BackgroundGeofenceRefresher {
     val pending = receiver.goAsync()
     scope.launch {
       try {
-        val done =
-          withTimeoutOrNull(TIMEOUT_MS) {
-            val point = location()
-            if (point == null) {
-              Log.i(TAG, "$reason: no location, geofences not registered")
-              return@withTimeoutOrNull
-            }
-            val network = NycSubwayNetworkCatalog.loadBundled()
-            val specs = BackgroundWindowRefresh.windowAt(network, point.first, point.second)
-            AndroidGeofenceRegistrar(appContext).replaceAll(specs)
-            Log.i(
-              TAG,
-              "$reason: registered ${specs.size} geofences around ${point.first},${point.second}",
-            )
-          }
+        val done = withTimeoutOrNull(TIMEOUT_MS) { registerAround(appContext, reason, location()) }
         if (done == null) Log.w(TAG, "$reason: timed out registering geofences")
-      } catch (e: Exception) {
+      } catch (e: GeofenceRegistrationException) {
         Log.w(TAG, "$reason: geofences not registered", e)
+      } catch (e: SecurityException) {
+        Log.w(TAG, "$reason: location access refused; geofences not registered", e)
       } finally {
         pending.finish()
       }
+    }
+  }
+
+  private suspend fun registerAround(
+    context: Context,
+    reason: String,
+    point: Pair<Double, Double>?,
+  ) {
+    if (point == null) {
+      Log.i(TAG, "$reason: no location, geofences not registered")
+    } else {
+      val network = NycSubwayNetworkCatalog.loadBundled()
+      val specs = BackgroundWindowRefresh.windowAt(network, point.first, point.second)
+      AndroidGeofenceRegistrar(context).replaceAll(specs)
+      Log.i(
+        TAG,
+        "$reason: registered ${specs.size} geofences around ${point.first},${point.second}",
+      )
     }
   }
 }

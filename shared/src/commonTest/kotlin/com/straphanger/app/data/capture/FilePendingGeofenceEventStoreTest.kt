@@ -5,10 +5,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.files.SystemTemporaryDirectory
+import kotlinx.io.readString
 import kotlinx.io.writeString
 
 class FilePendingGeofenceEventStoreTest {
@@ -51,5 +54,19 @@ class FilePendingGeofenceEventStoreTest {
     assertTrue(store.readAll().isEmpty())
     store.append(a)
     assertEquals(listOf(a), store.readAll())
+  }
+
+  @Test
+  fun anUnreadableFileIsMovedAsideWithItsContents() {
+    val file = newFile()
+    SystemFileSystem.sink(file).buffered().use { it.writeString("not json") }
+    val clock =
+      object : Clock {
+        override fun now(): Instant = Instant.fromEpochMilliseconds(42L)
+      }
+    assertTrue(FilePendingGeofenceEventStore(file, clock = clock).readAll().isEmpty())
+    val aside = Path(file.parent!!, "pending_geofence_events.unreadable-42.json")
+    assertEquals("not json", SystemFileSystem.source(aside).buffered().use { it.readString() })
+    assertFalse(SystemFileSystem.exists(file))
   }
 }

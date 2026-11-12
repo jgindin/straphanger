@@ -37,18 +37,13 @@ class GoogleMapsTransitNotificationListener : NotificationListenerService() {
   }
 
   override fun onNotificationPosted(sbn: StatusBarNotification?) {
-    val notification = sbn ?: return
-    if (notification.packageName != GOOGLE_MAPS_PACKAGE) return
-    // Navigation is an ongoing notification; other Maps notifications are not trips.
-    if (!notification.isOngoing) return
-    val extras = notification.notification?.extras ?: return
-    val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
-    val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
-    val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty()
-    val combined = listOf(title, text, subText).filter { it.isNotBlank() }.joinToString(" | ")
-    if (combined.isBlank()) return
+    val notification = sbn?.takeIf { it.isMapsNavigation() } ?: return
+    val combined = notification.navigationText()
     val postTime = notification.postTime.takeIf { it > 0 } ?: System.currentTimeMillis()
-    if (tracker.onPosted(notification.key, postTime, "GMAPS_NOTIFICATION: $combined")) {
+    if (
+      combined.isNotBlank() &&
+        tracker.onPosted(notification.key, postTime, "GMAPS_NOTIFICATION: $combined")
+    ) {
       NotificationSessionSignal.sessionEnded()
     }
   }
@@ -59,6 +54,19 @@ class GoogleMapsTransitNotificationListener : NotificationListenerService() {
     if (tracker.onRemoved(notification.key, System.currentTimeMillis())) {
       NotificationSessionSignal.sessionEnded()
     }
+  }
+
+  /** Navigation is an ongoing notification; other Maps notifications are not trips. */
+  private fun StatusBarNotification.isMapsNavigation(): Boolean =
+    packageName == GOOGLE_MAPS_PACKAGE && isOngoing
+
+  /** Title, text and sub-text joined with " | ", skipping blank parts; blank when all are. */
+  private fun StatusBarNotification.navigationText(): String {
+    val extras = notification?.extras ?: return ""
+    return listOf(Notification.EXTRA_TITLE, Notification.EXTRA_TEXT, Notification.EXTRA_SUB_TEXT)
+      .map { extras.getCharSequence(it)?.toString().orEmpty() }
+      .filter { it.isNotBlank() }
+      .joinToString(" | ")
   }
 
   companion object {

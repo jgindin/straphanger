@@ -166,27 +166,34 @@ class PassiveRideReconstructor(
   /** Returns the ride recorded because this entry closed the previous chain, or null. */
   fun onStationGeofenceEntered(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
     val previous = last
-    if (previous == null) {
-      startChain(complexId, timestampEpochMs)
-      return null
+    return when {
+      previous == null -> {
+        startChain(complexId, timestampEpochMs)
+        null
+      }
+      // Older than the chain: out-of-order delivery.
+      timestampEpochMs < previous.timeMs -> null
+      timestampEpochMs - previous.timeMs >= idleCloseMs ->
+        closeAndStartChain(complexId, timestampEpochMs)
+      complexId == previous.complexId -> {
+        // Still at the only station of the chain: the latest entry is closest to boarding.
+        if (origin === previous) startChain(complexId, timestampEpochMs)
+        null
+      }
+      isTransitHop(previous, complexId, timestampEpochMs - previous.timeMs) -> {
+        last = Visit(complexId, timestampEpochMs)
+        null
+      }
+      else -> closeAndStartChain(complexId, timestampEpochMs)
     }
-    val gapMs = timestampEpochMs - previous.timeMs
-    if (gapMs < 0) return null // older than the chain; out-of-order delivery
-    if (gapMs >= idleCloseMs) {
-      val record = close()
-      startChain(complexId, timestampEpochMs)
-      return record
-    }
-    if (complexId == previous.complexId) {
-      // Still at the only station of the chain: the latest entry is closest to boarding.
-      if (origin === previous) startChain(complexId, timestampEpochMs)
-      return null
-    }
-    val hopMph = mph(previous.complexId, complexId, gapMs)
-    if (hopMph != null && hopMph >= MIN_SPEED_MPH && gapMs <= MAX_HOP_MS) {
-      last = Visit(complexId, timestampEpochMs)
-      return null
-    }
+  }
+
+  private fun isTransitHop(previous: Visit, complexId: String, gapMs: Long): Boolean {
+    val hopMph = graphEngine.complexMph(previous.complexId, complexId, gapMs)
+    return hopMph != null && hopMph >= MIN_SPEED_MPH && gapMs <= MAX_HOP_MS
+  }
+
+  private fun closeAndStartChain(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
     val record = close()
     startChain(complexId, timestampEpochMs)
     return record
@@ -212,33 +219,43 @@ class PassiveRideReconstructor(
     val to = last
     origin = null
     last = null
-    if (from == null || to == null || from.complexId == to.complexId) return null
+    return if (from != null && to != null) plausibleRide(from, to)?.let { saved(it, from) }
+    else null
+  }
+
+  /** The ride from [from] to [to], or null when the chain does not look like a subway ride. */
+  private fun plausibleRide(from: Visit, to: Visit): CompleteRideRecord? {
     val durationMs = to.timeMs - from.timeMs
     val durationMin = durationMs / 60_000.0
-    if (durationMin < MIN_RIDE_MINUTES || durationMin > MAX_RIDE_MINUTES) return null
-    val centreMiles = miles(from.complexId, to.complexId) ?: return null
+    val plausible =
+      from.complexId != to.complexId &&
+        durationMin in MIN_RIDE_MINUTES..MAX_RIDE_MINUTES &&
+        coversRideDistance(from.complexId, to.complexId, durationMs)
+    return if (plausible) buildRide(from, to, durationMin) else null
+  }
+
+  /**
+   * True when the distance between the complexes, less the station radii, is long enough and was
+   * covered fast enough for a ride.
+   */
+  private fun coversRideDistance(
+    fromComplex: String,
+    toComplex: String,
+    durationMs: Long,
+  ): Boolean {
+    val centreMiles = graphEngine.complexMiles(fromComplex, toComplex) ?: return false
     val effectiveMiles = maxOf(0.0, centreMiles - 2 * stationRadiusMiles)
-    if (effectiveMiles < MIN_EFFECTIVE_MILES) return null
-    if (effectiveMiles / (durationMs / 3_600_000.0) < MIN_SPEED_MPH) return null
-    val record = buildRide(from, to, durationMin) ?: return null
+    return effectiveMiles >= MIN_EFFECTIVE_MILES &&
+      effectiveMiles / (durationMs / 3_600_000.0) >= MIN_SPEED_MPH
+  }
+
+  /** Saves [record]; returns it, or null when the save failed and the chain must be replayed. */
+  private fun saved(record: CompleteRideRecord, from: Visit): CompleteRideRecord? {
     dao.insertOrReplaceRide(record)
-    if (dao.lastSaveSucceeded) return record
-    unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
-    return null
-  }
-
-  /** Straight-line miles between the complexes' first stations; null for an unknown complex. */
-  private fun miles(fromComplex: String, toComplex: String): Double? {
-    val a = graphEngine.getStationsInComplex(fromComplex).firstOrNull() ?: return null
-    val b = graphEngine.getStationsInComplex(toComplex).firstOrNull() ?: return null
-    return NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
-  }
-
-  /** Centre-to-centre speed between the complexes; null for an unknown complex. */
-  private fun mph(fromComplex: String, toComplex: String, durationMs: Long): Double? {
-    val miles = miles(fromComplex, toComplex) ?: return null
-    if (durationMs <= 0) return Double.POSITIVE_INFINITY
-    return miles / (durationMs / 3_600_000.0)
+    if (!dao.lastSaveSucceeded) {
+      unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
+    }
+    return record.takeIf { dao.lastSaveSucceeded }
   }
 
   private fun buildRide(from: Visit, to: Visit, durationMin: Double): CompleteRideRecord? {
@@ -280,6 +297,27 @@ class PassiveRideReconstructor(
     const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
   }
 }
+
+/** Straight-line miles between the complexes' first stations; null for an unknown complex. */
+private fun SubwayGraphEngine.complexMiles(fromComplex: String, toComplex: String): Double? {
+  val a = getStationsInComplex(fromComplex).firstOrNull()
+  val b = getStationsInComplex(toComplex).firstOrNull()
+  return if (a != null && b != null) {
+    NycSubwayNetworkCatalog.haversineMiles(a.lat, a.lng, b.lat, b.lng)
+  } else {
+    null
+  }
+}
+
+/** Centre-to-centre speed between the complexes; null for an unknown complex. */
+private fun SubwayGraphEngine.complexMph(
+  fromComplex: String,
+  toComplex: String,
+  durationMs: Long,
+): Double? =
+  complexMiles(fromComplex, toComplex)?.let { miles ->
+    if (durationMs <= 0) Double.POSITIVE_INFINITY else miles / (durationMs / 3_600_000.0)
+  }
 
 /** A macro anchor is refreshed once the user has moved this fraction of its radius. */
 private const val ANCHOR_REFRESH_FRACTION = 0.7

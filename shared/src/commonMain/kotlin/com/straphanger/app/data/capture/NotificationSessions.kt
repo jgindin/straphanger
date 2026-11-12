@@ -2,15 +2,13 @@ package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.local.CompleteRideRecord
 import kotlin.math.abs
+import kotlin.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.io.buffered
 import kotlinx.io.files.FileSystem
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
-import kotlinx.io.readString
-import kotlinx.io.writeString
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -59,40 +57,30 @@ class InMemoryNotificationSessionStore(
 }
 
 /**
- * Keeps the state as JSON in [file], written through `<file>.tmp`. An unreadable file reads as
- * empty.
+ * Keeps the state as JSON in [file], written through `<file>.tmp`. An unreadable file is moved
+ * aside, logged, and then read as empty.
  */
 class FileNotificationSessionStore(
-  private val file: Path,
-  private val fileSystem: FileSystem = SystemFileSystem,
+  file: Path,
+  fileSystem: FileSystem = SystemFileSystem,
+  clock: Clock = Clock.System,
 ) : NotificationSessionStore {
-  private val tmpFile = Path(file.toString() + ".tmp")
+  private val stateFile = JsonStateFile(file, fileSystem, clock, LOG_TAG)
   private val json = Json { ignoreUnknownKeys = true }
 
-  init {
-    file.parent?.let { fileSystem.createDirectories(it) }
-  }
-
-  override fun read(): NotificationSessionState {
-    if (!fileSystem.exists(file)) return NotificationSessionState()
-    return try {
-      json.decodeFromString(
-        NotificationSessionState.serializer(),
-        fileSystem.source(file).buffered().use { it.readString() },
-      )
-    } catch (ignored: Exception) {
-      NotificationSessionState()
-    }
-  }
+  override fun read(): NotificationSessionState =
+    stateFile.read { json.decodeFromString(NotificationSessionState.serializer(), it) }
+      ?: NotificationSessionState()
 
   override fun write(state: NotificationSessionState) {
-    if (state.open == null && state.completed.isEmpty()) {
-      if (fileSystem.exists(file)) fileSystem.delete(file)
-      return
-    }
-    val text = json.encodeToString(NotificationSessionState.serializer(), state)
-    fileSystem.sink(tmpFile).buffered().use { it.writeString(text) }
-    fileSystem.atomicMove(tmpFile, file)
+    val empty = state.open == null && state.completed.isEmpty()
+    stateFile.write(
+      if (empty) null else json.encodeToString(NotificationSessionState.serializer(), state)
+    )
+  }
+
+  private companion object {
+    const val LOG_TAG = "StraphangerMapsSessions"
   }
 }
 
@@ -135,34 +123,35 @@ class NotificationSessionTracker(private val store: NotificationSessionStore) {
     }
   }
 
-  fun onRemoved(key: String, removedMs: Long): Boolean {
-    val state = store.read()
-    val open = state.open ?: return false
-    if (open.key != key) return false
-    store.write(
-      NotificationSessionState(
-        open = null,
-        completed = state.completed + open.copy(endMs = removedMs),
-      )
-    )
-    return true
-  }
+  fun onRemoved(key: String, removedMs: Long): Boolean =
+    endOpenSessionIf({ it.key == key }) { removedMs }
 
   /**
    * Ends the open session if its notification is no longer showing, e.g. it was removed while the
    * listener was disconnected. [activeKeys] are the keys of the notifications showing now.
    */
-  fun onActiveNotifications(activeKeys: Set<String>): Boolean {
+  fun onActiveNotifications(activeKeys: Set<String>): Boolean =
+    endOpenSessionIf({ it.key !in activeKeys }) { it.lastPostMs }
+
+  /**
+   * Moves the open session to the completed list, ending at [endMs], when [shouldEnd] holds for it.
+   * Returns true when it did.
+   */
+  private fun endOpenSessionIf(
+    shouldEnd: (NavigationNotificationSession) -> Boolean,
+    endMs: (NavigationNotificationSession) -> Long,
+  ): Boolean {
     val state = store.read()
-    val open = state.open ?: return false
-    if (open.key in activeKeys) return false
-    store.write(
-      NotificationSessionState(
-        open = null,
-        completed = state.completed + open.copy(endMs = open.lastPostMs),
+    val open = state.open?.takeIf(shouldEnd)
+    if (open != null) {
+      store.write(
+        NotificationSessionState(
+          open = null,
+          completed = state.completed + open.copy(endMs = endMs(open)),
+        )
       )
-    )
-    return true
+    }
+    return open != null
   }
 }
 

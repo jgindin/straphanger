@@ -10,16 +10,16 @@ import androidx.core.app.NotificationManagerCompat
 
 /** Notification access for [GoogleMapsTransitNotificationListener]. */
 object NotificationAccess {
-  fun isEnabled(context: Context): Boolean {
+  fun isEnabled(context: Context): Boolean =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-      val manager = context.getSystemService(NotificationManager::class.java) ?: return false
-      return manager.isNotificationListenerAccessGranted(
-        ComponentName(context, GoogleMapsTransitNotificationListener::class.java)
-      )
+      context
+        .getSystemService(NotificationManager::class.java)
+        ?.isNotificationListenerAccessGranted(
+          ComponentName(context, GoogleMapsTransitNotificationListener::class.java)
+        ) ?: false
+    } else {
+      NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
     }
-    return NotificationManagerCompat.getEnabledListenerPackages(context)
-      .contains(context.packageName)
-  }
 
   /**
    * Opens the system list of apps with notification access, where the user grants or revokes it.

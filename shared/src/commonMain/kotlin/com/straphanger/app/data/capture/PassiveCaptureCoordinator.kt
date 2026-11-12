@@ -1,8 +1,8 @@
 package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.local.CompleteRideRecord
+import com.straphanger.app.diagnostics.DiagnosticsLog
 import kotlin.time.Clock
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -97,8 +97,8 @@ class PassiveCaptureCoordinator(
     scope.launch {
       try {
         registrar.clear()
-      } catch (e: Exception) {
-        if (e is CancellationException) throw e
+      } catch (e: GeofenceRegistrationException) {
+        DiagnosticsLog.warn(LOG_TAG, "Geofences could not be removed when capture stopped", e)
       }
     }
   }
@@ -110,8 +110,7 @@ class PassiveCaptureCoordinator(
     try {
       registrar.replaceAll(specs)
       _status.update { it.copy(registeredCount = specs.size, error = null) }
-    } catch (e: Exception) {
-      if (e is CancellationException) throw e
+    } catch (e: GeofenceRegistrationException) {
       _status.update {
         it.copy(registeredCount = 0, error = e.message ?: "Geofences could not be registered")
       }
@@ -184,3 +183,5 @@ class PassiveCaptureCoordinator(
     _status.update { it.copy(ridesRecorded = it.ridesRecorded + 1, lastRecordedRide = record) }
   }
 }
+
+private const val LOG_TAG = "StraphangerCapture"

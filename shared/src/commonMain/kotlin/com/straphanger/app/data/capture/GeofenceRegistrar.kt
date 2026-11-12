@@ -13,6 +13,7 @@ interface GeofenceRegistrar {
   /** Throws [GeofenceRegistrationException] when the platform refuses the geofences. */
   suspend fun replaceAll(specs: List<ActiveGeofenceSpec>)
 
+  /** Throws [GeofenceRegistrationException] when the platform refuses to remove the geofences. */
   suspend fun clear()
 }
 

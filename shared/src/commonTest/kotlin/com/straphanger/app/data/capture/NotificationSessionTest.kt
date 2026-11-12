@@ -10,11 +10,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.files.SystemTemporaryDirectory
+import kotlinx.io.readString
+import kotlinx.io.writeString
 
 class NotificationSessionTest {
 
@@ -73,6 +78,27 @@ class NotificationSessionTest {
     assertEquals(t0, session.firstPostMs)
     assertEquals(t0 + 12 * minute, session.endMs)
     SystemFileSystem.delete(file)
+  }
+
+  @Test
+  fun anUnreadableSessionFileIsMovedAsideAndReadsAsEmpty() {
+    val dir = Path(SystemTemporaryDirectory, "straphanger-test-${Random.nextLong().toULong()}")
+    SystemFileSystem.createDirectories(dir)
+    val file = Path(dir, "notification_sessions.json")
+    SystemFileSystem.sink(file).buffered().use { it.writeString("{broken") }
+    val clock =
+      object : Clock {
+        override fun now(): Instant = Instant.fromEpochMilliseconds(7L)
+      }
+
+    assertEquals(
+      NotificationSessionState(),
+      FileNotificationSessionStore(file, clock = clock).read(),
+    )
+    val aside = Path(dir, "notification_sessions.unreadable-7.json")
+    assertEquals("{broken", SystemFileSystem.source(aside).buffered().use { it.readString() })
+    assertFalse(SystemFileSystem.exists(file))
+    SystemFileSystem.delete(aside)
   }
 
   private fun viewModel(store: NotificationSessionStore, signal: MutableStateFlow<Int>) =
