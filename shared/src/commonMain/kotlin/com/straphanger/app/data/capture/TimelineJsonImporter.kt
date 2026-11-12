@@ -6,17 +6,12 @@ import com.straphanger.app.data.gtfs.TripLegRequest
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
+import com.straphanger.app.diagnostics.DiagnosticsLog
 import kotlin.math.abs
-import kotlin.time.Instant
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class TimelineImportSummary(
@@ -38,13 +33,22 @@ data class TimelineImportSummary(
  */
 class TimelineJsonImporter(private val graphEngine: SubwayGraphEngine) {
   private val json = Json { ignoreUnknownKeys = true }
+  private val segmentParser = TimelineSegmentParser { graphEngine.getRoute(it) != null }
 
-  private data class RawSubwaySegment(
+  /** A segment whose ends snapped to two different stations. */
+  private data class SnappedLeg(
     val startTimeEpochMs: Long,
     val endTimeEpochMs: Long,
-    val startPoint: GeoPoint,
-    val endPoint: GeoPoint,
-    val explicitRouteId: String? = null,
+    val fromStationId: String,
+    val toStationId: String,
+    val explicitRouteId: String?,
+  )
+
+  /** What became of the grouped trips: the new rides and how many were skipped and why. */
+  private data class TripResolution(
+    val records: List<CompleteRideRecord>,
+    val duplicates: Int,
+    val unresolved: Int,
   )
 
   fun importTimelineJson(
@@ -58,183 +62,153 @@ class TimelineJsonImporter(private val graphEngine: SubwayGraphEngine) {
 
   /**
    * Parses and resolves a Timeline file without touching storage. Rides already in [existingRides]
-   * are skipped as duplicates; the caller saves [TimelineImportSummary.importedRecords].
+   * are skipped as duplicates; the caller saves [TimelineImportSummary.importedRecords]. Text that
+   * is not JSON is logged and yields an empty summary.
    */
   fun resolveTimelineJson(
     rawJson: String,
     existingRides: List<CompleteRideRecord>,
   ): TimelineImportSummary {
-    val rootElement =
-      runCatching { json.parseToJsonElement(rawJson.trim()) }.getOrNull()
-        ?: return TimelineImportSummary(0, 0, 0, 0, 0, emptyList())
+    val root = parseRoot(rawJson) ?: return TimelineImportSummary(0, 0, 0, 0, 0, emptyList())
+    val segments = segmentParser.segments(root).sortedBy { it.startTimeEpochMs }
+    val snapped = segments.map { snap(it) }
+    val legs = snapped.filterNotNull()
+    val trips = groupTransfers(legs)
+    val resolution = resolveTrips(trips, existingRides)
+    return TimelineImportSummary(
+      rawSegmentsFound = segments.size,
+      ridesImported = resolution.records.size,
+      multiLegRidesMerged = legs.size - trips.size,
+      duplicatesSkipped = resolution.duplicates,
+      unmatchedSegmentsSkipped = snapped.count { it == null } + resolution.unresolved,
+      importedRecords = resolution.records,
+    )
+  }
 
-    val extractedSegments = mutableListOf<RawSubwaySegment>()
-
-    when (rootElement) {
-      is JsonArray -> {
-        // iOS on-device Timeline root array
-        for (item in rootElement) {
-          if (item is JsonObject) {
-            parseSemanticSegmentObject(item)?.let { extractedSegments.add(it) }
-          }
-        }
-      }
-      is JsonObject -> {
-        // Format 1 & 2: "semanticSegments" array
-        rootElement["semanticSegments"]?.let { segArr ->
-          if (segArr is JsonArray) {
-            for (item in segArr) {
-              if (item is JsonObject) {
-                parseSemanticSegmentObject(item)?.let { extractedSegments.add(it) }
-              }
-            }
-          }
-        }
-        // Format 3: Google Takeout "timelineObjects" array
-        rootElement["timelineObjects"]?.let { tlArr ->
-          if (tlArr is JsonArray) {
-            for (item in tlArr) {
-              val actSeg = (item as? JsonObject)?.get("activitySegment") as? JsonObject
-              if (actSeg != null) {
-                parseTakeoutActivitySegment(actSeg)?.let { extractedSegments.add(it) }
-              }
-            }
-          }
-        }
-      }
-      else -> {}
+  private fun parseRoot(rawJson: String): JsonElement? =
+    try {
+      json.parseToJsonElement(rawJson.trim())
+    } catch (e: SerializationException) {
+      DiagnosticsLog.warn(LOG_TAG, "Timeline file is not valid JSON", e)
+      null
     }
 
-    val sortedRaw = extractedSegments.sortedBy { it.startTimeEpochMs }
+  /** Snaps the segment's ends to the nearest stations; null when they are missing or the same. */
+  private fun snap(seg: RawSubwaySegment): SnappedLeg? {
+    val fromSt = nearestStation(seg.startPoint, seg.explicitRouteId)
+    val toSt = nearestStation(seg.endPoint, seg.explicitRouteId)
+    return if (fromSt != null && toSt != null && fromSt.id != toSt.id) {
+      SnappedLeg(
+        startTimeEpochMs = seg.startTimeEpochMs,
+        endTimeEpochMs = seg.endTimeEpochMs,
+        fromStationId = fromSt.id,
+        toStationId = toSt.id,
+        explicitRouteId = seg.explicitRouteId,
+      )
+    } else {
+      null
+    }
+  }
 
-    // Snap each segment to origin/destination stations
-    data class SnappedLegCandidate(
-      val startTimeEpochMs: Long,
-      val endTimeEpochMs: Long,
-      val fromStationId: String,
-      val toStationId: String,
-      val explicitRouteId: String?,
+  private fun nearestStation(point: GeoPoint, routeId: String?) =
+    graphEngine.findNearestStation(
+      lat = point.lat,
+      lng = point.lng,
+      maxDistanceMiles = MAX_SNAP_MILES,
+      preferredRouteId = routeId,
     )
 
-    var unmatchedCount = 0
-    val snappedLegs = mutableListOf<SnappedLegCandidate>()
-    for (seg in sortedRaw) {
-      val fromSt =
-        graphEngine.findNearestStation(
-          lat = seg.startPoint.lat,
-          lng = seg.startPoint.lng,
-          maxDistanceMiles = 0.55,
-          preferredRouteId = seg.explicitRouteId,
+  /**
+   * Groups consecutive legs joined by an in-system transfer (see [isTransfer]) into one multi-leg
+   * trip.
+   */
+  private fun groupTransfers(legs: List<SnappedLeg>): List<List<SnappedLeg>> {
+    val groups = mutableListOf<MutableList<SnappedLeg>>()
+    for (leg in legs) {
+      val current = groups.lastOrNull()
+      if (current != null && isTransfer(current.last(), leg)) current += leg
+      else groups += mutableListOf(leg)
+    }
+    return groups
+  }
+
+  /**
+   * True when [next] starts in the complex where [previous] ended, from a minute before to
+   * [TRANSFER_WINDOW_MS] after it ended.
+   */
+  private fun isTransfer(previous: SnappedLeg, next: SnappedLeg): Boolean {
+    val gapMs = next.startTimeEpochMs - previous.endTimeEpochMs
+    val prevEndComplex = graphEngine.complexOf(previous.toStationId)
+    return gapMs in -TRANSFER_OVERLAP_MS..TRANSFER_WINDOW_MS &&
+      prevEndComplex != null &&
+      prevEndComplex == graphEngine.complexOf(next.fromStationId)
+  }
+
+  private fun resolveTrips(
+    trips: List<List<SnappedLeg>>,
+    existingRides: List<CompleteRideRecord>,
+  ): TripResolution {
+    val records = mutableListOf<CompleteRideRecord>()
+    var duplicates = 0
+    var unresolved = 0
+    trips.forEachIndexed { idx, legs ->
+      val duplicate = isDuplicate(legs, existingRides) || isDuplicate(legs, records)
+      val record = if (duplicate) null else rideFor(legs, idx)
+      when {
+        duplicate -> duplicates++
+        record == null -> unresolved++
+        else -> records += record
+      }
+    }
+    return TripResolution(records, duplicates, unresolved)
+  }
+
+  /**
+   * True when [rides] hold a ride between the same complexes starting within
+   * [DUPLICATE_START_WINDOW_MS] of the trip.
+   */
+  private fun isDuplicate(legs: List<SnappedLeg>, rides: List<CompleteRideRecord>): Boolean {
+    val startMs = legs.first().startTimeEpochMs
+    val originComplex = graphEngine.complexOf(legs.first().fromStationId)
+    val destComplex = graphEngine.complexOf(legs.last().toStationId)
+    return rides.any {
+      abs(it.ride.startTimeEpochMs - startMs) <= DUPLICATE_START_WINDOW_MS &&
+        graphEngine.complexOf(it.ride.originStationId) == originComplex &&
+        graphEngine.complexOf(it.ride.destinationStationId) == destComplex
+    }
+  }
+
+  /** The ride for one trip, or null when no route joins its stations. */
+  private fun rideFor(legs: List<SnappedLeg>, idx: Int): CompleteRideRecord? {
+    val tripStartMs = legs.first().startTimeEpochMs
+    val tripEndMs = legs.last().endTimeEpochMs
+    val durationMinutes = ((tripEndMs - tripStartMs) / 60000.0).coerceAtLeast(1.0)
+    val resolved =
+      if (legs.size == 1 && legs.single().explicitRouteId == null) {
+        graphEngine.resolveOriginToDestinationAuto(
+          originStationId = legs.single().fromStationId,
+          destinationStationId = legs.single().toStationId,
+          preferredRouteId = null,
+          timestampEpochMs = tripStartMs,
+          actualDurationMinutes = durationMinutes,
         )
-      val toSt =
-        graphEngine.findNearestStation(
-          lat = seg.endPoint.lat,
-          lng = seg.endPoint.lng,
-          maxDistanceMiles = 0.55,
-          preferredRouteId = seg.explicitRouteId,
-        )
-      if (fromSt == null || toSt == null || fromSt.id == toSt.id) {
-        unmatchedCount++
       } else {
-        snappedLegs.add(
-          SnappedLegCandidate(
-            startTimeEpochMs = seg.startTimeEpochMs,
-            endTimeEpochMs = seg.endTimeEpochMs,
-            fromStationId = fromSt.id,
-            toStationId = toSt.id,
-            explicitRouteId = seg.explicitRouteId,
-          )
+        graphEngine.resolveTrip(
+          legs =
+            legs.map { l ->
+              TripLegRequest(
+                fromStationId = l.fromStationId,
+                toStationId = l.toStationId,
+                preferredRouteId = l.explicitRouteId,
+              )
+            },
+          timestampEpochMs = tripStartMs,
+          actualDurationMinutes = durationMinutes,
         )
       }
-    }
-
-    // Group consecutive legs within a 15-minute in-system transfer window into a single multi-leg
-    // ride
-    val groupedTrips = mutableListOf<List<SnappedLegCandidate>>()
-    var multiLegMergedCount = 0
-    for (leg in snappedLegs) {
-      val currentGroup = groupedTrips.lastOrNull()
-      if (currentGroup != null) {
-        val prevLeg = currentGroup.last()
-        val gapMs = leg.startTimeEpochMs - prevLeg.endTimeEpochMs
-        val prevEndComplex = graphEngine.getStation(prevLeg.toStationId)?.complexId
-        val nextStartComplex = graphEngine.getStation(leg.fromStationId)?.complexId
-        val isTransferConnection =
-          gapMs in -60_000L..(15 * 60_000L) &&
-            prevEndComplex != null &&
-            prevEndComplex == nextStartComplex
-        if (isTransferConnection) {
-          groupedTrips[groupedTrips.lastIndex] = currentGroup + leg
-          multiLegMergedCount++
-          continue
-        }
-      }
-      groupedTrips.add(listOf(leg))
-    }
-
-    var duplicateCount = 0
-    val importedRecords = mutableListOf<CompleteRideRecord>()
-
-    for ((idx, legGroup) in groupedTrips.withIndex()) {
-      val tripStartMs = legGroup.first().startTimeEpochMs
-      val tripEndMs = legGroup.last().endTimeEpochMs
-      val originId = legGroup.first().fromStationId
-      val destId = legGroup.last().toStationId
-      val originComplex = graphEngine.getStation(originId)?.complexId
-      val destComplex = graphEngine.getStation(destId)?.complexId
-
-      val isDuplicate =
-        existingRides.any { existing ->
-          val exOriginComplex = graphEngine.getStation(existing.ride.originStationId)?.complexId
-          val exDestComplex = graphEngine.getStation(existing.ride.destinationStationId)?.complexId
-          abs(existing.ride.startTimeEpochMs - tripStartMs) <= 5 * 60_000L &&
-            exOriginComplex == originComplex &&
-            exDestComplex == destComplex
-        } ||
-          importedRecords.any { already ->
-            val alOriginComplex = graphEngine.getStation(already.ride.originStationId)?.complexId
-            val alDestComplex = graphEngine.getStation(already.ride.destinationStationId)?.complexId
-            abs(already.ride.startTimeEpochMs - tripStartMs) <= 5 * 60_000L &&
-              alOriginComplex == originComplex &&
-              alDestComplex == destComplex
-          }
-
-      if (isDuplicate) {
-        duplicateCount++
-        continue
-      }
-
-      val durationMinutes = ((tripEndMs - tripStartMs) / 60000.0).coerceAtLeast(1.0)
-      val resolved =
-        if (legGroup.size == 1 && legGroup.single().explicitRouteId == null) {
-          graphEngine.resolveOriginToDestinationAuto(
-            originStationId = originId,
-            destinationStationId = destId,
-            preferredRouteId = null,
-            timestampEpochMs = tripStartMs,
-            actualDurationMinutes = durationMinutes,
-          )
-        } else {
-          graphEngine.resolveTrip(
-            legs =
-              legGroup.map { l ->
-                TripLegRequest(
-                  fromStationId = l.fromStationId,
-                  toStationId = l.toStationId,
-                  preferredRouteId = l.explicitRouteId,
-                )
-              },
-            timestampEpochMs = tripStartMs,
-            actualDurationMinutes = durationMinutes,
-          )
-        }
-
-      if (resolved.legs.isEmpty()) {
-        unmatchedCount++
-        continue
-      }
-
-      val record =
+    return resolved.legs
+      .takeIf { it.isNotEmpty() }
+      ?.let {
         SubwayDao.buildCompleteRideRecord(
           rideId = "tl_${tripStartMs}_$idx",
           startTimeEpochMs = tripStartMs,
@@ -243,187 +217,23 @@ class TimelineJsonImporter(private val graphEngine: SubwayGraphEngine) {
           resolved = resolved,
           graphEngine = graphEngine,
         )
-      importedRecords.add(record)
-    }
-
-    return TimelineImportSummary(
-      rawSegmentsFound = sortedRaw.size,
-      ridesImported = importedRecords.size,
-      multiLegRidesMerged = multiLegMergedCount,
-      duplicatesSkipped = duplicateCount,
-      unmatchedSegmentsSkipped = unmatchedCount,
-      importedRecords = importedRecords,
-    )
-  }
-
-  private fun parseSemanticSegmentObject(obj: JsonObject): RawSubwaySegment? {
-    val activity = obj["activity"] as? JsonObject ?: return null
-    val topCandidate = activity["topCandidate"] as? JsonObject
-    val type =
-      topCandidate?.get("type")?.jsonPrimitive?.contentOrNull
-        ?: activity["type"]?.jsonPrimitive?.contentOrNull
-        ?: return null
-
-    if (!isSubwayActivityType(type)) return null
-
-    val startTimeStr = obj["startTime"]?.jsonPrimitive?.contentOrNull ?: return null
-    val endTimeStr = obj["endTime"]?.jsonPrimitive?.contentOrNull ?: startTimeStr
-    val startMs = parseIsoTimestampMs(startTimeStr) ?: return null
-    val endMs = parseIsoTimestampMs(endTimeStr) ?: (startMs + 15 * 60_000L)
-
-    val startCoord =
-      parseFlexibleGeoPoint(activity["start"])
-        ?: parsePointFromTimelinePath(obj["timelinePath"], isFirst = true)
-        ?: return null
-    val endCoord =
-      parseFlexibleGeoPoint(activity["end"])
-        ?: parsePointFromTimelinePath(obj["timelinePath"], isFirst = false)
-        ?: return null
-
-    val explicitRoute =
-      extractRouteBullet(
-        (activity["transitPath"] as? JsonObject)?.get("name")?.jsonPrimitive?.contentOrNull
-          ?: topCandidate?.get("transitLine")?.jsonPrimitive?.contentOrNull
-      )
-
-    return RawSubwaySegment(
-      startTimeEpochMs = startMs,
-      endTimeEpochMs = endMs,
-      startPoint = startCoord,
-      endPoint = endCoord,
-      explicitRouteId = explicitRoute,
-    )
-  }
-
-  private fun parseTakeoutActivitySegment(actSeg: JsonObject): RawSubwaySegment? {
-    val actType =
-      actSeg["activityType"]?.jsonPrimitive?.contentOrNull
-        ?: (actSeg["topCandidate"] as? JsonObject)?.get("type")?.jsonPrimitive?.contentOrNull
-        ?: return null
-    if (!isSubwayActivityType(actType)) return null
-
-    val durationObj = actSeg["duration"] as? JsonObject
-    val startMs =
-      durationObj?.get("startTimestamp")?.jsonPrimitive?.contentOrNull?.let {
-        parseIsoTimestampMs(it)
       }
-        ?: durationObj?.get("startTimestampMs")?.jsonPrimitive?.contentOrNull?.toLongOrNull()
-        ?: return null
-    val endMs =
-      durationObj?.get("endTimestamp")?.jsonPrimitive?.contentOrNull?.let {
-        parseIsoTimestampMs(it)
-      }
-        ?: durationObj?.get("endTimestampMs")?.jsonPrimitive?.contentOrNull?.toLongOrNull()
-        ?: (startMs + 15 * 60_000L)
-
-    val startCoord = parseFlexibleGeoPoint(actSeg["startLocation"]) ?: return null
-    val endCoord = parseFlexibleGeoPoint(actSeg["endLocation"]) ?: return null
-
-    val transitPath = actSeg["transitPath"] as? JsonObject
-    val explicitRoute =
-      extractRouteBullet(
-        transitPath?.get("name")?.jsonPrimitive?.contentOrNull
-          ?: transitPath?.get("line")?.jsonPrimitive?.contentOrNull
-      )
-
-    return RawSubwaySegment(
-      startTimeEpochMs = startMs,
-      endTimeEpochMs = endMs,
-      startPoint = startCoord,
-      endPoint = endCoord,
-      explicitRouteId = explicitRoute,
-    )
-  }
-
-  private fun isSubwayActivityType(type: String): Boolean {
-    val upper = type.uppercase()
-    return upper == "IN_SUBWAY" || upper == "SUBWAY" || upper == "IN_TRAIN"
-  }
-
-  /**
-   * Normalizes all 3 coordinate formats used by Google Maps Timeline:
-   * - Format 1 (Android degree strings): {"latLng": "40.7347°, -73.9899°"} or "40.7347° N, 73.9899°
-   *   W"
-   * - Format 2 (iOS geo URIs): "geo:40.7347,-73.9899" or {"latLng": "geo:40.7347,-73.9899"}
-   * - Format 3 (Takeout E7 integers): {"latitudeE7": 407347000, "longitudeE7": -739899000}
-   */
-  fun parseFlexibleGeoPoint(element: JsonElement?): GeoPoint? {
-    if (element == null) return null
-    if (element is JsonObject) {
-      element["latLng"]?.let {
-        return parseFlexibleGeoPoint(it)
-      }
-      element["point"]?.let {
-        return parseFlexibleGeoPoint(it)
-      }
-      val latE7 = element["latitudeE7"]?.jsonPrimitive?.intOrNull
-      val lngE7 = element["longitudeE7"]?.jsonPrimitive?.intOrNull
-      if (latE7 != null && lngE7 != null) {
-        return GeoPoint(latE7 / E7_PER_DEGREE, lngE7 / E7_PER_DEGREE)
-      }
-      val lat =
-        element["lat"]?.jsonPrimitive?.doubleOrNull
-          ?: element["latitude"]?.jsonPrimitive?.doubleOrNull
-      val lng =
-        element["lng"]?.jsonPrimitive?.doubleOrNull
-          ?: element["longitude"]?.jsonPrimitive?.doubleOrNull
-      if (lat != null && lng != null) {
-        return GeoPoint(lat, lng)
-      }
-      return null
-    }
-
-    val rawStr =
-      runCatching { element.jsonPrimitive.contentOrNull }.getOrNull()?.trim() ?: return null
-    val cleaned = rawStr.removePrefix("geo:").trim()
-    val parts = cleaned.split(",")
-    if (parts.size < 2) return null
-
-    val lat = parseCoordinateToken(parts[0]) ?: return null
-    val lng = parseCoordinateToken(parts[1]) ?: return null
-    return GeoPoint(lat, lng)
-  }
-
-  private fun parseCoordinateToken(token: String): Double? {
-    val upper = token.trim().uppercase()
-    val isNegativeCardinal = upper.endsWith("S") || upper.endsWith("W")
-    val numericOnly =
-      upper
-        .replace("°", "")
-        .replace("N", "")
-        .replace("S", "")
-        .replace("E", "")
-        .replace("W", "")
-        .trim()
-    val value = numericOnly.toDoubleOrNull() ?: return null
-    return if (isNegativeCardinal && value > 0) -value else value
-  }
-
-  private fun parsePointFromTimelinePath(pathElem: JsonElement?, isFirst: Boolean): GeoPoint? {
-    val arr = pathElem as? JsonArray ?: return null
-    if (arr.isEmpty()) return null
-    val target = if (isFirst) arr.first() else arr.last()
-    return parseFlexibleGeoPoint(target)
-  }
-
-  private fun parseIsoTimestampMs(raw: String): Long? {
-    return runCatching { Instant.parse(raw).toEpochMilliseconds() }.getOrNull()
-  }
-
-  private fun extractRouteBullet(rawLineName: String?): String? {
-    if (rawLineName.isNullOrBlank()) return null
-    val cleaned =
-      rawLineName
-        .trim()
-        .uppercase()
-        .removeSuffix(" TRAIN")
-        .removeSuffix(" LINE")
-        .removeSuffix(" EXPRESS")
-        .removeSuffix(" LOCAL")
-        .trim()
-    return cleaned.takeIf { graphEngine.getRoute(it) != null }
   }
 }
 
-/** Google stores latitude and longitude as integer degrees times 10^7. */
-private const val E7_PER_DEGREE = 1e7
+private fun SubwayGraphEngine.complexOf(stationId: String): String? =
+  getStation(stationId)?.complexId
+
+private const val LOG_TAG = "StraphangerTimeline"
+
+/** How far a segment's end may be from the station it is snapped to. */
+private const val MAX_SNAP_MILES = 0.55
+
+/** A transfer may start up to this long before the previous leg's recorded end. */
+private const val TRANSFER_OVERLAP_MS = 60_000L
+
+/** The longest in-system transfer between two legs of one trip. */
+private const val TRANSFER_WINDOW_MS = 15 * 60_000L
+
+/** Rides between the same complexes starting this close together are the same ride. */
+private const val DUPLICATE_START_WINDOW_MS = 5 * 60_000L

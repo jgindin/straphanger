@@ -26,34 +26,13 @@ class RideCaptureAndTimelineTest {
         val dao = SubwayDao(InMemoryPersistenceBackend())
 
         // 1. Format 1: Android On-Device Timeline.json (degree strings + 2-leg transfer within 4 min)
-        val androidTimelineJson = """
-            {
-              "semanticSegments": [
-                {
-                  "startTime": "2026-11-08T14:00:00.000-05:00",
-                  "endTime": "2026-11-08T14:08:00.000-05:00",
-                  "activity": {
-                    "start": { "latLng": "40.7173°, -73.9569°" },
-                    "end": { "latLng": "40.7341°, -73.9907°" },
-                    "topCandidate": { "type": "IN_SUBWAY", "transitLine": "L Train" }
-                  }
-                },
-                {
-                  "startTime": "2026-11-08T14:12:00.000-05:00",
-                  "endTime": "2026-11-08T14:21:00.000-05:00",
-                  "activity": {
-                    "start": { "latLng": "40.7347° N, 73.9899° W" },
-                    "end": { "latLng": "40.7795° N, 73.9556° W" },
-                    "topCandidate": { "type": "IN_SUBWAY", "transitLine": "4 Express" }
-                  }
-                }
-              ]
-            }
-        """.trimIndent()
-
         val summary1 = importer.importTimelineJson(androidTimelineJson, dao)
         assertEquals(2, summary1.rawSegmentsFound)
-        assertEquals(1, summary1.ridesImported, "Consecutive L -> 4 segments at Union Sq within 4 min should merge into 1 ride")
+        assertEquals(
+            1,
+            summary1.ridesImported,
+            "Consecutive L -> 4 segments at Union Sq within 4 min should merge into 1 ride",
+        )
         assertEquals(1, summary1.multiLegRidesMerged)
         assertEquals(2, summary1.importedRecords.single().legs.size)
 
@@ -63,46 +42,11 @@ class RideCaptureAndTimelineTest {
         assertEquals(1, duplicateSummary.duplicatesSkipped)
 
         // 2. Format 2: iOS On-Device Timeline.json (root array with "geo:lat,lng" URIs)
-        val iosTimelineJson = """
-            [
-              {
-                "startTime": "2026-11-09T09:15:00.000-05:00",
-                "endTime": "2026-11-09T09:32:00.000-05:00",
-                "activity": {
-                  "start": "geo:40.7682,-73.9819",
-                  "end": "geo:40.7102,-74.0077",
-                  "topCandidate": { "type": "IN_SUBWAY", "transitLine": "A" }
-                }
-              }
-            ]
-        """.trimIndent()
-
         val summary2 = importer.importTimelineJson(iosTimelineJson, dao)
         assertEquals(1, summary2.ridesImported)
         assertEquals("A", summary2.importedRecords.single().legs.single().routeId)
 
         // 3. Format 3: Google Takeout Semantic Location History (E7 integers + transitPath)
-        val takeoutJson = """
-            {
-              "timelineObjects": [
-                {
-                  "activitySegment": {
-                    "startLocation": { "latitudeE7": 407555000, "longitudeE7": -739876000 },
-                    "endLocation": { "latitudeE7": 407596000, "longitudeE7": -738300000 },
-                    "duration": {
-                      "startTimestamp": "2026-11-09T18:00:00Z",
-                      "endTimestamp": "2026-11-09T18:28:00Z"
-                    },
-                    "activityType": "IN_SUBWAY",
-                    "transitPath": {
-                      "name": "7 Train"
-                    }
-                  }
-                }
-              ]
-            }
-        """.trimIndent()
-
         val summary3 = importer.importTimelineJson(takeoutJson, dao)
         assertEquals(1, summary3.ridesImported)
         assertEquals("7", summary3.importedRecords.single().legs.single().routeId)
@@ -179,3 +123,63 @@ class RideCaptureAndTimelineTest {
         assertTrue(redirectRecord.ride.needsReview)
     }
 }
+
+private val androidTimelineJson = """
+        {
+          "semanticSegments": [
+            {
+              "startTime": "2026-11-08T14:00:00.000-05:00",
+              "endTime": "2026-11-08T14:08:00.000-05:00",
+              "activity": {
+                "start": { "latLng": "40.7173°, -73.9569°" },
+                "end": { "latLng": "40.7341°, -73.9907°" },
+                "topCandidate": { "type": "IN_SUBWAY", "transitLine": "L Train" }
+              }
+            },
+            {
+              "startTime": "2026-11-08T14:12:00.000-05:00",
+              "endTime": "2026-11-08T14:21:00.000-05:00",
+              "activity": {
+                "start": { "latLng": "40.7347° N, 73.9899° W" },
+                "end": { "latLng": "40.7795° N, 73.9556° W" },
+                "topCandidate": { "type": "IN_SUBWAY", "transitLine": "4 Express" }
+              }
+            }
+          ]
+        }
+    """.trimIndent()
+
+private val iosTimelineJson = """
+        [
+          {
+            "startTime": "2026-11-09T09:15:00.000-05:00",
+            "endTime": "2026-11-09T09:32:00.000-05:00",
+            "activity": {
+              "start": "geo:40.7682,-73.9819",
+              "end": "geo:40.7102,-74.0077",
+              "topCandidate": { "type": "IN_SUBWAY", "transitLine": "A" }
+            }
+          }
+        ]
+    """.trimIndent()
+
+private val takeoutJson = """
+        {
+          "timelineObjects": [
+            {
+              "activitySegment": {
+                "startLocation": { "latitudeE7": 407555000, "longitudeE7": -739876000 },
+                "endLocation": { "latitudeE7": 407596000, "longitudeE7": -738300000 },
+                "duration": {
+                  "startTimestamp": "2026-11-09T18:00:00Z",
+                  "endTimestamp": "2026-11-09T18:28:00Z"
+                },
+                "activityType": "IN_SUBWAY",
+                "transitPath": {
+                  "name": "7 Train"
+                }
+              }
+            }
+          ]
+        }
+    """.trimIndent()

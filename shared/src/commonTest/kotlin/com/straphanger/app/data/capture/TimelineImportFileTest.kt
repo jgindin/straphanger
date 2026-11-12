@@ -92,7 +92,8 @@ class TimelineImportFileTest {
           if (i > 0) append(',')
           val type = if (i % 2 == 0) "IN_SUBWAY" else "WALKING"
           append(
-            "{\"startTime\":\"${iso(baseMs + i * hourMs)}\",\"endTime\":\"${iso(baseMs + i * hourMs + 20 * 60_000L)}\"," +
+            "{\"startTime\":\"${iso(baseMs + i * hourMs)}\"," +
+              "\"endTime\":\"${iso(baseMs + i * hourMs + 20 * 60_000L)}\"," +
               "\"activity\":{\"start\":{\"latLng\":\"$origin\"},\"end\":{\"latLng\":\"$destination\"}," +
               "\"topCandidate\":{\"type\":\"$type\"}}}"
           )

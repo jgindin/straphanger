@@ -27,7 +27,10 @@ class ShareTextBundledNetworkTest {
         val origin = engine.getStation(record.ride.originStationId)
         assertNotNull(origin)
         assertEquals("86 St", origin.name)
-        assertTrue("4" in origin.daytimeRoutes && "6" in origin.daytimeRoutes, "origin ${origin.id} must be the Lexington Av 86 St")
+        assertTrue(
+            "4" in origin.daytimeRoutes && "6" in origin.daytimeRoutes,
+            "origin ${origin.id} must be the Lexington Av 86 St",
+        )
         assertEquals("Grand Central-42 St", engine.getStation(record.ride.destinationStationId)?.name)
         assertFalse(record.ride.needsReview)
 

@@ -20,7 +20,8 @@ class PassiveRideBundledNetworkTest {
 
         // The window manager registers these complexes under the IDs the reconstructor is given.
         val window = DynamicGeofenceWindowManager(engine).computeRollingWindow(40.734673, -73.989951)
-        assertEquals(unionSq, DynamicGeofenceWindowManager.complexIdForGeofence(window.activeGeofences.first().geofenceId))
+        val firstGeofenceId = window.activeGeofences.first().geofenceId
+        assertEquals(unionSq, DynamicGeofenceWindowManager.complexIdForGeofence(firstGeofenceId))
 
         reconstructor.onStationGeofenceEntered(unionSq, t0)
         reconstructor.onStationGeofenceEntered(eightySixth, t0 + 14 * 60_000L)
