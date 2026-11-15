@@ -91,12 +91,9 @@ fun App(
       notificationSessions = notificationSessions,
     )
   }
-  LaunchedEffect(captureAccess) { viewModel.updateCaptureAccess(captureAccess) }
-  val uiState by viewModel.uiState.collectAsState()
-  val snackbarHostState = remember { SnackbarHostState() }
-  val scope = rememberCoroutineScope()
-  val overlays = rememberAppOverlays()
-  val platform =
+  App(
+    viewModel,
+    captureAccess,
     PlatformHooks(
       onRequestPassiveCapture,
       onDisablePassiveCapture,
@@ -104,7 +101,22 @@ fun App(
       appVersion,
       licensesContent,
       showDeveloperTools,
-    )
+    ),
+  )
+}
+
+/** The app around a given [viewModel]; tests use it to supply one with a fake clock. */
+@Composable
+internal fun App(
+  viewModel: StraphangerViewModel,
+  captureAccess: CaptureAccessState,
+  platform: PlatformHooks,
+) {
+  LaunchedEffect(captureAccess) { viewModel.updateCaptureAccess(captureAccess) }
+  val uiState by viewModel.uiState.collectAsState()
+  val snackbarHostState = remember { SnackbarHostState() }
+  val scope = rememberCoroutineScope()
+  val overlays = rememberAppOverlays()
   OverlayBackHandlers(overlays)
 
   StraphangerTheme {
@@ -131,7 +143,7 @@ fun App(
 }
 
 /** What the platform supplies besides the view model's inputs; see [App]. */
-private class PlatformHooks(
+internal class PlatformHooks(
   val onRequestPassiveCapture: () -> Unit,
   val onDisablePassiveCapture: () -> Unit,
   val onRequestNotificationAccess: () -> Unit,
