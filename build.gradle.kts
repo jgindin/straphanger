@@ -9,6 +9,7 @@ plugins {
   alias(libs.plugins.aboutlibraries.android) apply false
   alias(libs.plugins.ktfmt)
   alias(libs.plugins.detekt)
+  alias(libs.plugins.kover) apply false
 }
 
 // Same formatter settings as the zmanim app: ktfmt, Google style, 100 columns.
