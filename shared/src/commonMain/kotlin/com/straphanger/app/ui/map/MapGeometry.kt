@@ -100,6 +100,59 @@ internal class MapViewport(
     maxOf(a, b) < -margin || minOf(a, b) > extent + margin
 }
 
+internal fun MapViewport(width: Float, height: Float, view: MapView): MapViewport =
+  MapViewport(width, height, view.zoom, view.pan)
+
+/** How the map is zoomed and where it is panned; [MapViewport] adds the canvas size. */
+internal data class MapView(val zoom: Float, val pan: Offset) {
+  /**
+   * Zooms by [factor], limited to [minZoom]..[maxZoom], keeping the point under [focal] (canvas
+   * pixels) where it is. The buttons pass the canvas centre, a pinch passes where it began.
+   */
+  fun zoomedAbout(factor: Float, focal: Offset, minZoom: Float, maxZoom: Float): MapView {
+    val newZoom = (zoom * factor).coerceIn(minZoom, maxZoom)
+    val ratio = newZoom / zoom
+    return MapView(newZoom, focal - (focal - pan) * ratio)
+  }
+
+  fun pannedBy(delta: Offset): MapView = copy(pan = pan + delta)
+}
+
+/** The area the map is first fitted to, in the unit square of [projectGeometry]. */
+internal data class MapBounds(val minX: Float, val minY: Float, val maxX: Float, val maxY: Float)
+
+internal fun PreProjectedMapGeometry.bounds(): MapBounds? =
+  if (stations.isEmpty()) null
+  else
+    MapBounds(
+      minX = stations.minOf { it.normX },
+      minY = stations.minOf { it.normY },
+      maxX = stations.maxOf { it.normX },
+      maxY = stations.maxOf { it.normY },
+    )
+
+/**
+ * The view that shows all of [bounds] in a canvas of [width] by [height], inside [insets] (left,
+ * top, right, bottom in pixels) and centred. A tall phone is limited by width, so the west edge of
+ * the network sits at the left inset instead of mid-screen.
+ */
+internal fun fitView(bounds: MapBounds, width: Float, height: Float, insets: Insets): MapView {
+  val availableW = (width - insets.left - insets.right).coerceAtLeast(1f)
+  val availableH = (height - insets.top - insets.bottom).coerceAtLeast(1f)
+  val spanX = (bounds.maxX - bounds.minX).coerceAtLeast(MIN_SPAN)
+  val spanY = (bounds.maxY - bounds.minY).coerceAtLeast(MIN_SPAN)
+  val zoom = minOf(availableW / (spanX * width), availableH / (spanY * height))
+  val centreX = insets.left + availableW / 2
+  val centreY = insets.top + availableH / 2
+  val midX = (bounds.minX + bounds.maxX) / 2
+  val midY = (bounds.minY + bounds.maxY) / 2
+  return MapView(zoom, Offset(centreX - midX * width * zoom, centreY - midY * height * zoom))
+}
+
+private const val MIN_SPAN = 0.01f
+
+internal data class Insets(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
 /** The station nearest [tap] on screen, with its distance in pixels; null when there are none. */
 internal fun PreProjectedMapGeometry.nearestStation(
   viewport: MapViewport,

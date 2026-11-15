@@ -22,6 +22,7 @@ import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.ui.StraphangerViewModel
 import com.straphanger.app.ui.map.MapViewport
+import com.straphanger.app.ui.map.initialMapView
 import com.straphanger.app.ui.map.projectGeometry
 import com.straphanger.app.ui.theme.MtaColors
 import kotlin.test.assertEquals
@@ -74,24 +75,14 @@ class MapAndStatsScreenTest : AppScreenTest() {
   }
 
   @Test
-  fun basemapIsDrawnUnderTheLinesAndTheToggleHidesAndShowsIt() {
+  fun basemapIsAlwaysDrawnUnderTheLinesAndHasNoSwitch() {
     val vm = launchApp()
     composeRule.waitUntil(timeoutMillis = 5_000) { vm.uiState.value.basemap != null }
-    composeRule.onNodeWithTag("map_basemap_toggle").assertIsDisplayed().assertIsOn()
-    // The initial view shows Manhattan, Brooklyn and Queens around the East River.
+    composeRule.onNodeWithTag("map_basemap_toggle").assertDoesNotExist()
+    // The opening view shows the whole network, so land, water and parks all appear.
     assertTrue(canvasPixels(MtaColors.BasemapWater) > 10_000)
     assertTrue(canvasPixels(MtaColors.BasemapLand) > 10_000)
-    assertTrue(canvasPixels(MtaColors.BasemapPark) > 1_000)
-
-    composeRule.onNodeWithTag("map_basemap_toggle").performClick().assertIsOff()
-    assertEquals(false, vm.uiState.value.showBasemap)
-    // A few anti-aliased pixels of the overlay can match by chance; the fills are gone.
-    assertTrue(canvasPixels(MtaColors.BasemapWater) < 1_000)
-    assertTrue(canvasPixels(MtaColors.BasemapLand) < 1_000)
-
-    composeRule.onNodeWithTag("map_basemap_toggle").performClick().assertIsOn()
-    assertEquals(true, vm.uiState.value.showBasemap)
-    assertTrue(canvasPixels(MtaColors.BasemapLand) > 10_000)
+    assertTrue(canvasPixels(MtaColors.BasemapPark) > 500)
   }
 
   @Test
@@ -99,14 +90,17 @@ class MapAndStatsScreenTest : AppScreenTest() {
     val vm = launchApp()
     composeRule.onNodeWithTag("station_detail_sheet").assertDoesNotExist()
 
-    // Tap the station drawn nearest the canvas centre, using the screen's own projection and its
-    // initial zoom (1.65) and pan (-120, -60).
+    // Tap the station drawn nearest the canvas centre, using the screen's own projection and the
+    // view it opens with.
     val canvas = composeRule.onNodeWithTag("subway_map_canvas").fetchSemanticsNode().size
-    val viewport =
-      MapViewport(canvas.width.toFloat(), canvas.height.toFloat(), 1.65f, Offset(-120f, -60f))
+    val density = composeRule.activity.resources.displayMetrics.density
+    val geometry = projectGeometry(BundledNetwork.data)
+    val opening =
+      initialMapView(geometry, canvas.width.toFloat(), canvas.height.toFloat(), density)!!
+    val viewport = MapViewport(canvas.width.toFloat(), canvas.height.toFloat(), opening)
     val centre = Offset(canvas.width / 2f, canvas.height / 2f)
     val target =
-      projectGeometry(BundledNetwork.data).stations.minBy { ps ->
+      geometry.stations.minBy { ps ->
         (viewport.toScreen(ps.normX, ps.normY) - centre).getDistance()
       }
     val tap = viewport.toScreen(target.normX, target.normY)

@@ -28,8 +28,6 @@ data class StraphangerUiState(
   val selectedStationId: String? = null,
   /** The land, parks and roads under the map; null while loading or if it could not be loaded. */
   val basemap: ProjectedBasemap? = null,
-  /** The map's Basemap switch. */
-  val showBasemap: Boolean = true,
   val stationGroupingMode: StationGroupingMode = StationGroupingMode.INDIVIDUAL_STATIONS,
   val stationVisitFilterMode: StationVisitFilterMode = StationVisitFilterMode.STOPPED_AT,
   val isLogRideSheetOpen: Boolean = false,

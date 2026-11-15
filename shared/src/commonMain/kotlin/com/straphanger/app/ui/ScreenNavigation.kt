@@ -20,9 +20,6 @@ interface ScreenNavigation : StraphangerScreenState {
 
   fun selectStationOnMap(stationId: String?)
 
-  /** Shows or hides the basemap under the subway lines. */
-  fun setBasemapVisible(visible: Boolean)
-
   fun setStationGroupingMode(mode: StationGroupingMode)
 
   fun setStationVisitFilterMode(mode: StationVisitFilterMode)
@@ -65,10 +62,6 @@ internal class ScreenNavigationController(private val session: StraphangerSessio
 
   override fun selectStationOnMap(stationId: String?) {
     session.update { it.copy(selectedStationId = stationId) }
-  }
-
-  override fun setBasemapVisible(visible: Boolean) {
-    session.update { it.copy(showBasemap = visible) }
   }
 
   override fun setStationGroupingMode(mode: StationGroupingMode) {
