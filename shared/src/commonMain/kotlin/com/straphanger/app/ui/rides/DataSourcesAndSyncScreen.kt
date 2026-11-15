@@ -2,6 +2,7 @@ package com.straphanger.app.ui.rides
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,16 +25,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.capture.TimelineImportSummary
 import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.StraphangerUiState
+import com.straphanger.app.ui.TIMELINE_EXPORT_HELP_URL
 import com.straphanger.app.ui.countOf
+import com.straphanger.app.ui.currentPhonePlatform
 import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.timelineImportDescription
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.readBytes
@@ -128,7 +134,7 @@ private fun StatusBanner(message: String) {
   }
 }
 
-/** Google Maps Timeline.json import (Android, iOS and Takeout). */
+/** Google Maps Timeline import, described for this platform only. */
 @Composable
 private fun TimelineImportCard(
   uiState: StraphangerUiState,
@@ -143,15 +149,13 @@ private fun TimelineImportCard(
       if (file != null) onImportTimelineFile { file.readBytes() }
     }
   SectionCard(spacing = 8.dp) {
-    CardTitle("1. On-Device Google Maps Timeline.json Import")
+    CardTitle("1. Google Maps Timeline Import")
     Text(
-      text =
-        "Supports Android on-device Timeline.json, iOS Google Maps Timeline export, and Google " +
-          "Takeout Semantic Location History. Transfers made within 15 minutes are merged into " +
-          "one ride, and rides already stored are skipped.",
+      text = timelineImportDescription(currentPhonePlatform),
       color = MtaColors.TextSecondary,
       fontSize = 12.sp,
     )
+    TimelineHelpLink()
     Button(
       onClick = { timelineLauncher.launch() },
       enabled = !uiState.timelineImportInProgress,
@@ -300,3 +304,19 @@ private fun importSummaryText(summary: TimelineImportSummary): String =
     "${countOf(summary.multiLegRidesMerged, "transfer")} merged, " +
     "${countOf(summary.duplicatesSkipped, "duplicate")} skipped, " +
     "${summary.unmatchedSegmentsSkipped} not matched to stations"
+
+/** Opens the page that explains how to export a Timeline file from Google Maps. */
+@Composable
+private fun TimelineHelpLink() {
+  val uriHandler = LocalUriHandler.current
+  Text(
+    "How do I get my Timeline file?",
+    color = Color(0xFF8AB4F8),
+    fontSize = 13.sp,
+    textDecoration = TextDecoration.Underline,
+    modifier =
+      Modifier.clickable { uriHandler.openUri(TIMELINE_EXPORT_HELP_URL) }
+        .padding(vertical = 6.dp)
+        .testTag("timeline_help_link"),
+  )
+}

@@ -32,6 +32,14 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
   }
 
   @Test
+  fun timelineImportNamesOnlyAndroidAndLinksToHelp() {
+    launchApp()
+    openTab("SOURCES")
+    composeRule.onNodeWithText("iOS", substring = true).assertDoesNotExist()
+    composeRule.onNodeWithTag("timeline_help_link").performScrollTo().assertIsDisplayed()
+  }
+
+  @Test
   fun aboutScreenShowsDisclaimerVersionAndDataDate() {
     launchApp()
     openTab("SOURCES")
