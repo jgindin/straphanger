@@ -10,19 +10,21 @@ straphanger/
 ├── androidApp/        The Android application: manifest, MainActivity, receivers, signing, Play
 ├── iosApp/            iOS shell (Info.plist, xcconfig). Not built yet; needs a Mac
 ├── tools/gtfs-import/ JVM command-line tool that generates the subway network from MTA data
+├── tools/basemap-import/ JVM command-line tool that generates the map of NYC under the lines
 ├── docs/              Privacy policy, Play Console drafts, releasing, device testing, this tour
 ├── scripts/           check-listing.sh (Play listing text checks)
 ├── config/detekt/     Static analysis settings
 └── version.properties The one place the version lives
 ```
 
-Three Gradle modules are included in [settings.gradle.kts](../settings.gradle.kts):
+Four Gradle modules are included in [settings.gradle.kts](../settings.gradle.kts):
 
 | Module | What it is |
 |---|---|
 | `:shared` | A KMP library (`com.android.kotlin.multiplatform.library`). Almost all of the app. |
 | `:androidApp` | The thing you install. Thin: it wires platform services into `:shared`'s `App()`. |
 | `:tools:gtfs-import` | Offline generator. Its output is checked in as data. |
+| `:tools:basemap-import` | Offline generator for the basemap. Its output is checked in as data too. |
 
 Android Gradle Plugin 9 does not let one module be both a library and an application, which is why the app is split from `:shared`. (The old name for the app module was `composeApp`; it no longer exists.)
 
@@ -41,6 +43,18 @@ The main idea: **`:shared` knows nothing about Android.** Where it needs the pla
 Regenerating from the same input gives a byte-identical file, which is a good check after touching the tool.
 
 **The loader** is [NycSubwayNetworkCatalog.kt](../shared/src/commonMain/kotlin/com/straphanger/app/data/gtfs/NycSubwayNetworkCatalog.kt), which parses the JSON into the types in [SubwayModels.kt](../shared/src/commonMain/kotlin/com/straphanger/app/data/gtfs/SubwayModels.kt): `SubwayStation`, `SubwaySegment`, `SubwayRouteInfo`, `SubwayNetworkData`, and the trip types (`TripLegRequest`, `ResolvedLegPath`, `ResolvedTripResult`, `AmbiguousRouteCandidate`).
+
+### The basemap
+
+[nyc_basemap.json](../shared/src/commonMain/composeResources/files/nyc_basemap.json) is the map of New York drawn under the lines: each borough's land, every park, highways and major streets. It comes from three NYC Open Data datasets through [tools/basemap-import](../tools/basemap-import/README.md):
+
+- [GeoJson.kt](../tools/basemap-import/src/main/kotlin/com/straphanger/tools/basemap/GeoJson.kt) reads the GeoJSON exports and rounds every coordinate to 1e-5 degree.
+- [Geometry.kt](../tools/basemap-import/src/main/kotlin/com/straphanger/tools/basemap/Geometry.kt) is Douglas-Peucker simplification (2 m, under half a pixel at the map's largest zoom), ring orientation and the delta encoding that keeps the file small.
+- [RoadChains.kt](../tools/basemap-import/src/main/kotlin/com/straphanger/tools/basemap/RoadChains.kt) joins street centerline pieces into long lines; [BasemapBuilder.kt](../tools/basemap-import/src/main/kotlin/com/straphanger/tools/basemap/BasemapBuilder.kt) holds the rules (which roads, which parks) and the output shape.
+
+Like the network, regenerating from the same input gives a byte-identical file.
+
+In the app, [NycBasemapCatalog.kt](../shared/src/commonMain/kotlin/com/straphanger/app/data/basemap/NycBasemapCatalog.kt) parses it into `NycBasemap`. The view model loads it beside the network and projects it on the compute dispatcher ([BasemapGeometry.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/BasemapGeometry.kt)); the result is `basemap` in the UI state. A basemap that fails to load is logged and the map is drawn without it; the app does not depend on it.
 
 ## 3. Routing: from "A to B" to a ride
 
@@ -126,7 +140,7 @@ The UI state itself is [StraphangerUiState.kt](../shared/src/commonMain/kotlin/c
 
 **Screens** (under [ui/](../shared/src/commonMain/kotlin/com/straphanger/app/ui/)):
 
-- Map: [SubwayMapScreen.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/SubwayMapScreen.kt), with [MapGeometry.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/MapGeometry.kt) (projection, pan and zoom, nearest-station hit test) and [MapDrawing.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/MapDrawing.kt).
+- Map: [SubwayMapScreen.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/SubwayMapScreen.kt), with [MapGeometry.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/MapGeometry.kt) (projection, pan and zoom, nearest-station hit test) and [MapDrawing.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/map/MapDrawing.kt). Drawing order is water, land, parks, roads, then track and stations. The basemap's `BasemapPaths` are built once per basemap in unit-square coordinates: fills are drawn with the canvas scaled to the viewport, and roads are transformed into one reused path in screen pixels so their width does not change with zoom. The canvas is clipped to its bounds so the transformed fills cannot spill over the header. The Basemap switch (`map_basemap_toggle`) sets `showBasemap`; with it off the old grid is drawn. The basemap colours are in `MtaColors` (`Basemap*`), and `MapColorsTest` checks that the lines keep their contrast on them.
 - Stats: [StatsDashboardScreen.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/stats/StatsDashboardScreen.kt).
 - Rides: [RidesAndCaptureScreen.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/rides/RidesAndCaptureScreen.kt) (log form, history, delete), and [RideReview.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/rides/RideReview.kt), which builds the needs-review choices from a ride's real candidates.
 - Import & Backup: [DataSourcesAndSyncScreen.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/rides/DataSourcesAndSyncScreen.kt).
@@ -169,11 +183,12 @@ Everything here is in [androidApp/src/main/kotlin/com/straphanger/app](../androi
 | `shared/src/androidHostTest` | Tests against the real bundled network: routing on real stations (for example 120 to 235 is one leg on the 2 or 3), passive rides, share text. | same |
 | `shared/src/androidHostTest/.../*ScreenTest.kt`, `DisclosureScreensTest.kt` | Robolectric Compose tests of the real screens: [AppScreenTest](../shared/src/androidHostTest/kotlin/com/straphanger/app/AppScreenTest.kt) renders `App()` around a view model with an in-memory backend, a fixed clock and the bundled network, and the four subclasses cover the Map, Stats, Rides, Import & Backup, About, the disclosures, the storage and network error states, and system Back. They run on the JVM in seconds; the emulator tests below keep what only a device can show (real activity recreation, permissions, the licenses library). | same |
 | `tools/gtfs-import/src/test` | The generator on a tiny GTFS feed. | `./gradlew :tools:gtfs-import:test` |
+| `tools/basemap-import/src/test` | Simplification, road chaining and the basemap generator on tiny GeoJSON files, including a byte-identical second run. | `./gradlew :tools:basemap-import:test` |
 | `androidApp/src/androidTest` | Compose UI tests on a device or emulator: [SubwayTrackerEmulatorTest](../androidApp/src/androidTest/kotlin/com/straphanger/app/SubwayTrackerEmulatorTest.kt) and [RidePersistenceEmulatorTest](../androidApp/src/androidTest/kotlin/com/straphanger/app/RidePersistenceEmulatorTest.kt). They run under the AndroidX Test Orchestrator, so every test starts with empty app data. | `./gradlew :androidApp:connectedDebugAndroidTest` |
 
-Coverage: [Kover](https://github.com/Kotlin/kotlinx-kover) measures the host tests of `:shared` (`./gradlew :shared:koverHtmlReport`, then open `shared/build/reports/kover/html/index.html`; the XML is `shared/build/reports/kover/report.xml`). Line coverage was 95.4% when the minimum was set; `./gradlew koverVerify` fails below 92%. Raise the minimum when coverage rises for good.
+Coverage: [Kover](https://github.com/Kotlin/kotlinx-kover) measures the host tests of `:shared` (`./gradlew :shared:koverHtmlReport`, then open `shared/build/reports/kover/html/index.html`; the XML is `shared/build/reports/kover/report.xml`). Line coverage was 95.4% when the minimum was set (95.5% with the basemap); `./gradlew koverVerify` fails below 92%. Raise the minimum when coverage rises for good.
 
-Quality gates, all run in CI: `./gradlew ktfmtCheck detekt checkIosVersion`, then `./gradlew :shared:testAndroidHostTest :tools:gtfs-import:test koverVerify :androidApp:assembleDebug :androidApp:lintDebug`. These two steps are the `verify` job in [ci.yml](../.github/workflows/ci.yml); the emulator tests and the iOS build are the separate `emulator-tests` and `ios-tests` jobs. Formatting is ktfmt (Google style, 100 columns). Detekt runs with no baseline and no suppressions; the few settings that differ from the defaults are in [detekt.yml](../config/detekt/detekt.yml), each with a reason.
+Quality gates, all run in CI: `./gradlew ktfmtCheck detekt checkIosVersion`, then `./gradlew :shared:testAndroidHostTest :tools:gtfs-import:test :tools:basemap-import:test koverVerify :androidApp:assembleDebug :androidApp:lintDebug`. These two steps are the `verify` job in [ci.yml](../.github/workflows/ci.yml); the emulator tests and the iOS build are the separate `emulator-tests` and `ios-tests` jobs. Formatting is ktfmt (Google style, 100 columns). Detekt runs with no baseline and no suppressions; the few settings that differ from the defaults are in [detekt.yml](../config/detekt/detekt.yml), each with a reason.
 
 ## 10. Where to start reading
 
@@ -182,6 +197,7 @@ Quality gates, all run in CI: `./gradlew ktfmtCheck detekt checkIosVersion`, the
 - **To understand passive capture:** `DynamicGeofenceWindowManager.kt` (read the `PassiveRideReconstructor` comment first), then `PassiveCaptureCoordinator.kt`, then `GeofenceBroadcastReceiver.kt`.
 - **To understand what can go wrong with saved data:** `SubwayDao.kt` and `RideSnapshotLoader.kt`.
 - **To change the subway data:** `tools/gtfs-import/README.md`.
+- **To change the basemap:** `tools/basemap-import/README.md`.
 
 ## Known gaps
 
