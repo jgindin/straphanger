@@ -13,6 +13,7 @@ androidx-test-runner = "1.7.0"
 androidx-test-orchestrator = "1.6.1"
 androidx-test-core = "1.7.0"
 robolectric = "4.18"
+kover = "0.9.11"
 compose-multiplatform = "1.12.2"
 androidx-compose = "1.12.1"
 filekit = "0.17.0"
@@ -72,3 +73,4 @@ aboutlibraries-android = { id = "com.mikepenz.aboutlibraries.plugin.android", ve
 play-publisher = { id = "com.github.triplet.play", version.ref = "play-publisher" }
 ktfmt = { id = "com.ncorti.ktfmt.gradle", version.ref = "ktfmtGradle" }
 detekt = { id = "dev.detekt", version.ref = "detekt" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
