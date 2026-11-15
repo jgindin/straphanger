@@ -10,7 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -72,12 +71,10 @@ private fun LicensesView(onBack: () -> Unit, licensesContent: @Composable () -> 
   Column(
     modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen")
   ) {
-    OutlinedButton(
+    BackArrowButton(
       onClick = onBack,
-      modifier = Modifier.padding(12.dp).testTag("licenses_back_btn"),
-    ) {
-      Text("Back", color = Color.White)
-    }
+      modifier = Modifier.padding(8.dp).testTag("licenses_back_btn"),
+    )
     licensesContent()
   }
 }
@@ -99,9 +96,7 @@ private fun AboutContent(
         .testTag("about_screen"),
     verticalArrangement = Arrangement.spacedBy(14.dp),
   ) {
-    OutlinedButton(onClick = onBack, modifier = Modifier.testTag("about_back_btn")) {
-      Text("Back", color = Color.White)
-    }
+    BackArrowButton(onClick = onBack, modifier = Modifier.testTag("about_back_btn"))
     Text(
       "About Straphanger",
       color = Color.White,
