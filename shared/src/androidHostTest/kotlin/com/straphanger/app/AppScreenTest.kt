@@ -74,7 +74,6 @@ abstract class AppScreenTest {
 
   protected fun launchApp(
     viewModel: StraphangerViewModel = newViewModel(),
-    showDeveloperTools: Boolean = true,
     withLicenses: Boolean = true,
     awaitNetwork: Boolean = true,
   ): StraphangerViewModel {
@@ -89,7 +88,6 @@ abstract class AppScreenTest {
             onRequestNotificationAccess = { notificationAccessRequests++ },
             appVersion = "9.8.7",
             licensesContent = if (withLicenses) ({ Text("Apache License 2.0") }) else null,
-            showDeveloperTools = showDeveloperTools,
           ),
       )
     }

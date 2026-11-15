@@ -62,8 +62,6 @@ import kotlinx.coroutines.launch
  * @param onDisablePassiveCapture saves the user's choice to turn passive capture off.
  * @param onRequestNotificationAccess opens the platform's notification access settings.
  * @param appVersion the app's version name, shown on the About screen.
- * @param showDeveloperTools shows controls that fabricate rides; true only in debug and test
- *   builds.
  * @param licensesContent the open-source license list for the About screen; null where the platform
  *   has none.
  *
@@ -81,7 +79,6 @@ fun App(
   onRequestNotificationAccess: () -> Unit = {},
   appVersion: String = "",
   licensesContent: (@Composable () -> Unit)? = null,
-  showDeveloperTools: Boolean = false,
 ) {
   val viewModel: StraphangerViewModel = viewModel {
     StraphangerViewModel(
@@ -100,7 +97,6 @@ fun App(
       onRequestNotificationAccess,
       appVersion,
       licensesContent,
-      showDeveloperTools,
     ),
   )
 }
@@ -149,7 +145,6 @@ internal class PlatformHooks(
   val onRequestNotificationAccess: () -> Unit,
   val appVersion: String,
   val licensesContent: (@Composable () -> Unit)?,
-  val showDeveloperTools: Boolean,
 )
 
 /** The disclosures and the About screen, shown over the tabs; each survives recreation. */
@@ -290,7 +285,7 @@ private fun TabContent(
         onGroupingModeChange = viewModel::setStationGroupingMode,
         onVisitFilterModeChange = viewModel::setStationVisitFilterMode,
       )
-    AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine, platform.showDeveloperTools)
+    AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
     AppTab.SOURCES -> SourcesTab(viewModel, uiState, overlays, platform, onBackupMessage)
   }
 }
@@ -300,7 +295,6 @@ private fun RidesTab(
   viewModel: StraphangerViewModel,
   uiState: StraphangerUiState,
   graphEngine: SubwayGraphEngine,
-  showDeveloperTools: Boolean,
 ) {
   RidesHistoryAndLoggerScreen(
     uiState = uiState,
@@ -309,9 +303,6 @@ private fun RidesTab(
       viewModel.updateLogForm(orig, trans, dest, route, exp)
     },
     onSubmitQuickRide = { viewModel.submitQuickRide() },
-    showDeveloperTools = showDeveloperTools,
-    onSimulateAmbiguousRide = { viewModel.simulateAmbiguousPassiveRide() },
-    onLoadDemoRides = { viewModel.loadDemoRides() },
     onConfirmAmbiguousRide = { id, r, exp -> viewModel.confirmAmbiguousRide(id, r, exp) },
     onKeepRideAsIs = viewModel::keepRideAsIs,
     onDeleteRide = viewModel::deleteRide,
@@ -328,7 +319,6 @@ private fun SourcesTab(
 ) {
   DataSourcesAndSyncScreen(
     uiState = uiState,
-    onImportSampleTimeline = { viewModel.importSampleGoogleMapsTimeline() },
     onImportTimelineFile = { readBytes -> viewModel.importTimelineFileInBackground(readBytes) },
     suggestedBackupName = viewModel.suggestedBackupName(),
     onExportBackup = { viewModel.exportBackup() },
@@ -346,7 +336,6 @@ private fun SourcesTab(
       else overlays.showNotificationDisclosure = true
     },
     onOpenAbout = { overlays.showAbout = true },
-    showDeveloperTools = platform.showDeveloperTools,
   )
 }
 

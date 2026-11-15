@@ -17,8 +17,10 @@ import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.lifecycle.ViewModelProvider
 import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
+import com.straphanger.app.ui.StraphangerViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -36,6 +38,13 @@ fun hasTestTagSuffix(suffix: String): SemanticsMatcher =
   SemanticsMatcher("test tag ends with $suffix") { node ->
     node.config.getOrNull(SemanticsProperties.TestTag)?.endsWith(suffix) == true
   }
+
+/**
+ * The running activity's view model. The app has no buttons that fabricate rides, so tests record
+ * them through it, the way the passive capture and import paths would.
+ */
+fun MainActivity.straphangerViewModel(): StraphangerViewModel =
+  ViewModelProvider(this)[StraphangerViewModel::class.java]
 
 /**
  * Revokes location permissions before the activity starts, for tests that expect passive capture to
@@ -102,7 +111,9 @@ class SubwayTrackerEmulatorTest {
 
     // 3. Simulate a passive GPS ride (14 St-Union Sq -> 86 St) that requires Express vs Local
     // review
-    composeTestRule.onNodeWithTag("simulate_passive_ride_btn").performClick()
+    composeTestRule.runOnUiThread {
+      composeTestRule.activity.straphangerViewModel().simulateAmbiguousPassiveRide()
+    }
     composeTestRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
 
     // 4. Confirm the first candidate (the express) and verify the review banner clears
@@ -134,7 +145,9 @@ class SubwayTrackerEmulatorTest {
     // 6. Navigate to Import & Backup tab and import Timeline.json sample
     composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
     composeTestRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
-    composeTestRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()
+    composeTestRule.runOnUiThread {
+      composeTestRule.activity.straphangerViewModel().importSampleGoogleMapsTimeline()
+    }
     composeTestRule.onNodeWithTag("export_backup_btn").performScrollTo().assertIsDisplayed()
     composeTestRule.onNodeWithTag("import_backup_btn").performScrollTo().assertIsDisplayed()
   }

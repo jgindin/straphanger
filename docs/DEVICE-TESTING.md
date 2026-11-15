@@ -17,7 +17,7 @@ adb devices                                            # the phone must show as 
 adb shell am start -n com.straphanger.app.debug/com.straphanger.app.MainActivity
 ```
 
-The debug build installs as `com.straphanger.app.debug`, so it sits beside any other build and keeps its own data. It also shows the developer buttons (sample rides, simulate ride) that the release build hides. If `adb devices` lists more than one device, add `-s <serial>` to the `adb` commands and set `ANDROID_SERIAL=<serial>` before `./gradlew`.
+The debug build installs as `com.straphanger.app.debug`, so it sits beside any other build and keeps its own data. The app has no buttons that fabricate rides; use the scripts in `scripts/dev/` instead (see below). If `adb devices` lists more than one device, add `-s <serial>` to the `adb` commands and set `ANDROID_SERIAL=<serial>` before `./gradlew`.
 
 To watch what the app does while you test, keep this running in a second terminal:
 
@@ -34,7 +34,7 @@ adb shell pm clear com.straphanger.app.debug
 ## Check 0: the app starts (2 minutes)
 
 1. Open the app. The header sits below the status bar, not under the clock.
-2. Tap **Rides**, then **Load sample rides**. Rides appear. Open **Stats** and **Map**; both show numbers and lines.
+2. Run `scripts/dev/push-sample-timeline.sh`, then in the app open **Import & Backup** > **Choose Timeline file…** and pick `sample-timeline.json` from Downloads. Two rides appear on **Rides**. Open **Stats** and **Map**; both show numbers and lines.
 3. Delete one ride from the Rides list. A confirmation appears, and the ride is gone after you confirm.
 4. Force-stop the app (long press the icon > App info > Force stop) and open it again. The remaining rides are still there. If they are not, stop here: storage is broken.
 
@@ -87,6 +87,8 @@ Test ride: take a subway trip of at least two stops, with the phone in your pock
 - Underground phones often lose GPS. If a ride is missing, note which stations it should have covered; that tells me whether the geofence radius needs changing.
 
 What to send me if it fails: `adb logcat -d -s StraphangerGeofence:V`, the trip's stations and times, and whether the phone's battery saver was on.
+
+On an emulator, `scripts/dev/simulate-passive-ride.sh` moves the emulated GPS from 14 St-Union Sq to 86 St so the real geofence path records a ride (turn passive capture on first). It has not been verified against a running emulator; if no ride appears, send the `StraphangerGeofence` logcat.
 
 ## Check 3: surviving process death and reboot
 
