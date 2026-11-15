@@ -18,7 +18,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModelProvider
-import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
 import com.straphanger.app.ui.StraphangerViewModel
 import org.junit.Assert.assertEquals
@@ -74,6 +73,15 @@ class SubwayTrackerEmulatorTest {
   @get:Rule(order = 0) val locationOff = LocationPermissionsRevoked()
 
   @get:Rule(order = 1) val composeTestRule = createAndroidComposeRule<MainActivity>()
+
+  /**
+   * Sends the system Back through the activity's dispatcher, as the system does. Espresso's
+   * pressBack waits for window focus, which a slow CI emulator sometimes never gives.
+   */
+  private fun pressBack() {
+    composeTestRule.runOnUiThread { composeTestRule.activity.onBackPressedDispatcher.onBackPressed() }
+    composeTestRule.waitForIdle()
+  }
 
   /** The subway network loads in the background; tabs show once it has. */
   private fun waitForNetwork() {
@@ -259,7 +267,7 @@ class SubwayTrackerEmulatorTest {
     composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
 
-    Espresso.pressBack()
+    pressBack()
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithTag("background_location_disclosure").assertDoesNotExist()
@@ -272,10 +280,10 @@ class SubwayTrackerEmulatorTest {
     openAbout()
     composeTestRule.onNodeWithTag("about_licenses_btn").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("licenses_screen").assertIsDisplayed()
-    Espresso.pressBack()
+    pressBack()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("about_screen").assertIsDisplayed()
-    Espresso.pressBack()
+    pressBack()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("about_screen").assertDoesNotExist()
     composeTestRule.onNodeWithTag("straphanger_root").assertIsDisplayed()
