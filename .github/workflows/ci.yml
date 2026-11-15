@@ -28,7 +28,7 @@ jobs:
       - name: Check Kotlin formatting, static analysis and the iOS version file
         run: ./gradlew ktfmtCheck detekt checkIosVersion
       - name: Run tests, check coverage, build the debug APK and run lint
-        run: ./gradlew :shared:testAndroidHostTest :tools:gtfs-import:test koverVerify :androidApp:assembleDebug :androidApp:lintDebug
+        run: ./gradlew :shared:testAndroidHostTest :tools:gtfs-import:test :tools:basemap-import:test koverVerify :androidApp:assembleDebug :androidApp:lintDebug
       - name: Upload the debug APK
         uses: actions/upload-artifact@v7
         with:

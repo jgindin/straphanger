@@ -11,6 +11,7 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 | Feature | Android | iOS | Notes |
 | --- | --- | --- | --- |
 | Subway map with ridden lines, frequency heatmap, line filter | Works | Partial | Shared Compose code; never built for iOS. |
+| Basemap under the subway map (land, parks, highways, major streets) | Works | Partial | Bundled NYC Open Data, drawn offline with no tiles, keys or network requests; a Basemap switch on the map hides it. Shared code; never built for iOS. |
 | Manual ride logging, including transfers and express/local | Works | Partial | Shared code; never built for iOS. |
 | Statistics, achievements, stations vs. complexes toggle | Works | Partial | Shared code; never built for iOS. |
 | Local ride storage (atomic JSON file, previous copy kept, corrupt file set aside) | Works | Partial | `rides.json` in app storage; each save keeps the previous file as `rides.json.bak`, which is loaded if `rides.json` is empty or unreadable. The iOS file location was never run. |
@@ -43,13 +44,17 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 scripts/check-listing.sh                          # Play listing text checks
 ```
 
-Modules: `:shared` (library), `:androidApp`, `:tools:gtfs-import` (JVM generator for the network data). Release builds, signing and the Play listing are described in [docs/RELEASING.md](docs/RELEASING.md).
+Modules: `:shared` (library), `:androidApp`, `:tools:gtfs-import` (JVM generator for the network data), `:tools:basemap-import` (JVM generator for the basemap; `./gradlew :tools:basemap-import:test`). Release builds, signing and the Play listing are described in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Data sources
 
 The subway network (496 stations in 445 complexes) is generated from the MTA's static GTFS feed and the MTA Subway Stations dataset on data.ny.gov, downloaded 2026-11-10. The generator, source URLs, checksums and terms are in [tools/gtfs-import/README.md](tools/gtfs-import/README.md). The attribution shown in the app is:
 
 > Subway data from the Metropolitan Transportation Authority (MTA) GTFS feed and the MTA Subway Stations dataset on data.ny.gov. Straphanger is not affiliated with or endorsed by the MTA.
+
+The basemap (borough land, parks, highways and major streets) is generated from three NYC Open Data datasets, downloaded 2026-11-15: Borough Boundaries clipped to the shoreline (Department of City Planning), Parks Properties (NYC Parks) and the NYC Street Centerline (Office of Technology and Innovation). NYC Open Data has no use restrictions under the City's Open Data Law; no OpenStreetMap data is used. The generator, download commands, checksums and terms are in [tools/basemap-import/README.md](tools/basemap-import/README.md). The About screen shows:
+
+> Map of New York City from NYC Open Data: Borough Boundaries (Department of City Planning), Parks Properties (NYC Parks) and the Street Centerline (Office of Technology and Innovation), downloaded 2026-11-15. Provided as is, without warranty.
 
 The privacy policy is [docs/privacy-policy.md](docs/privacy-policy.md).
 
