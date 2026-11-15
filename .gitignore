@@ -23,6 +23,9 @@ GoogleService-Info.plist
 # Downloaded GTFS inputs for the network generator (not committed)
 /tools/gtfs-import/input/
 
+# Downloaded NYC Open Data inputs for the basemap generator (not committed)
+/tools/basemap-import/input/
+
 # Release signing and Play credentials (never commit)
 keystore.properties
 *.jks
