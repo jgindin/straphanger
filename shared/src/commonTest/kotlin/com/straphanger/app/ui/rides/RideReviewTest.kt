@@ -4,6 +4,7 @@ import com.straphanger.app.data.gtfs.AmbiguousRouteCandidate
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RideEntity
 import com.straphanger.app.data.local.RideSource
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.test.Test
@@ -91,6 +92,7 @@ class RideReviewTest {
         backend = InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     val ride = vm.simulateAmbiguousPassiveRide()!!
     assertTrue(ride.ride.needsReview)

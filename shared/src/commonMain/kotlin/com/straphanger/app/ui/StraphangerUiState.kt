@@ -5,6 +5,7 @@ import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.domain.stats.SubwayStatsSnapshot
+import com.straphanger.app.ui.map.ProjectedBasemap
 
 enum class MapColorMode(val label: String) {
   OFFICIAL_MTA_COLORS("MTA Line Colors"),
@@ -25,6 +26,10 @@ data class StraphangerUiState(
   val mapColorMode: MapColorMode = MapColorMode.OFFICIAL_MTA_COLORS,
   val selectedRouteFilter: String? = null,
   val selectedStationId: String? = null,
+  /** The land, parks and roads under the map; null while loading or if it could not be loaded. */
+  val basemap: ProjectedBasemap? = null,
+  /** The map's Basemap switch. */
+  val showBasemap: Boolean = true,
   val stationGroupingMode: StationGroupingMode = StationGroupingMode.INDIVIDUAL_STATIONS,
   val stationVisitFilterMode: StationVisitFilterMode = StationVisitFilterMode.STOPPED_AT,
   val isLogRideSheetOpen: Boolean = false,

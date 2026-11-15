@@ -2,6 +2,7 @@ package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.SAMPLE_TIMELINE_JSON
 import com.straphanger.app.ui.StraphangerViewModel
@@ -58,6 +59,7 @@ class TimelineImportThreadingTest {
         dispatcher = Dispatchers.Unconfined,
         computeDispatcher = compute,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
 
     val summary = vm.importTimelineFile(SAMPLE_TIMELINE_JSON.encodeToByteArray())

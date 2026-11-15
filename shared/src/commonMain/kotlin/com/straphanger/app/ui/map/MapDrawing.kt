@@ -2,8 +2,12 @@ package com.straphanger.app.ui.map
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import com.straphanger.app.data.gtfs.SubwayStation
 import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import com.straphanger.app.ui.MapColorMode
@@ -17,6 +21,8 @@ private const val UNRIDDEN_TRACK_WIDTH = 4.5f
 private const val RIDDEN_GLOW_WIDTH = 13f
 private const val RIDDEN_TRACK_WIDTH = 6.5f
 private const val RIDDEN_GLOW_ALPHA = 0.28f
+private const val HIGHWAY_WIDTH = 1.8f
+private const val ARTERIAL_WIDTH = 1.1f
 private val TRACK_ZOOM_SCALE = 0.9f..1.8f
 private val STATION_ZOOM_SCALE = 0.85f..1.45f
 
@@ -37,14 +43,17 @@ internal class MapLayers(
   val selectedStationId: String?,
 )
 
-/** Draws the map in three passes: unridden track, ridden track, then station dots. */
+/**
+ * Draws the map: the basemap when there is one (otherwise a grid), then unridden track, ridden
+ * track and station dots.
+ */
 internal fun DrawScope.drawSubwayMap(
   geometry: PreProjectedMapGeometry,
   viewport: MapViewport,
-  pan: Offset,
   layers: MapLayers,
+  basemap: BasemapPaths?,
 ) {
-  drawGrid(pan)
+  if (basemap != null) drawBasemap(basemap, viewport) else drawGrid(viewport.pan)
   val segments =
     geometry.segments.filter { layers.selectedRoute == null || layers.selectedRoute in it.routes }
   segments.forEach { drawUnriddenSegment(it, viewport) }
@@ -52,6 +61,35 @@ internal fun DrawScope.drawSubwayMap(
   geometry.stations
     .filter { layers.selectedRoute == null || layers.selectedRoute in it.station.daytimeRoutes }
     .forEach { drawStation(it, viewport, layers) }
+}
+
+/** Water, then land, parks and roads; fills scale with the canvas, road widths are pixels. */
+private fun DrawScope.drawBasemap(basemap: BasemapPaths, viewport: MapViewport) {
+  drawRect(MtaColors.BasemapWater)
+  withTransform({
+    translate(viewport.pan.x, viewport.pan.y)
+    scale(viewport.width * viewport.zoom, viewport.height * viewport.zoom, pivot = Offset.Zero)
+  }) {
+    drawPath(basemap.land, MtaColors.BasemapLand)
+    drawPath(basemap.parks, MtaColors.BasemapPark)
+  }
+  val scale = viewport.zoom.coerceIn(TRACK_ZOOM_SCALE)
+  drawRoads(basemap, basemap.arterials, viewport, MtaColors.BasemapArterial, ARTERIAL_WIDTH * scale)
+  drawRoads(basemap, basemap.highways, viewport, MtaColors.BasemapHighway, HIGHWAY_WIDTH * scale)
+}
+
+private fun DrawScope.drawRoads(
+  basemap: BasemapPaths,
+  roads: Path,
+  viewport: MapViewport,
+  color: Color,
+  width: Float,
+) {
+  drawPath(
+    basemap.roadsOnScreen(roads, viewport),
+    color,
+    style = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round),
+  )
 }
 
 /** Subtle dark geographic grid lines that move with the pan. */

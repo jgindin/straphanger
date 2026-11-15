@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.straphanger.app.testutil.BundledBasemap
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.ui.about.NOT_AFFILIATED_TEXT
 import kotlin.test.assertEquals
@@ -44,6 +45,10 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
     composeRule
       .onNodeWithTag("about_attribution")
       .assert(hasText(BundledNetwork.data.sourceDate, substring = true))
+    composeRule
+      .onNodeWithTag("about_basemap_attribution")
+      .assert(hasText("NYC Open Data", substring = true))
+      .assert(hasText(BundledBasemap.data.sourceDate, substring = true))
 
     composeRule.onNodeWithTag("about_licenses_btn").performScrollTo().performClick()
     composeRule.onNodeWithTag("licenses_screen").assertIsDisplayed()

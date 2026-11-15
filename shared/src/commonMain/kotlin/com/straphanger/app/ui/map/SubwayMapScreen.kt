@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,10 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,8 +94,10 @@ fun SubwayMapScreen(
   onStationSelect: (String?) -> Unit,
   onStartRideFromStation: (String) -> Unit,
   onEndRideAtStation: (String) -> Unit,
+  onBasemapVisibleChange: (Boolean) -> Unit,
 ) {
   val projectedGeometry = remember(network) { projectGeometry(network) }
+  val basemapPaths = remember(uiState.basemap) { uiState.basemap?.let(::BasemapPaths) }
   var zoom by remember { mutableStateOf(1.65f) }
   var panOffset by remember { mutableStateOf(Offset(-120f, -60f)) }
   val selectedStation =
@@ -110,6 +115,7 @@ fun SubwayMapScreen(
           selectedRoute = uiState.selectedRouteFilter,
           selectedStationId = uiState.selectedStationId,
         ),
+      basemap = basemapPaths?.takeIf { uiState.showBasemap },
       zoom = zoom,
       panOffset = panOffset,
       onTransform = { pan, gestureZoom ->
@@ -119,9 +125,11 @@ fun SubwayMapScreen(
       onStationSelect = onStationSelect,
     )
     MapControlsOverlay(uiState, onColorModeChange, onRouteFilterSelect)
-    ZoomControls(
+    MapSideControls(
       onZoomIn = { zoom = (zoom * ZOOM_STEP).coerceAtMost(MAX_ZOOM) },
       onZoomOut = { zoom = (zoom / ZOOM_STEP).coerceAtLeast(MIN_ZOOM) },
+      showBasemap = uiState.showBasemap,
+      onBasemapVisibleChange = onBasemapVisibleChange,
     )
     if (selectedStation != null) {
       StationDetailSheet(
@@ -138,6 +146,7 @@ fun SubwayMapScreen(
 private fun SubwayMapCanvas(
   geometry: PreProjectedMapGeometry,
   layers: MapLayers,
+  basemap: BasemapPaths?,
   zoom: Float,
   panOffset: Offset,
   onTransform: (pan: Offset, zoom: Float) -> Unit,
@@ -145,7 +154,10 @@ private fun SubwayMapCanvas(
 ) {
   Canvas(
     modifier =
+      // Clipped: the basemap's fills are drawn with the canvas transformed and would otherwise
+      // spill over the app header.
       Modifier.fillMaxSize()
+        .clipToBounds()
         .testTag("subway_map_canvas")
         .pointerInput(Unit) {
           detectTransformGestures { _, pan, gestureZoom, _ -> onTransform(pan, gestureZoom) }
@@ -159,12 +171,7 @@ private fun SubwayMapCanvas(
           }
         }
   ) {
-    drawSubwayMap(
-      geometry,
-      MapViewport(size.width, size.height, zoom, panOffset),
-      panOffset,
-      layers,
-    )
+    drawSubwayMap(geometry, MapViewport(size.width, size.height, zoom, panOffset), layers, basemap)
   }
 }
 
@@ -277,15 +284,44 @@ private fun RouteFilterBar(selectedRoute: String?, onRouteFilterSelect: (String?
   }
 }
 
-/** The + and − buttons. */
+/** The + and − buttons, and the basemap switch under them. */
 @Composable
-private fun BoxScope.ZoomControls(onZoomIn: () -> Unit, onZoomOut: () -> Unit) {
+private fun BoxScope.MapSideControls(
+  onZoomIn: () -> Unit,
+  onZoomOut: () -> Unit,
+  showBasemap: Boolean,
+  onBasemapVisibleChange: (Boolean) -> Unit,
+) {
   Column(
     modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
     verticalArrangement = Arrangement.spacedBy(8.dp),
+    horizontalAlignment = Alignment.End,
   ) {
     ZoomButton(text = "+", onClick = onZoomIn, testTag = "map_zoom_in")
     ZoomButton(text = "−", onClick = onZoomOut, testTag = "map_zoom_out")
+    BasemapToggle(showBasemap, onBasemapVisibleChange)
+  }
+}
+
+/** Shows or hides the land, parks and roads under the lines. */
+@Composable
+private fun BasemapToggle(showBasemap: Boolean, onBasemapVisibleChange: (Boolean) -> Unit) {
+  Box(
+    modifier =
+      Modifier.clip(RoundedCornerShape(8.dp))
+        .background(if (showBasemap) Color(0xFF0039A6) else MtaColors.CardBg)
+        .border(1.dp, MtaColors.CardBorder, RoundedCornerShape(8.dp))
+        .toggleable(value = showBasemap, role = Role.Switch, onValueChange = onBasemapVisibleChange)
+        .padding(horizontal = 8.dp, vertical = 6.dp)
+        .testTag("map_basemap_toggle"),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(
+      text = "Basemap",
+      color = if (showBasemap) Color.White else MtaColors.TextSecondary,
+      fontSize = 11.sp,
+      fontWeight = FontWeight.Bold,
+    )
   }
 }
 

@@ -2,6 +2,7 @@ package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RideSource
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.random.Random
@@ -106,6 +107,7 @@ class NotificationSessionTest {
       backend = InMemoryPersistenceBackend(),
       dispatcher = Dispatchers.Unconfined,
       networkLoader = { TestNetwork.data },
+      basemapLoader = { TestBasemap.empty },
       notificationSessions = store,
       notificationSessionsEnded = signal,
     )

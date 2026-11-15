@@ -1,6 +1,8 @@
 package com.straphanger.app.ui
 
 import androidx.lifecycle.ViewModel
+import com.straphanger.app.data.basemap.NycBasemap
+import com.straphanger.app.data.basemap.NycBasemapCatalog
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceEventBus
 import com.straphanger.app.data.capture.GeofenceRegistrar
@@ -17,6 +19,7 @@ import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.data.sync.BackupExportManager
 import com.straphanger.app.diagnostics.DiagnosticsLog
+import com.straphanger.app.ui.map.projectBasemap
 import kotlin.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import org.jetbrains.compose.resources.MissingResourceException
 
@@ -48,6 +52,8 @@ class StraphangerViewModel private constructor(private val parts: ViewModelParts
     dispatcher: CoroutineDispatcher = Dispatchers.Main.immediate,
     computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
     networkLoader: suspend () -> SubwayNetworkData = { NycSubwayNetworkCatalog.loadBundled() },
+    /** The map drawn under the lines; the app works without it if it fails to load. */
+    basemapLoader: suspend () -> NycBasemap = { NycBasemapCatalog.loadBundled() },
     /** Registers station geofences; null on platforms without passive capture. */
     geofenceRegistrar: GeofenceRegistrar? = null,
     geofenceEvents: Flow<GeofenceEvent> = GeofenceEventBus.events,
@@ -70,7 +76,7 @@ class StraphangerViewModel private constructor(private val parts: ViewModelParts
       notificationSessionsEnded,
     )
   ) {
-    parts.start(seedInitialSampleRides, networkLoader)
+    parts.start(seedInitialSampleRides, networkLoader, basemapLoader)
   }
 
   override val uiState: StateFlow<StraphangerUiState> = parts.session.state.asStateFlow()
@@ -95,7 +101,7 @@ internal class PassiveCaptureInputs(
 /** The view model's collaborators, and the start-up that loads the network and wires them up. */
 internal class ViewModelParts(
   val session: StraphangerSession,
-  computeDispatcher: CoroutineDispatcher,
+  private val computeDispatcher: CoroutineDispatcher,
   capture: PassiveCaptureInputs,
   notificationSessions: NotificationSessionStore,
   notificationSessionsEnded: Flow<Int>,
@@ -109,15 +115,30 @@ internal class ViewModelParts(
   private val recorder =
     CapturedRideRecorder(session, notificationSessions, notificationSessionsEnded)
 
-  fun start(seedInitialSampleRides: Boolean, networkLoader: suspend () -> SubwayNetworkData) {
+  fun start(
+    seedInitialSampleRides: Boolean,
+    networkLoader: suspend () -> SubwayNetworkData,
+    basemapLoader: suspend () -> NycBasemap,
+  ) {
     session.scope.launch {
       session.dao.loadError.collect { error -> session.update { it.copy(loadError = error) } }
     }
     session.scope.launch {
-      loadNetwork(networkLoader)
+      loadBundledData(networkLoader)
         .fold(
           onSuccess = { network -> onNetworkLoaded(network, seedInitialSampleRides) },
           onFailure = { e -> reportNetworkLoadFailure(e) },
+        )
+    }
+    // Parsed and projected on the compute dispatcher, beside the network. Without it the map is
+    // drawn on the plain background.
+    session.scope.launch {
+      loadBundledData { withContext(computeDispatcher) { projectBasemap(basemapLoader()) } }
+        .fold(
+          onSuccess = { basemap -> session.update { it.copy(basemap = basemap) } },
+          onFailure = { e ->
+            DiagnosticsLog.warn(BASEMAP_LOG_TAG, "The basemap could not be loaded", e)
+          },
         )
     }
   }
@@ -148,19 +169,18 @@ internal class ViewModelParts(
 
   private companion object {
     const val LOG_TAG = "StraphangerNetwork"
+    const val BASEMAP_LOG_TAG = "StraphangerBasemap"
   }
 }
 
 /**
- * Loads the network, returning the failures loading it can raise: a missing bundled resource, an
- * I/O error, bad JSON ([kotlinx.serialization.SerializationException] is an
- * [IllegalArgumentException]), or an [IllegalStateException]. Cancellation is rethrown.
+ * Loads bundled data (the network or the basemap), returning the failures loading it can raise: a
+ * missing bundled resource, an I/O error, bad JSON ([kotlinx.serialization.SerializationException]
+ * is an [IllegalArgumentException]), or an [IllegalStateException]. Cancellation is rethrown.
  */
-private suspend fun loadNetwork(
-  networkLoader: suspend () -> SubwayNetworkData
-): Result<SubwayNetworkData> =
+private suspend fun <T> loadBundledData(loader: suspend () -> T): Result<T> =
   try {
-    Result.success(networkLoader())
+    Result.success(loader())
   } catch (e: MissingResourceException) {
     Result.failure(e)
   } catch (e: IOException) {

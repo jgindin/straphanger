@@ -3,6 +3,7 @@ package com.straphanger.app.ui
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.testutil.FixedClock
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,6 +33,7 @@ class ViewModelControllersTest {
       clock = clock,
       dispatcher = Dispatchers.Unconfined,
       networkLoader = { TestNetwork.data },
+      basemapLoader = { TestBasemap.empty },
       geofenceEvents = emptyFlow(),
       notificationSessionsEnded = emptyFlow(),
     )
@@ -53,6 +55,7 @@ class ViewModelControllersTest {
           clock = clock,
           dispatcher = Dispatchers.Unconfined,
           networkLoader = { throw failure },
+          basemapLoader = { TestBasemap.empty },
           geofenceEvents = emptyFlow(),
           notificationSessionsEnded = emptyFlow(),
         )

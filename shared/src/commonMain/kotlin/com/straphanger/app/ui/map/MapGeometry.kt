@@ -34,11 +34,20 @@ private const val MAX_LNG = -73.745
 private const val MIN_NORM = 0.02f
 private const val MAX_NORM = 0.98f
 
-private fun normX(lng: Double): Float =
-  ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)).toFloat().coerceIn(MIN_NORM, MAX_NORM)
+/**
+ * The map's projection, without clamping: 0 at the box's west edge and 1 at its east edge. The
+ * basemap uses it directly, so land beyond the box (eastern Queens, Tottenville) keeps its shape.
+ */
+internal fun projectLng(lng: Double): Float = ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)).toFloat()
 
-private fun normY(lat: Double): Float =
-  (1.0 - (lat - MIN_LAT) / (MAX_LAT - MIN_LAT)).toFloat().coerceIn(MIN_NORM, MAX_NORM)
+/** 0 at the box's north edge and 1 at its south edge, without clamping. */
+internal fun projectLat(lat: Double): Float =
+  (1.0 - (lat - MIN_LAT) / (MAX_LAT - MIN_LAT)).toFloat()
+
+// Stations are clamped just inside the box.
+private fun normX(lng: Double): Float = projectLng(lng).coerceIn(MIN_NORM, MAX_NORM)
+
+private fun normY(lat: Double): Float = projectLat(lat).coerceIn(MIN_NORM, MAX_NORM)
 
 /**
  * Projects the network's coordinates onto the unit square once, so pan and zoom do not allocate.
@@ -74,7 +83,7 @@ internal class MapViewport(
   val width: Float,
   val height: Float,
   val zoom: Float,
-  private val pan: Offset,
+  val pan: Offset,
 ) {
   fun toScreen(normX: Float, normY: Float): Offset =
     Offset(normX * width * zoom + pan.x, normY * height * zoom + pan.y)
