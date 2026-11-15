@@ -70,7 +70,6 @@ android {
   }
   testOptions { execution = "ANDROIDX_TEST_ORCHESTRATOR" }
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
-  buildFeatures { buildConfig = true }
   testBuildType = providers.gradleProperty("testBuildType").getOrElse("debug")
   signingConfigs {
     create("release") {
@@ -89,16 +88,11 @@ android {
     }
   }
   buildTypes {
-    // Developer tools fabricate rides; only the shipping release build hides them.
     // Debug and releaseTest install beside the release app, so tests never touch its rides.
-    getByName("debug") {
-      applicationIdSuffix = ".debug"
-      buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true")
-    }
+    getByName("debug") { applicationIdSuffix = ".debug" }
     getByName("release") {
       isMinifyEnabled = true
       isShrinkResources = true
-      buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "false")
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs["release"]
     }
@@ -109,7 +103,6 @@ android {
       matchingFallbacks += "release"
       applicationIdSuffix = ".releasetest"
       proguardFiles("proguard-test-rules.pro")
-      buildConfigField("boolean", "SHOW_DEVELOPER_TOOLS", "true")
     }
   }
   compileOptions {

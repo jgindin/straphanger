@@ -42,7 +42,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun DataSourcesAndSyncScreen(
   uiState: StraphangerUiState,
-  onImportSampleTimeline: () -> Unit,
   /**
    * Starts a Timeline import that reads the chosen file; it runs in the view model, not this
    * screen.
@@ -60,8 +59,6 @@ fun DataSourcesAndSyncScreen(
   onDisablePassiveCapture: () -> Unit = {},
   onRequestNotificationAccess: () -> Unit = {},
   onOpenAbout: () -> Unit = {},
-  /** Shows the sample import, which adds made-up rides; true only in debug and test builds. */
-  showDeveloperTools: Boolean = false,
 ) {
   val backup =
     BackupCallbacks(
@@ -91,10 +88,8 @@ fun DataSourcesAndSyncScreen(
     StatusBanner(uiState.statusMessage)
     TimelineImportCard(
       uiState = uiState,
-      onImportSampleTimeline = onImportSampleTimeline,
       onImportTimelineFile = onImportTimelineFile,
       onBackupMessage = onBackupMessage,
-      showDeveloperTools = showDeveloperTools,
     )
     PassiveCaptureCard(
       uiState = uiState,
@@ -137,10 +132,8 @@ private fun StatusBanner(message: String) {
 @Composable
 private fun TimelineImportCard(
   uiState: StraphangerUiState,
-  onImportSampleTimeline: () -> Unit,
   onImportTimelineFile: (readBytes: suspend () -> ByteArray) -> Unit,
   onBackupMessage: (String) -> Unit,
-  showDeveloperTools: Boolean,
 ) {
   val timelineLauncher =
     rememberFilePickerLauncher(
@@ -159,19 +152,6 @@ private fun TimelineImportCard(
       color = MtaColors.TextSecondary,
       fontSize = 12.sp,
     )
-    if (showDeveloperTools) {
-      Button(
-        onClick = onImportSampleTimeline,
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
-        modifier = Modifier.testTag("import_sample_timeline_btn"),
-      ) {
-        Text(
-          "Import Google Maps Timeline.json Sample",
-          fontSize = 12.sp,
-          fontWeight = FontWeight.Bold,
-        )
-      }
-    }
     Button(
       onClick = { timelineLauncher.launch() },
       enabled = !uiState.timelineImportInProgress,

@@ -47,9 +47,6 @@ fun RidesHistoryAndLoggerScreen(
   graphEngine: SubwayGraphEngine,
   onUpdateLogForm: (String, String?, String, String?, Boolean?) -> Unit,
   onSubmitQuickRide: () -> Unit,
-  onSimulateAmbiguousRide: () -> Unit,
-  showDeveloperTools: Boolean = false,
-  onLoadDemoRides: () -> Unit,
   onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
   onKeepRideAsIs: (String) -> Unit = {},
   onDeleteRide: (String) -> Unit = {},
@@ -85,18 +82,7 @@ fun RidesHistoryAndLoggerScreen(
       graphEngine = graphEngine,
       onUpdateLogForm = onUpdateLogForm,
       onSubmitQuickRide = onSubmitQuickRide,
-      showDeveloperTools = showDeveloperTools,
-      onSimulateAmbiguousRide = onSimulateAmbiguousRide,
     )
-    if (showDeveloperTools) {
-      Button(
-        onClick = onLoadDemoRides,
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
-        modifier = Modifier.testTag("load_demo_rides_btn"),
-      ) {
-        Text("Load sample rides", fontSize = 12.sp)
-      }
-    }
     CardTitle("Recorded Subway Rides (${uiState.rides.size})", fontSize = 16.sp)
     uiState.rides.forEach { rec ->
       RideHistoryItem(rec, graphEngine, onDelete = { rideIdToDelete = rec.ride.rideId })
@@ -202,8 +188,6 @@ private fun QuickTripLoggerCard(
   graphEngine: SubwayGraphEngine,
   onUpdateLogForm: (String, String?, String, String?, Boolean?) -> Unit,
   onSubmitQuickRide: () -> Unit,
-  showDeveloperTools: Boolean,
-  onSimulateAmbiguousRide: () -> Unit,
 ) {
   SectionCard(spacing = 10.dp, modifier = Modifier.testTag("quick_trip_logger_card")) {
     CardTitle("Quick Trip Logger (Single or Multi-Leg Transfer)", fontSize = 16.sp)
@@ -225,23 +209,12 @@ private fun QuickTripLoggerCard(
       fontSize = 11.sp,
     )
     TripPresets(onUpdateLogForm)
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Button(
-        onClick = onSubmitQuickRide,
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
-        modifier = Modifier.weight(1f).testTag("submit_log_ride_btn"),
-      ) {
-        Text("Log Subway Ride", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-      }
-      if (showDeveloperTools) {
-        Button(
-          onClick = onSimulateAmbiguousRide,
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF243044)),
-          modifier = Modifier.weight(1f).testTag("simulate_passive_ride_btn"),
-        ) {
-          Text("Simulate Passive GPS Ride", fontSize = 12.sp)
-        }
-      }
+    Button(
+      onClick = onSubmitQuickRide,
+      colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
+      modifier = Modifier.fillMaxWidth().testTag("submit_log_ride_btn"),
+    ) {
+      Text("Log Subway Ride", fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
   }
 }

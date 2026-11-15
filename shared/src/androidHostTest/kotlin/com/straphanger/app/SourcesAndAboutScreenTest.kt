@@ -25,7 +25,7 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
     composeRule.onNodeWithTag("import_backup_btn").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithTag("open_about_btn").performScrollTo().assertIsDisplayed()
 
-    composeRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()
+    composeRule.runOnUiThread { vm.importSampleGoogleMapsTimeline() }
     assertTrue(vm.uiState.value.rides.isNotEmpty())
     assertEquals(vm.uiState.value.rides.size, headerRideCount())
   }

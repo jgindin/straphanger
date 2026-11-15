@@ -109,7 +109,7 @@ flowchart LR
 
 Compose Multiplatform, in `:shared`.
 
-**Entry point.** [App.kt](../shared/src/commonMain/kotlin/com/straphanger/app/App.kt) is the one composable the platform calls. Its parameters are everything the platform supplies (see the KDoc): the geofence registrar, permission state, pending events, callbacks to open settings, the version name, and the `showDeveloperTools` flag. [AppChrome.kt](../shared/src/commonMain/kotlin/com/straphanger/app/AppChrome.kt) has the theme, header, bottom tabs and the storage-error banner. [MtaColors.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/MtaColors.kt) holds the colors and their contrast values.
+**Entry point.** [App.kt](../shared/src/commonMain/kotlin/com/straphanger/app/App.kt) is the one composable the platform calls. Its parameters are everything the platform supplies (see the KDoc): the geofence registrar, permission state, pending events, callbacks to open settings, and the version name. [AppChrome.kt](../shared/src/commonMain/kotlin/com/straphanger/app/AppChrome.kt) has the theme, header, bottom tabs and the storage-error banner. [MtaColors.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/MtaColors.kt) holds the colors and their contrast values.
 
 **State.** [StraphangerViewModel.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/StraphangerViewModel.kt) is a thin front. Its actions live in controllers that share one [StraphangerSession](../shared/src/commonMain/kotlin/com/straphanger/app/ui/StraphangerSession.kt) (the scope DAO writes run in, the DAO, the state flow and, once loaded, the network services):
 
@@ -154,7 +154,7 @@ Everything here is in [androidApp/src/main/kotlin/com/straphanger/app](../androi
 [androidApp/build.gradle.kts](../androidApp/build.gradle.kts) is where release engineering lives:
 
 - **Versions.** `version.properties` gives `versionName`; the build derives `versionCode = major*1_000_000 + minor*1_000 + patch`. `./gradlew syncIosVersion` writes the same numbers for iOS.
-- **Build types.** `debug` (suffix `.debug`, developer tools on), `releaseTest` (suffix `.releasetest`, a minified build used to run the device tests against R8 output) and `release` (`com.straphanger.app`, developer tools off).
+- **Build types.** `debug` (suffix `.debug`), `releaseTest` (suffix `.releasetest`, a minified build used to run the device tests against R8 output) and `release` (`com.straphanger.app`, developer tools off).
 - **Signing.** From `keystore.properties` or `STRAPHANGER_UPLOAD_*` environment variables. `checkReleaseSigning` fails the build when neither is present, unless you pass `-Pstraphanger.allowDebugSignedRelease=true`.
 - **Shrinking.** R8 minify; keep rules in `proguard-rules.pro` (release) and `proguard-test-*.pro` (test-only, never in release).
 - **Play.** Gradle Play Publisher reads the listing and release notes from `src/main/play`.

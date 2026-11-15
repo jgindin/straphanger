@@ -1,0 +1,22 @@
+    {
+      "semanticSegments": [
+        {
+          "startTime": "2026-11-05T08:30:00.000-05:00",
+          "endTime": "2026-11-05T08:48:00.000-05:00",
+          "activity": {
+            "start": { "latLng": "40.7795°, -73.9556°" },
+            "end": { "latLng": "40.7347°, -73.9900°" },
+            "topCandidate": { "type": "IN_SUBWAY", "transitLine": "6 Train" }
+          }
+        },
+        {
+          "startTime": "2026-11-06T18:15:00.000-05:00",
+          "endTime": "2026-11-06T18:27:00.000-05:00",
+          "activity": {
+            "start": { "latLng": "40.8111°, -73.9523°" },
+            "end": { "latLng": "40.7683°, -73.9817°" },
+            "topCandidate": { "type": "IN_SUBWAY", "transitLine": "A Express" }
+          }
+        }
+      ]
+    }

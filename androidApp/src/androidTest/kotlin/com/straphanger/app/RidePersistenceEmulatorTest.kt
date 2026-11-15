@@ -56,7 +56,7 @@ class RidePersistenceEmulatorTest {
     launch()
     assertEquals(0, headerRideCount())
     composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
-    composeTestRule.onNodeWithTag("import_sample_timeline_btn").performScrollTo().performClick()
+    scenario!!.onActivity { it.straphangerViewModel().importSampleGoogleMapsTimeline() }
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
     composeTestRule.waitUntil(timeoutMillis = 15_000) { headerRideCount() > 0 }
     assertEquals(EXPECTED_SAMPLE_RIDES, headerRideCount())

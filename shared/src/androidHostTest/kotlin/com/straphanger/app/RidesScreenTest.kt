@@ -36,7 +36,7 @@ class RidesScreenTest : AppScreenTest() {
     openTab("RIDES")
     composeRule.onNodeWithTag("needs_review_banner").assertDoesNotExist()
 
-    composeRule.onNodeWithTag("simulate_passive_ride_btn").performClick()
+    composeRule.runOnUiThread { vm.simulateAmbiguousPassiveRide() }
     composeRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
     composeRule.onNodeWithTag("nav_tab_RIDES").assert(hasText("(1)", substring = true))
     composeRule
@@ -75,8 +75,8 @@ class RidesScreenTest : AppScreenTest() {
   }
 
   @Test
-  fun developerToolsAreHiddenWhenNotEnabled() {
-    launchApp(showDeveloperTools = false)
+  fun theAppHasNoControlsThatFabricateRides() {
+    launchApp()
     openTab("RIDES")
     composeRule.onNodeWithTag("submit_log_ride_btn").assertIsDisplayed()
     composeRule.onNodeWithTag("simulate_passive_ride_btn").assertDoesNotExist()
