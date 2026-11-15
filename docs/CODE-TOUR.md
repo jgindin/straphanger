@@ -159,7 +159,7 @@ Everything here is in [androidApp/src/main/kotlin/com/straphanger/app](../androi
 - **Shrinking.** R8 minify; keep rules in `proguard-rules.pro` (release) and `proguard-test-*.pro` (test-only, never in release).
 - **Play.** Gradle Play Publisher reads the listing and release notes from `src/main/play`.
 
-[.github/workflows](../.github/workflows) has CI (`kmp-ci.yml`: ktfmt, detekt, tests, debug APK, emulator tests) and `release.yml` (runs on a `v*` tag, builds the signed bundle, publishes to Play internal testing). [RELEASING.md](RELEASING.md) is the step-by-step.
+[.github/workflows](../.github/workflows) has CI (`ci.yml`: the `verify` job runs ktfmt, detekt, all host tests, the coverage minimum, the debug APK and lint; `emulator-tests` and `ios-tests` are separate jobs) and `release.yml` (runs on a `v*` tag, builds the signed bundle, publishes to Play internal testing). [RELEASING.md](RELEASING.md) is the step-by-step.
 
 ## 9. Tests
 
