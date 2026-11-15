@@ -2,6 +2,7 @@ package com.straphanger.app.data.capture
 
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.NOT_A_TIMELINE_MESSAGE
 import com.straphanger.app.ui.NOT_TEXT_TIMELINE_MESSAGE
@@ -26,6 +27,7 @@ class TimelineImportFileTest {
       dispatcher = Dispatchers.Unconfined,
       computeDispatcher = Dispatchers.Unconfined,
       networkLoader = { TestNetwork.data },
+      basemapLoader = { TestBasemap.empty },
     )
 
   @Test
@@ -151,6 +153,7 @@ class TimelineImportFileTest {
         dispatcher = Dispatchers.Unconfined,
         computeDispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     failing = true
 

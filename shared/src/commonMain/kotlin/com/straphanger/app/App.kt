@@ -229,6 +229,7 @@ private fun AppContent(
       AboutScreen(
         appVersion = platform.appVersion,
         sourceDate = graphEngine.network.sourceDate,
+        basemapSourceDate = uiState.basemap?.sourceDate,
         onBack = { overlays.showAbout = false },
         licensesContent = platform.licensesContent,
       )
@@ -270,6 +271,7 @@ private fun TabContent(
         onColorModeChange = viewModel::setMapColorMode,
         onRouteFilterSelect = viewModel::setRouteFilter,
         onStationSelect = viewModel::selectStationOnMap,
+        onBasemapVisibleChange = viewModel::setBasemapVisible,
         onStartRideFromStation = { stId ->
           viewModel.updateLogForm(originId = stId)
           viewModel.selectTab(AppTab.RIDES)

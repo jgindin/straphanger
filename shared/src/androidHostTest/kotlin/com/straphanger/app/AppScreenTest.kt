@@ -14,6 +14,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.testutil.BundledBasemap
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.ui.CaptureAccessState
@@ -67,6 +68,7 @@ abstract class AppScreenTest {
         backend = backend,
         clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
         networkLoader = { BundledNetwork.data },
+        basemapLoader = { BundledBasemap.data },
         geofenceEvents = emptyFlow(),
         notificationSessionsEnded = emptyFlow(),
       )

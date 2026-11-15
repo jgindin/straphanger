@@ -1,7 +1,13 @@
 package com.straphanger.app
 
+import com.straphanger.app.testutil.TestBasemap
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
@@ -17,6 +23,7 @@ import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.ui.StraphangerViewModel
 import com.straphanger.app.ui.map.MapViewport
 import com.straphanger.app.ui.map.projectGeometry
+import com.straphanger.app.ui.theme.MtaColors
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.emptyFlow
@@ -53,6 +60,38 @@ class MapAndStatsScreenTest : AppScreenTest() {
     drawMap()
     composeRule.onNodeWithTag("filter_route_ALL").performClick()
     assertEquals(null, vm.uiState.value.selectedRouteFilter)
+  }
+
+  /** How many pixels of the drawn map canvas are exactly [color]. */
+  private fun canvasPixels(color: Color): Int {
+    val pixels = composeRule.onNodeWithTag("subway_map_canvas").captureToImage().toPixelMap()
+    val argb = color.toArgb()
+    var count = 0
+    for (x in 0 until pixels.width) {
+      for (y in 0 until pixels.height) if (pixels[x, y].toArgb() == argb) count++
+    }
+    return count
+  }
+
+  @Test
+  fun basemapIsDrawnUnderTheLinesAndTheToggleHidesAndShowsIt() {
+    val vm = launchApp()
+    composeRule.waitUntil(timeoutMillis = 5_000) { vm.uiState.value.basemap != null }
+    composeRule.onNodeWithTag("map_basemap_toggle").assertIsDisplayed().assertIsOn()
+    // The initial view shows Manhattan, Brooklyn and Queens around the East River.
+    assertTrue(canvasPixels(MtaColors.BasemapWater) > 10_000)
+    assertTrue(canvasPixels(MtaColors.BasemapLand) > 10_000)
+    assertTrue(canvasPixels(MtaColors.BasemapPark) > 1_000)
+
+    composeRule.onNodeWithTag("map_basemap_toggle").performClick().assertIsOff()
+    assertEquals(false, vm.uiState.value.showBasemap)
+    // A few anti-aliased pixels of the overlay can match by chance; the fills are gone.
+    assertTrue(canvasPixels(MtaColors.BasemapWater) < 1_000)
+    assertTrue(canvasPixels(MtaColors.BasemapLand) < 1_000)
+
+    composeRule.onNodeWithTag("map_basemap_toggle").performClick().assertIsOn()
+    assertEquals(true, vm.uiState.value.showBasemap)
+    assertTrue(canvasPixels(MtaColors.BasemapLand) > 10_000)
   }
 
   @Test
@@ -128,6 +167,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
       StraphangerViewModel(
           backend = InMemoryPersistenceBackend(),
           networkLoader = { throw IllegalStateException("broken bundle") },
+          basemapLoader = { TestBasemap.empty },
           geofenceEvents = emptyFlow(),
           notificationSessionsEnded = emptyFlow(),
         )

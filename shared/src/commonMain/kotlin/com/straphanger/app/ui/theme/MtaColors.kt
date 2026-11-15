@@ -27,6 +27,16 @@ object MtaColors {
   val AccentGold = Color(0xFFFCCC0A)
   val AccentGreen = Color(0xFF00E676)
 
+  // The basemap under the map, darkest first. Land sits at about the old background's lightness,
+  // so the track and line colours keep the contrast they had; water is darker and bluer, parks
+  // a dark green, and roads stay below the unridden track so they never read as subway lines.
+  // MapColorsTest checks the contrast ratios.
+  val BasemapWater = Color(0xFF010307)
+  val BasemapLand = Color(0xFF12161F)
+  val BasemapPark = Color(0xFF0A1D12)
+  val BasemapArterial = Color(0xFF171C26)
+  val BasemapHighway = Color(0xFF1C2230)
+
   /** Filled-button green; white text on it is 5.5:1 (the line green 0xFF00933C gives 4.0:1). */
   val ActionGreen = Color(0xFF007A33)
 

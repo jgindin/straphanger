@@ -38,7 +38,15 @@ fun mtaAttributionText(sourceDate: String): String =
     "dataset on data.ny.gov, downloaded $sourceDate. Straphanger is not affiliated with or endorsed by the MTA. " +
     "The data is provided as is and may not be accurate, complete or current."
 
+/** Attribution text drafted in tools/basemap-import/README.md. */
+fun basemapAttributionText(sourceDate: String): String =
+  "Map of New York City from NYC Open Data: Borough Boundaries (Department of City Planning), " +
+    "Parks Properties (NYC Parks) and the Street Centerline (Office of Technology and Innovation), " +
+    "downloaded $sourceDate. Provided as is, without warranty."
+
 /**
+ * @param basemapSourceDate the bundled basemap's download date; null when it is not loaded, and
+ *   then its attribution is not shown.
  * @param licensesContent the open-source license list; the platform supplies it (AboutLibraries on
  *   Android). Null where the platform has none.
  */
@@ -48,6 +56,7 @@ fun AboutScreen(
   appVersion: String,
   sourceDate: String,
   onBack: () -> Unit,
+  basemapSourceDate: String? = null,
   licensesContent: (@Composable () -> Unit)? = null,
 ) {
   var showLicenses by rememberSaveable { mutableStateOf(false) }
@@ -59,6 +68,7 @@ fun AboutScreen(
     AboutContent(
       appVersion = appVersion,
       sourceDate = sourceDate,
+      basemapSourceDate = basemapSourceDate,
       onBack = onBack,
       licensesAvailable = licensesContent != null,
       onOpenLicenses = { showLicenses = true },
@@ -83,6 +93,7 @@ private fun LicensesView(onBack: () -> Unit, licensesContent: @Composable () -> 
 private fun AboutContent(
   appVersion: String,
   sourceDate: String,
+  basemapSourceDate: String?,
   onBack: () -> Unit,
   licensesAvailable: Boolean,
   onOpenLicenses: () -> Unit,
@@ -110,6 +121,14 @@ private fun AboutContent(
       modifier = Modifier.testTag("about_version"),
     )
     DataSourceText(sourceDate)
+    if (basemapSourceDate != null) {
+      Text(
+        basemapAttributionText(basemapSourceDate),
+        color = MtaColors.TextSecondary,
+        fontSize = 13.sp,
+        modifier = Modifier.testTag("about_basemap_attribution"),
+      )
+    }
     PrivacyPolicyLink()
     Button(
       onClick = onOpenLicenses,

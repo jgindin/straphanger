@@ -13,6 +13,7 @@ import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.testutil.FixedClock
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -37,6 +38,7 @@ class StraphangerViewModelTest {
         dispatcher = Dispatchers.Unconfined,
         seedInitialSampleRides = true,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     assertTrue(vm.uiState.value.isNetworkLoaded)
 
@@ -87,6 +89,7 @@ class StraphangerViewModelTest {
         clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z")),
         seedInitialSampleRides = false,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     val record =
       vm.submitQuickRide(
@@ -104,6 +107,7 @@ class StraphangerViewModelTest {
         backend = InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     val a = vm.submitQuickRide(timestampEpochMs = 1794405600000L)!!
     val b = vm.submitQuickRide(timestampEpochMs = 1794409200000L)!!
@@ -121,6 +125,7 @@ class StraphangerViewModelTest {
         backend = InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     val ts = 1794405600000L
     val a = vm.submitQuickRide(timestampEpochMs = ts)!!
@@ -142,6 +147,7 @@ class StraphangerViewModelTest {
         backend = InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     val state = vm.uiState.value
     val engine = vm.graphEngine!!
@@ -161,6 +167,7 @@ class StraphangerViewModelTest {
         dispatcher = Dispatchers.Unconfined,
         seedInitialSampleRides = true,
         networkLoader = { gate.await() },
+        basemapLoader = { TestBasemap.empty },
       )
     assertFalse(vm.uiState.value.isNetworkLoaded)
     assertEquals(null, vm.submitQuickRide())
@@ -179,6 +186,7 @@ class StraphangerViewModelTest {
         backend = InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { throw IllegalStateException("file missing") },
+        basemapLoader = { TestBasemap.empty },
       )
     assertFalse(vm.uiState.value.isNetworkLoaded)
     assertEquals(
@@ -200,6 +208,7 @@ class StraphangerViewModelTest {
       dispatcher = dispatcher,
       clock = clock,
       networkLoader = { TestNetwork.data },
+      basemapLoader = { TestBasemap.empty },
       geofenceRegistrar = registrar,
       geofenceEvents = events,
       pendingGeofenceEvents = store,
@@ -363,6 +372,7 @@ class StraphangerViewModelTest {
         backend = InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { network.await() },
+        basemapLoader = { TestBasemap.empty },
         geofenceRegistrar = registrar,
         geofenceEvents = MutableSharedFlow(extraBufferCapacity = 8),
       )

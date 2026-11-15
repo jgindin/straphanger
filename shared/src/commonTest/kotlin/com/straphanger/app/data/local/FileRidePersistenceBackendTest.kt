@@ -1,6 +1,7 @@
 package com.straphanger.app.data.local
 
 import com.straphanger.app.testutil.FixedClock
+import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.random.Random
@@ -207,6 +208,7 @@ class FileRidePersistenceBackendTest {
         clock,
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
 
     val result = vm.submitQuickRide(timestampEpochMs = sampleTime)
@@ -229,6 +231,7 @@ class FileRidePersistenceBackendTest {
         InMemoryPersistenceBackend(),
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
 
     assertTrue(vm.uiState.value.rides.isEmpty())
@@ -242,6 +245,7 @@ class FileRidePersistenceBackendTest {
         clock,
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
 
     vm.loadDemoRides()
@@ -269,6 +273,7 @@ class FileRidePersistenceBackendTest {
         clock,
         dispatcher = Dispatchers.Unconfined,
         networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
       )
     assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime))
     val before = vm.dao.getAllRides()
