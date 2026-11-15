@@ -10,7 +10,6 @@ import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -49,11 +48,6 @@ class BasemapLoadingTest {
     val vm = viewModel { basemap }
     val loaded = assertNotNull(vm.uiState.value.basemap)
     assertEquals("2026-11-15", loaded.sourceDate)
-    assertTrue(vm.uiState.value.showBasemap)
-    vm.setBasemapVisible(false)
-    assertFalse(vm.uiState.value.showBasemap)
-    vm.setBasemapVisible(true)
-    assertTrue(vm.uiState.value.showBasemap)
   }
 
   @Test

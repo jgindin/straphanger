@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,9 +35,11 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayNetworkData
@@ -49,10 +50,37 @@ import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
 
-private const val MIN_ZOOM = 0.85f
+private const val MIN_ZOOM = 0.5f
 private const val MAX_ZOOM = 5.0f
 private const val ZOOM_STEP = 1.25f
 private const val TAP_RADIUS_PX = 48f
+private const val FIT_EDGE_DP = 8f
+private const val FIT_TOP_DP = 112f
+
+/** The fitted opening view, once the canvas has a size. */
+@Composable
+private fun rememberOpeningView(geometry: PreProjectedMapGeometry, canvasSize: IntSize): MapView? {
+  val density = LocalDensity.current.density
+  return remember(geometry, canvasSize, density) {
+    if (canvasSize.width == 0) null
+    else initialMapView(geometry, canvasSize.width.toFloat(), canvasSize.height.toFloat(), density)
+  }
+}
+
+/**
+ * The view the map opens with: all stations fitted to a canvas of [width] by [height] pixels at
+ * screen density [density], with the controls along the top left clear.
+ */
+internal fun initialMapView(
+  geometry: PreProjectedMapGeometry,
+  width: Float,
+  height: Float,
+  density: Float,
+): MapView? {
+  val bounds = geometry.bounds() ?: return null
+  val edge = FIT_EDGE_DP * density
+  return fitView(bounds, width, height, Insets(edge, FIT_TOP_DP * density, edge, edge))
+}
 
 /** The route filter bar's lines, in the MTA's trunk order. */
 private val FILTER_ROUTES =
@@ -94,18 +122,27 @@ fun SubwayMapScreen(
   onStationSelect: (String?) -> Unit,
   onStartRideFromStation: (String) -> Unit,
   onEndRideAtStation: (String) -> Unit,
-  onBasemapVisibleChange: (Boolean) -> Unit,
 ) {
   val projectedGeometry = remember(network) { projectGeometry(network) }
   val basemapPaths = remember(uiState.basemap) { uiState.basemap?.let(::BasemapPaths) }
-  var zoom by remember { mutableStateOf(1.65f) }
-  var panOffset by remember { mutableStateOf(Offset(-120f, -60f)) }
+  var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+  var gestureView by remember { mutableStateOf<MapView?>(null) }
+  // Until the user moves the map it is fitted to the network; the controls at the top are left
+  // clear.
+  val fitted = rememberOpeningView(projectedGeometry, canvasSize)
+  val view = gestureView ?: fitted ?: MapView(1f, Offset.Zero)
   val selectedStation =
     remember(uiState.selectedStationId, network) {
       network.stations.firstOrNull { it.id == uiState.selectedStationId }
     }
 
-  Box(modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("subway_map_screen")) {
+  Box(
+    modifier =
+      Modifier.fillMaxSize()
+        .background(MtaColors.DarkBg)
+        .onSizeChanged { canvasSize = it }
+        .testTag("subway_map_screen")
+  ) {
     SubwayMapCanvas(
       geometry = projectedGeometry,
       layers =
@@ -115,21 +152,18 @@ fun SubwayMapScreen(
           selectedRoute = uiState.selectedRouteFilter,
           selectedStationId = uiState.selectedStationId,
         ),
-      basemap = basemapPaths?.takeIf { uiState.showBasemap },
-      zoom = zoom,
-      panOffset = panOffset,
-      onTransform = { pan, gestureZoom ->
-        zoom = (zoom * gestureZoom).coerceIn(MIN_ZOOM, MAX_ZOOM)
-        panOffset += pan
+      basemap = basemapPaths,
+      view = view,
+      onTransform = { centroid, pan, gestureZoom ->
+        gestureView = view.zoomedAbout(gestureZoom, centroid, MIN_ZOOM, MAX_ZOOM).pannedBy(pan)
       },
       onStationSelect = onStationSelect,
     )
     MapControlsOverlay(uiState, onColorModeChange, onRouteFilterSelect)
+    val centre = Offset(canvasSize.width / 2f, canvasSize.height / 2f)
     MapSideControls(
-      onZoomIn = { zoom = (zoom * ZOOM_STEP).coerceAtMost(MAX_ZOOM) },
-      onZoomOut = { zoom = (zoom / ZOOM_STEP).coerceAtLeast(MIN_ZOOM) },
-      showBasemap = uiState.showBasemap,
-      onBasemapVisibleChange = onBasemapVisibleChange,
+      onZoomIn = { gestureView = view.zoomedAbout(ZOOM_STEP, centre, MIN_ZOOM, MAX_ZOOM) },
+      onZoomOut = { gestureView = view.zoomedAbout(1 / ZOOM_STEP, centre, MIN_ZOOM, MAX_ZOOM) },
     )
     if (selectedStation != null) {
       StationDetailSheet(
@@ -147,9 +181,8 @@ private fun SubwayMapCanvas(
   geometry: PreProjectedMapGeometry,
   layers: MapLayers,
   basemap: BasemapPaths?,
-  zoom: Float,
-  panOffset: Offset,
-  onTransform: (pan: Offset, zoom: Float) -> Unit,
+  view: MapView,
+  onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
   onStationSelect: (String?) -> Unit,
 ) {
   Canvas(
@@ -160,18 +193,20 @@ private fun SubwayMapCanvas(
         .clipToBounds()
         .testTag("subway_map_canvas")
         .pointerInput(Unit) {
-          detectTransformGestures { _, pan, gestureZoom, _ -> onTransform(pan, gestureZoom) }
+          detectTransformGestures { centroid, pan, gestureZoom, _ ->
+            onTransform(centroid, pan, gestureZoom)
+          }
         }
-        .pointerInput(zoom, panOffset) {
+        .pointerInput(view) {
           detectTapGestures { tapPos ->
-            val viewport = MapViewport(size.width.toFloat(), size.height.toFloat(), zoom, panOffset)
+            val viewport = MapViewport(size.width.toFloat(), size.height.toFloat(), view)
             geometry.nearestStation(viewport, tapPos)?.let { (nearest, distance) ->
               onStationSelect(nearest.station.id.takeIf { distance <= TAP_RADIUS_PX })
             }
           }
         }
   ) {
-    drawSubwayMap(geometry, MapViewport(size.width, size.height, zoom, panOffset), layers, basemap)
+    drawSubwayMap(geometry, MapViewport(size.width, size.height, view), layers, basemap)
   }
 }
 
@@ -284,13 +319,11 @@ private fun RouteFilterBar(selectedRoute: String?, onRouteFilterSelect: (String?
   }
 }
 
-/** The + and − buttons, and the basemap switch under them. */
+/** The + and − buttons. */
 @Composable
 private fun BoxScope.MapSideControls(
   onZoomIn: () -> Unit,
   onZoomOut: () -> Unit,
-  showBasemap: Boolean,
-  onBasemapVisibleChange: (Boolean) -> Unit,
 ) {
   Column(
     modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
@@ -299,29 +332,6 @@ private fun BoxScope.MapSideControls(
   ) {
     ZoomButton(text = "+", onClick = onZoomIn, testTag = "map_zoom_in")
     ZoomButton(text = "−", onClick = onZoomOut, testTag = "map_zoom_out")
-    BasemapToggle(showBasemap, onBasemapVisibleChange)
-  }
-}
-
-/** Shows or hides the land, parks and roads under the lines. */
-@Composable
-private fun BasemapToggle(showBasemap: Boolean, onBasemapVisibleChange: (Boolean) -> Unit) {
-  Box(
-    modifier =
-      Modifier.clip(RoundedCornerShape(8.dp))
-        .background(if (showBasemap) Color(0xFF0039A6) else MtaColors.CardBg)
-        .border(1.dp, MtaColors.CardBorder, RoundedCornerShape(8.dp))
-        .toggleable(value = showBasemap, role = Role.Switch, onValueChange = onBasemapVisibleChange)
-        .padding(horizontal = 8.dp, vertical = 6.dp)
-        .testTag("map_basemap_toggle"),
-    contentAlignment = Alignment.Center,
-  ) {
-    Text(
-      text = "Basemap",
-      color = if (showBasemap) Color.White else MtaColors.TextSecondary,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Bold,
-    )
   }
 }
 

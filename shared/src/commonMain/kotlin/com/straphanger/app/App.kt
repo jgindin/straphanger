@@ -271,7 +271,6 @@ private fun TabContent(
         onColorModeChange = viewModel::setMapColorMode,
         onRouteFilterSelect = viewModel::setRouteFilter,
         onStationSelect = viewModel::selectStationOnMap,
-        onBasemapVisibleChange = viewModel::setBasemapVisible,
         onStartRideFromStation = { stId ->
           viewModel.updateLogForm(originId = stId)
           viewModel.selectTab(AppTab.RIDES)

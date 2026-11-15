@@ -11,7 +11,7 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 | Feature | Android | iOS | Notes |
 | --- | --- | --- | --- |
 | Subway map with ridden lines, frequency heatmap, line filter | Works | Partial | Shared Compose code; never built for iOS. |
-| Basemap under the subway map (land, parks, highways, major streets) | Works | Partial | Bundled NYC Open Data, drawn offline with no tiles, keys or network requests; a Basemap switch on the map hides it. Shared code; never built for iOS. |
+| Basemap under the subway map (land, parks, highways, major streets) | Works | Partial | Bundled NYC Open Data, drawn offline with no tiles, keys or network requests; it is always shown. Shared code; never built for iOS. |
 | Manual ride logging, including transfers and express/local | Works | Partial | Shared code; never built for iOS. |
 | Statistics, achievements, stations vs. complexes toggle | Works | Partial | Shared code; never built for iOS. |
 | Local ride storage (atomic JSON file, previous copy kept, corrupt file set aside) | Works | Partial | `rides.json` in app storage; each save keeps the previous file as `rides.json.bak`, which is loaded if `rides.json` is empty or unreadable. The iOS file location was never run. |
