@@ -79,7 +79,9 @@ class SubwayTrackerEmulatorTest {
    * pressBack waits for window focus, which a slow CI emulator sometimes never gives.
    */
   private fun pressBack() {
-    composeTestRule.runOnUiThread { composeTestRule.activity.onBackPressedDispatcher.onBackPressed() }
+    composeTestRule.runOnUiThread {
+      composeTestRule.activity.onBackPressedDispatcher.onBackPressed()
+    }
     composeTestRule.waitForIdle()
   }
 
