@@ -36,3 +36,5 @@ include(":shared")
 include(":androidApp")
 
 include(":tools:gtfs-import")
+
+include(":tools:basemap-import")

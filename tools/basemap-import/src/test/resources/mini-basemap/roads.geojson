@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type":"Feature","properties":{"objectid":"3","rw_type":"2","carto_display_level":"10"},"geometry":{"type":"MultiLineString","coordinates":[[[-73.990,40.720],[-73.985,40.720]]]}},
+    {"type":"Feature","properties":{"objectid":"1","rw_type":"2","carto_display_level":"10"},"geometry":{"type":"MultiLineString","coordinates":[[[-74.000,40.720],[-73.995,40.72000001],[-73.990,40.720]]]}},
+    {"type":"Feature","properties":{"objectid":"2","rw_type":"3","carto_display_level":"10"},"geometry":{"type":"LineString","coordinates":[[-73.985,40.720],[-73.980,40.725]]}},
+    {"type":"Feature","properties":{"objectid":"4","rw_type":"1","carto_display_level":"20"},"geometry":{"type":"MultiLineString","coordinates":[[[-73.995,40.700],[-73.995,40.710]]]}},
+    {"type":"Feature","properties":{"objectid":"5","rw_type":"1"},"geometry":{"type":"MultiLineString","coordinates":[[[-73.994,40.700],[-73.994,40.710]]]}},
+    {"type":"Feature","properties":{"objectid":"6","rw_type":"9","carto_display_level":"10"},"geometry":{"type":"MultiLineString","coordinates":[[[-73.993,40.700],[-73.993,40.710]]]}},
+    {"type":"Feature","properties":{"objectid":"7","rw_type":"3","carto_display_level":"30"},"geometry":{"type":"MultiLineString","coordinates":[[[-73.992,40.700],[-73.992,40.710]]]}}
+  ]
+}

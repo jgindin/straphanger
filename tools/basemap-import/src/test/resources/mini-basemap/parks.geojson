@@ -1,0 +1,8 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type":"Feature","properties":{"gispropnum":"M2","acres":"12.5"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-73.990,40.705],[-73.985,40.705],[-73.985,40.708],[-73.990,40.708],[-73.990,40.705]]]]}},
+    {"type":"Feature","properties":{"gispropnum":"M1","acres":"0.2"},"geometry":{"type":"MultiPolygon","coordinates":[[[[-73.997,40.701],[-73.996,40.701],[-73.996,40.7015],[-73.997,40.7015],[-73.997,40.701]]]]}},
+    {"type":"Feature","properties":{"gispropnum":"M3","acres":"3"},"geometry":null}
+  ]
+}
