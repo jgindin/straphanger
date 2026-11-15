@@ -19,8 +19,9 @@ kotlin {
 
     compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
 
-    // commonTest runs on the JVM host via :shared:testAndroidHostTest.
-    withHostTest {}
+    // commonTest runs on the JVM host via :shared:testAndroidHostTest. Android resources are
+    // included so the Robolectric Compose tests in androidHostTest can start an activity.
+    withHostTest { isIncludeAndroidResources = true }
     withDeviceTest {}
   }
 
@@ -62,6 +63,14 @@ kotlin {
       implementation(libs.kotlin.test)
       implementation(libs.kotlinx.coroutines.test)
       implementation(libs.ktor.client.mock)
+    }
+    // Robolectric Compose UI tests: the real screens, rendered on the JVM.
+    getByName("androidHostTest").dependencies {
+      implementation(libs.robolectric)
+      implementation(libs.androidx.test.core)
+      implementation(libs.androidx.test.ext.junit)
+      implementation(libs.androidx.compose.ui.test.junit4)
+      implementation(libs.androidx.compose.ui.test.manifest)
     }
   }
 }
