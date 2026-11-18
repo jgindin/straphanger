@@ -54,8 +54,8 @@ class RideReviewTest {
               estimatedMinutes = 14.0,
               stoppedStationCount = 10,
             ),
-          )
-        )
+          ),
+        ),
       )
 
     assertEquals(

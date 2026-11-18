@@ -43,7 +43,7 @@ class BackgroundWindowRefreshTest {
       BackgroundWindowRefresh.shouldRefresh(
         GeofenceEvent.Entered(MACRO_ANCHOR_ID, 0L, lat, lng),
         false,
-      )
+      ),
     )
   }
 

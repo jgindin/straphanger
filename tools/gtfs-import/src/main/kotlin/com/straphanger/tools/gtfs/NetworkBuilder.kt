@@ -62,7 +62,7 @@ private fun mostCommonPattern(trips: List<Trip>, direction: Int): List<String>? 
     .entries
     .sortedWith(
       compareByDescending<Map.Entry<List<String>, Int>> { it.value }
-        .thenBy { it.key.joinToString(",") }
+        .thenBy { it.key.joinToString(",") },
     )
     .firstOrNull()
     ?.key
@@ -234,7 +234,7 @@ class NetworkBuilder(
       val trunk =
         byTrunk.entries
           .sortedWith(
-            compareByDescending<Map.Entry<String, Set<String>>> { it.value.size }.thenBy { it.key }
+            compareByDescending<Map.Entry<String, Set<String>>> { it.value.size }.thenBy { it.key },
           )
           .first()
           .key
@@ -252,7 +252,7 @@ class NetworkBuilder(
         distanceMiles = round(miles, DISTANCE_DECIMALS),
         routes =
           (byTrunk.values.flatten().toSet() + expansion.credited[key].orEmpty()).orderedBy(
-            routeOrder
+            routeOrder,
           ),
         polyline =
           simplify(line, MIN_POINT_SPACING_METERS).map {
@@ -419,7 +419,7 @@ private class ExpressExpansion(
         compareBy<ExpansionUnit> { straight(it.key) }
           .thenBy { it.key.a }
           .thenBy { it.key.b }
-          .thenBy { it.trunk }
+          .thenBy { it.trunk },
       )
       .forEach(::add)
   }
@@ -445,7 +445,7 @@ private class ExpressExpansion(
     report.expandedPairs++
     if (crossTrunk) {
       report.crossTrunkExpansions.add(
-        "${u.key.a}-${u.key.b} ${u.routes.sorted()} via ${path.drop(1).dropLast(1)}"
+        "${u.key.a}-${u.key.b} ${u.routes.sorted()} via ${path.drop(1).dropLast(1)}",
       )
     }
     for ((x, y) in path.zipWithNext()) {

@@ -51,7 +51,7 @@ fun rememberPassiveCapturePermissionRequest(onResult: () -> Unit): () -> Unit {
           arrayOf(
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
-          )
+          ),
         )
       !CapturePermissions.backgroundLocationGranted(context) ->
         backgroundLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)

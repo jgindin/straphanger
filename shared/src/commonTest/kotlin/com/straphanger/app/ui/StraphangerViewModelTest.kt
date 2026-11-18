@@ -223,7 +223,7 @@ class StraphangerViewModelTest {
     assertEquals(0, vm.uiState.value.activeGeofenceCount)
 
     vm.updateCaptureAccess(
-      CaptureAccessState(locationGranted = false, notificationAccessEnabled = true)
+      CaptureAccessState(locationGranted = false, notificationAccessEnabled = true),
     )
     assertTrue(registrar.replaceAllCalls.isEmpty())
     assertFalse(vm.uiState.value.passiveGeofenceEnabled)
@@ -262,7 +262,7 @@ class StraphangerViewModelTest {
         t0,
         40.734673,
         -73.989951,
-      )
+      ),
     )
     advanceTimeBy(12 * 60_000L)
     events.tryEmit(
@@ -271,7 +271,7 @@ class StraphangerViewModelTest {
         t0 + 12 * 60_000L,
         40.779492,
         -73.955589,
-      )
+      ),
     )
     assertTrue(vm.uiState.value.rides.isEmpty())
     advanceTimeBy(15 * 60_000L + 1)
@@ -294,14 +294,14 @@ class StraphangerViewModelTest {
     val registrar = FakeGeofenceRegistrar()
     val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
     vm.updateCaptureAccess(
-      CaptureAccessState(locationGranted = true, passiveCaptureTurnedOn = false)
+      CaptureAccessState(locationGranted = true, passiveCaptureTurnedOn = false),
     )
     assertTrue(registrar.replaceAllCalls.isEmpty())
     assertFalse(vm.uiState.value.passiveGeofenceEnabled)
     assertEquals(null, vm.uiState.value.passiveCaptureError)
 
     vm.updateCaptureAccess(
-      CaptureAccessState(locationGranted = true, passiveCaptureTurnedOn = true)
+      CaptureAccessState(locationGranted = true, passiveCaptureTurnedOn = true),
     )
     assertEquals(1, registrar.replaceAllCalls.size)
   }
@@ -345,7 +345,7 @@ class StraphangerViewModelTest {
     assertEquals(2, registrar.replaceAllCalls.size)
     // The same report again does not register again.
     vm.updateCaptureAccess(
-      granted.copy(geofencesDroppedCount = 1, notificationAccessEnabled = true)
+      granted.copy(geofencesDroppedCount = 1, notificationAccessEnabled = true),
     )
     assertEquals(2, registrar.replaceAllCalls.size)
     assertTrue(vm.uiState.value.passiveGeofenceEnabled)
@@ -355,7 +355,7 @@ class StraphangerViewModelTest {
   fun refusedRegistrationLeavesTheToggleOffAndShowsWhy() {
     val registrar =
       FakeGeofenceRegistrar(
-        failure = GeofenceRegistrationException("Location permission is needed")
+        failure = GeofenceRegistrationException("Location permission is needed"),
       )
     val vm = passiveVm(registrar, MutableSharedFlow(extraBufferCapacity = 8))
     vm.updateCaptureAccess(CaptureAccessState(locationGranted = true))

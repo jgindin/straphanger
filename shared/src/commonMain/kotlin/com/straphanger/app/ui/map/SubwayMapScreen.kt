@@ -141,7 +141,7 @@ fun SubwayMapScreen(
       Modifier.fillMaxSize()
         .background(MtaColors.DarkBg)
         .onSizeChanged { canvasSize = it }
-        .testTag("subway_map_screen")
+        .testTag("subway_map_screen"),
   ) {
     SubwayMapCanvas(
       geometry = projectedGeometry,
@@ -204,7 +204,7 @@ private fun SubwayMapCanvas(
               onStationSelect(nearest.station.id.takeIf { distance <= TAP_RADIUS_PX })
             }
           }
-        }
+        },
   ) {
     drawSubwayMap(geometry, MapViewport(size.width, size.height, view), layers, basemap)
   }
@@ -291,7 +291,7 @@ private fun RouteFilterBar(selectedRoute: String?, onRouteFilterSelect: (String?
           .background(if (selectedRoute == null) Color.White else Color(0xFF1E2636))
           .clickable { onRouteFilterSelect(null) }
           .padding(horizontal = 10.dp, vertical = 5.dp)
-          .testTag("filter_route_ALL")
+          .testTag("filter_route_ALL"),
     ) {
       Text(
         text = "All Lines",
@@ -311,7 +311,7 @@ private fun RouteFilterBar(selectedRoute: String?, onRouteFilterSelect: (String?
               shape = RoundedCornerShape(50),
             )
             .clickable { onRouteFilterSelect(rId) }
-            .testTag("filter_route_$rId")
+            .testTag("filter_route_$rId"),
       ) {
         MtaRouteBullet(routeId = rId, size = 26.dp, fontSize = 12.sp)
       }
@@ -371,7 +371,7 @@ private fun BoxScope.StationDetailSheet(
         .background(MtaColors.CardBg)
         .border(1.dp, MtaColors.CardBorder, RoundedCornerShape(16.dp))
         .padding(16.dp)
-        .testTag("station_detail_sheet")
+        .testTag("station_detail_sheet"),
   ) {
     StationHeader(station)
     Spacer(modifier = Modifier.height(8.dp))

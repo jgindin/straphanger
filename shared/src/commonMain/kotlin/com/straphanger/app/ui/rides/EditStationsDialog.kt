@@ -147,7 +147,7 @@ private fun StationMatches(matches: List<SubwayStation>, onPick: (SubwayStation)
     modifier =
       Modifier.heightIn(max = 240.dp)
         .verticalScroll(rememberScrollState())
-        .testTag("edit_stations_matches")
+        .testTag("edit_stations_matches"),
   ) {
     matches.forEach { station ->
       Text(

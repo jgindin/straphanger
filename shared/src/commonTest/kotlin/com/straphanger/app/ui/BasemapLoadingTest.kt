@@ -24,7 +24,7 @@ class BasemapLoadingTest {
       sourceDate = "2026-11-15",
       land =
         listOf(
-          BasemapArea("Manhattan", listOf(BasemapShape(doubleArrayOf(-74.0, 40.7, -73.9, 40.8))))
+          BasemapArea("Manhattan", listOf(BasemapShape(doubleArrayOf(-74.0, 40.7, -73.9, 40.8)))),
         ),
       parks = emptyList(),
       highways = emptyList(),

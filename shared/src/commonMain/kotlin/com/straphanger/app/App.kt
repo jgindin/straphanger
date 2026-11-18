@@ -117,7 +117,7 @@ internal fun App(
 
   StraphangerTheme {
     Column(
-      modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("straphanger_root")
+      modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("straphanger_root"),
     ) {
       AppHeader(uiState.stats)
       uiState.loadError?.let { StorageErrorBanner(it) }
@@ -176,7 +176,7 @@ private fun rememberAppOverlays(): AppOverlays {
 
 /** System Back: a disclosure acts as "Not now", then About closes. */
 @OptIn(
-  ExperimentalComposeUiApi::class
+  ExperimentalComposeUiApi::class,
 ) // ui-backhandler's BackHandler is still marked experimental in CMP 1.12
 @Composable
 private fun OverlayBackHandlers(overlays: AppOverlays) {
@@ -190,7 +190,7 @@ private fun OverlayBackHandlers(overlays: AppOverlays) {
     enabled =
       overlays.showAbout &&
         !overlays.showBackgroundLocationDisclosure &&
-        !overlays.showNotificationDisclosure
+        !overlays.showNotificationDisclosure,
   ) {
     overlays.showAbout = false
   }

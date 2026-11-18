@@ -47,7 +47,7 @@ internal class StraphangerSession(
           SubwayStatsCalculator(SubwayGraphEngine(SubwayNetworkData.EMPTY))
             .computeStats(emptyList()),
         loadError = dao.loadError.value,
-      )
+      ),
     )
 
   /** Null while the network is loading. */

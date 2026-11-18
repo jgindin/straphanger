@@ -37,7 +37,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
   }
 
   @SuppressLint(
-    "MissingPermission"
+    "MissingPermission",
   ) // captureAllowed checked fine location; a refusal throws and is logged.
   private suspend fun lastKnownLocation(context: Context): Pair<Double, Double>? =
     suspendCancellableCoroutine { cont ->

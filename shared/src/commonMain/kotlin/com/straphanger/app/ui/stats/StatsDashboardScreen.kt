@@ -344,7 +344,7 @@ private fun StatHeroCard(
         .background(MtaColors.CardBg)
         .border(1.dp, MtaColors.CardBorder, RoundedCornerShape(14.dp))
         .padding(14.dp)
-        .testTag(testTag)
+        .testTag(testTag),
   ) {
     Text(
       text = title,

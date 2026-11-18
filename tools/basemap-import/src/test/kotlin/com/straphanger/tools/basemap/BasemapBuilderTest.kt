@@ -13,7 +13,7 @@ class BasemapBuilderTest {
   private val fixtureDir =
     File(
       checkNotNull(javaClass.getResource("/mini-basemap")) { "mini-basemap fixture missing" }
-        .toURI()
+        .toURI(),
     )
 
   private fun build(): Pair<BasemapFile, BasemapReport> =
@@ -109,7 +109,7 @@ class BasemapBuilderTest {
                 out.path,
                 "--source-date",
                 "2026-11-15",
-              )
+              ),
             )
           }
         }

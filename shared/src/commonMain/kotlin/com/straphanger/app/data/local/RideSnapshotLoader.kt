@@ -73,7 +73,7 @@ internal class RideSnapshotLoader(
         LoadedRides(
           error =
             "Saved rides were missing and the previous copy could not be read " +
-              "(${backup.failure.message ?: "unknown error"}). The app started with no rides."
+              "(${backup.failure.message ?: "unknown error"}). The app started with no rides.",
         )
       else -> LoadedRides()
     }
@@ -129,7 +129,7 @@ internal class RideSnapshotLoader(
               error =
                 "Saved rides could not be read ($problem). $keptAs and the app started with " +
                   "no rides." +
-                  backupFailureNote(backup.failure)
+                  backupFailureNote(backup.failure),
             )
           }
         },

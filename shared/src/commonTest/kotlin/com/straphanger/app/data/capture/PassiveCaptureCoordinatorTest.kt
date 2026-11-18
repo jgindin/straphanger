@@ -133,7 +133,7 @@ class PassiveCaptureCoordinatorTest {
     val newLat = 40.7520
     val newLng = -73.9770
     assertTrue(
-      NycSubwayNetworkCatalog.haversineMiles(unionSqLat, unionSqLng, newLat, newLng) * 1.609 > 1.9
+      NycSubwayNetworkCatalog.haversineMiles(unionSqLat, unionSqLng, newLat, newLng) * 1.609 > 1.9,
     )
 
     deliver(h, GeofenceEvent.Exited(MACRO_ANCHOR_ID, t0, newLat, newLng))

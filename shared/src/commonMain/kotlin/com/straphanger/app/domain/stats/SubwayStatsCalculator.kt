@@ -175,7 +175,9 @@ class SubwayStatsCalculator(private val graphEngine: SubwayGraphEngine) {
     val usage = segmentUsage(rides)
     val uniqueCorridorMiles =
       round2(
-        usage.rideCounts.keys.sumOf { segId -> graphEngine.getSegment(segId)?.distanceMiles ?: 0.0 }
+        usage.rideCounts.keys.sumOf { segId ->
+          graphEngine.getSegment(segId)?.distanceMiles ?: 0.0
+        },
       )
     val completionFraction = (uniqueCorridorMiles / totalGraphMiles).coerceIn(0.0, 1.0)
     val coverage = stationCoverage(rides)

@@ -292,7 +292,7 @@ internal fun legRequestsAlong(
           toStationId = to,
           preferredRouteId = preferredRouteId?.takeIf { it in legRoutes },
           forceExpress = forceExpress,
-        )
+        ),
       )
       legStart = null
       legEnd = null

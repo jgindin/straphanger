@@ -79,7 +79,7 @@ fun AboutScreen(
 @Composable
 private fun LicensesView(onBack: () -> Unit, licensesContent: @Composable () -> Unit) {
   Column(
-    modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen")
+    modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen"),
   ) {
     BackArrowButton(
       onClick = onBack,
@@ -138,7 +138,7 @@ private fun AboutContent(
     ) {
       Text(
         if (licensesAvailable) "Open-source licenses"
-        else "Open-source licenses are not listed on this platform"
+        else "Open-source licenses are not listed on this platform",
       )
     }
   }

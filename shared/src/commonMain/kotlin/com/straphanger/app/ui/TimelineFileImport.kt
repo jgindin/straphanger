@@ -56,7 +56,7 @@ internal class TimelineImportController(
     if (summary == null || !session.dao.lastSaveSucceeded) return 0
     session.setStatus(
       "Google Maps Timeline: imported ${countOf(summary.ridesImported, "new ride")}, " +
-        "skipped ${countOf(summary.duplicatesSkipped, "duplicate")}"
+        "skipped ${countOf(summary.duplicatesSkipped, "duplicate")}",
     )
     return summary.ridesImported
   }

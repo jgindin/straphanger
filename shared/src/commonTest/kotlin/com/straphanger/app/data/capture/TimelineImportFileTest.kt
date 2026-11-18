@@ -122,7 +122,7 @@ class TimelineImportFileTest {
             "{\"startTime\":\"${iso(baseMs + i * hourMs)}\"," +
               "\"endTime\":\"${iso(baseMs + i * hourMs + 20 * 60_000L)}\"," +
               "\"activity\":{\"start\":{\"latLng\":\"$origin\"},\"end\":{\"latLng\":\"$destination\"}," +
-              "\"topCandidate\":{\"type\":\"$type\"}}}"
+              "\"topCandidate\":{\"type\":\"$type\"}}}",
           )
         }
         append("]}")

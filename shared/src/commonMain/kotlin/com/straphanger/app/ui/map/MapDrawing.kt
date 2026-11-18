@@ -66,10 +66,12 @@ internal fun DrawScope.drawSubwayMap(
 /** Water, then land, parks and roads; fills scale with the canvas, road widths are pixels. */
 private fun DrawScope.drawBasemap(basemap: BasemapPaths, viewport: MapViewport) {
   drawRect(MtaColors.BasemapWater)
-  withTransform({
-    translate(viewport.pan.x, viewport.pan.y)
-    scale(viewport.width * viewport.zoom, viewport.height * viewport.zoom, pivot = Offset.Zero)
-  }) {
+  withTransform(
+    {
+      translate(viewport.pan.x, viewport.pan.y)
+      scale(viewport.width * viewport.zoom, viewport.height * viewport.zoom, pivot = Offset.Zero)
+    },
+  ) {
     drawPath(basemap.land, MtaColors.BasemapLand)
     drawPath(basemap.parks, MtaColors.BasemapPark)
   }
@@ -161,7 +163,7 @@ private fun riddenSegmentColor(seg: ProjectedSegment, rideCount: Int, layers: Ma
       MtaColors.routeColor(
         layers.selectedRoute
           ?: layers.stats.segmentDominantRoutes[seg.segmentId]
-          ?: seg.routes.firstOrNull().orEmpty()
+          ?: seg.routes.firstOrNull().orEmpty(),
       )
     MapColorMode.FREQUENCY_HEATMAP -> MtaColors.heatmapColorForCount(rideCount)
   }

@@ -81,7 +81,7 @@ android {
         keyPassword = keys.getValue("keyPassword")
       } else if (allowDebugSignedRelease) {
         logger.warn(
-          "WARNING: release is signed with the DEBUG key (straphanger.allowDebugSignedRelease=true). Do not upload this build."
+          "WARNING: release is signed with the DEBUG key (straphanger.allowDebugSignedRelease=true). Do not upload this build.",
         )
         initWith(getByName("debug"))
       }
@@ -161,7 +161,7 @@ play {
   track.set("internal")
   defaultToAppBundles.set(true)
   serviceAccountCredentials.set(
-    file(System.getenv("STRAPHANGER_PLAY_CREDENTIALS") ?: "play-service-account.json")
+    file(System.getenv("STRAPHANGER_PLAY_CREDENTIALS") ?: "play-service-account.json"),
   )
 }
 
