@@ -47,7 +47,7 @@ interface NotificationSessionStore {
 }
 
 class InMemoryNotificationSessionStore(
-  private var state: NotificationSessionState = NotificationSessionState()
+  private var state: NotificationSessionState = NotificationSessionState(),
 ) : NotificationSessionStore {
   override fun read(): NotificationSessionState = state
 
@@ -75,7 +75,7 @@ class FileNotificationSessionStore(
   override fun write(state: NotificationSessionState) {
     val empty = state.open == null && state.completed.isEmpty()
     stateFile.write(
-      if (empty) null else json.encodeToString(NotificationSessionState.serializer(), state)
+      if (empty) null else json.encodeToString(NotificationSessionState.serializer(), state),
     )
   }
 
@@ -99,15 +99,15 @@ class NotificationSessionTracker(private val store: NotificationSessionStore) {
     return when {
       open == null -> {
         store.write(
-          state.copy(open = NavigationNotificationSession(key, postTimeMs, postTimeMs, text, text))
+          state.copy(open = NavigationNotificationSession(key, postTimeMs, postTimeMs, text, text)),
         )
         false
       }
       open.key == key -> {
         store.write(
           state.copy(
-            open = open.copy(lastPostMs = maxOf(open.lastPostMs, postTimeMs), latestText = text)
-          )
+            open = open.copy(lastPostMs = maxOf(open.lastPostMs, postTimeMs), latestText = text),
+          ),
         )
         false
       }
@@ -116,7 +116,7 @@ class NotificationSessionTracker(private val store: NotificationSessionStore) {
           NotificationSessionState(
             open = NavigationNotificationSession(key, postTimeMs, postTimeMs, text, text),
             completed = state.completed + open.copy(endMs = open.lastPostMs),
-          )
+          ),
         )
         true
       }
@@ -148,7 +148,7 @@ class NotificationSessionTracker(private val store: NotificationSessionStore) {
         NotificationSessionState(
           open = null,
           completed = state.completed + open.copy(endMs = endMs(open)),
-        )
+        ),
       )
     }
     return open != null

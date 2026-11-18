@@ -59,7 +59,7 @@ private fun harlemToFourteenthStExpress(engine: SubwayGraphEngine, start: Long) 
               StationIds.FOURTEENTH_ST_8AV,
               preferredRouteId = "A",
               forceExpress = true,
-            )
+            ),
           ),
         timestampEpochMs = start,
       ),
@@ -80,7 +80,7 @@ private fun timesSqShuttle(engine: SubwayGraphEngine, start: Long) =
               StationIds.TIMES_SQ_SHUTTLE,
               StationIds.GRAND_CENTRAL_SHUTTLE,
               preferredRouteId = "GS",
-            )
+            ),
           ),
         timestampEpochMs = start,
       ),

@@ -26,7 +26,7 @@ class ViewModelControllersTest {
   private val clock = FixedClock(Instant.parse("2026-11-11T14:00:00Z"))
 
   private fun viewModel(
-    backend: RidePersistenceBackend = InMemoryPersistenceBackend()
+    backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
   ): StraphangerViewModel =
     StraphangerViewModel(
       backend = backend,

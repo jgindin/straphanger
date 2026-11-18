@@ -123,7 +123,7 @@ private fun StatusBanner(message: String) {
         .background(Color(0xFF162234))
         .border(1.dp, Color(0xFF284268), RoundedCornerShape(10.dp))
         .padding(12.dp)
-        .testTag("status_banner")
+        .testTag("status_banner"),
   ) {
     Text(
       text = message,

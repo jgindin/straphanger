@@ -34,7 +34,7 @@ fun main(args: Array<String>) {
   println(
     "boroughs=${report.boroughs} landRings=${report.landRings} parks=${report.parks} " +
       "parkRings=${report.parkRings} highwayLines=${report.highwayLines} " +
-      "arterialLines=${report.arterialLines} points=${report.pointsIn}->${report.pointsOut}"
+      "arterialLines=${report.arterialLines} points=${report.pointsIn}->${report.pointsOut}",
   )
 }
 

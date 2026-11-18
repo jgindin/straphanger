@@ -46,7 +46,7 @@ internal class BackupController(private val session: StraphangerSession) : Backu
       buildString {
         append("Exported ${countOf(session.dao.getAllRides().size, "ride")}")
         if (!fileName.isNullOrBlank()) append(" to $fileName")
-      }
+      },
     )
 
   override fun reportBackupExportFailed(reason: String?): String =
@@ -67,11 +67,11 @@ internal class BackupController(private val session: StraphangerSession) : Backu
       result.fold(
         onSuccess = { n -> "Restored ${countOf(n, "ride")} from backup" },
         onFailure = { "Could not restore: the file is not a Straphanger backup" },
-      )
+      ),
     )
 
   override fun reportBackupRestoreFailed(reason: String?): String =
     session.setStatus(
-      "Could not restore: the rides could not be saved (${reason ?: "unknown error"})"
+      "Could not restore: the rides could not be saved (${reason ?: "unknown error"})",
     )
 }

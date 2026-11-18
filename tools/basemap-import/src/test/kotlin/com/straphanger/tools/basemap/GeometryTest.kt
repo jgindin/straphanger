@@ -51,7 +51,7 @@ class GeometryTest {
     )
     assertNull(simplifyRing(listOf(QPoint(0, 0), QPoint(1, 1), QPoint(0, 0)), 2.0))
     assertNull(
-      simplifyRing(listOf(QPoint(0, 0), QPoint(500, 0), QPoint(1000, 0), QPoint(0, 0)), 2.0)
+      simplifyRing(listOf(QPoint(0, 0), QPoint(500, 0), QPoint(1000, 0), QPoint(0, 0)), 2.0),
     )
   }
 
@@ -70,7 +70,7 @@ class GeometryTest {
     assertContentEquals(
       intArrayOf(-7400000, 4070000, 5, -3, -2, 0),
       deltaEncode(
-        listOf(QPoint(-7400000, 4070000), QPoint(-7399995, 4069997), QPoint(-7399997, 4069997))
+        listOf(QPoint(-7400000, 4070000), QPoint(-7399995, 4069997), QPoint(-7399997, 4069997)),
       ),
     )
   }

@@ -34,7 +34,7 @@ class GoogleMapsShareParser(
     Regex(
       """(?i)(?:(?:from|board\s+at)\s+)?([^\s•|][^•|\n]*?)""" +
         """\s+(?:to|•\s*exit\s+at)\s+([^•|\n]+?)""" +
-        """(?:\s+via\s+([A-Z0-9]{1,3})(?:\s+train|\s+line)?)?$"""
+        """(?:\s+via\s+([A-Z0-9]{1,3})(?:\s+train|\s+line)?)?$""",
     )
   private val headerRouteRegex = Regex("""\b([1-7]|[A-HJ-NP-Z]|SIR)\s+[Tt]rain\b""")
   private val dirUrlPathRegex = Regex("""/maps/dir/([^/]+)/([^/?#]+)""")

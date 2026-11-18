@@ -35,12 +35,12 @@ fun main(args: Array<String>) {
   println("Wrote ${out.path} (${out.length()} bytes)")
   println(
     "sourceDate=${network.sourceDate} stationCount=${network.stationCount} complexCount=${network.complexCount} " +
-      "systemMiles=${"%.2f".format(network.systemMiles)} segments=${network.segments.size}"
+      "systemMiles=${"%.2f".format(network.systemMiles)} segments=${network.segments.size}",
   )
   println("routes=${network.routes.joinToString(" ") { it.routeId }}")
   println(
     "expandedPairs=${builder.report.expandedPairs} keptPairs=${builder.report.keptPairs} " +
-      "shapeFallbacks=${builder.report.shapeFallbacks}"
+      "shapeFallbacks=${builder.report.shapeFallbacks}",
   )
   builder.report.crossTrunkExpansions.forEach { println("cross-trunk expansion: $it") }
 }

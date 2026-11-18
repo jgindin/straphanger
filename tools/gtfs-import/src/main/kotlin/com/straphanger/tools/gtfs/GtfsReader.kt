@@ -197,7 +197,7 @@ private class FeedTables(private val open: (String) -> InputStream?) {
             stopId = row.getValue("stop_id"),
             sequence = row.getValue("stop_sequence").toInt(),
             departure = row["departure_time"].orEmpty().ifBlank { row["arrival_time"].orEmpty() },
-          )
+          ),
         )
     }
     return trips.mapNotNull { trip ->
@@ -225,7 +225,7 @@ private class FeedTables(private val open: (String) -> InputStream?) {
               GeoPoint(
                 row.getValue("shape_pt_lat").toDouble(),
                 row.getValue("shape_pt_lon").toDouble(),
-              )
+              ),
           )
       }
     }

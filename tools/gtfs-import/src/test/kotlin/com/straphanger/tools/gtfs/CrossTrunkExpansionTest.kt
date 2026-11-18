@@ -84,7 +84,7 @@ class CrossTrunkExpansionTest {
                 listOf(
                   GtfsTripStops("q1", listOf("P1N", "P2N", "P3N"), 9 * 3600),
                   GtfsTripStops("b1", listOf("P1N", "P2N", "P3N"), 9 * 3600),
-                )
+                ),
             ),
           stationListings =
             listOf("P1", "P2", "P3").map { StationListing(it, it, Borough.MANHATTAN, "Stop $it") },

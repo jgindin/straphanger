@@ -215,7 +215,7 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
         it.copy(
           statusMessage =
             "Ride now runs ${engine.stationName(updated.ride.originStationId)} → " +
-              engine.stationName(updated.ride.destinationStationId)
+              engine.stationName(updated.ride.destinationStationId),
         )
       }
     }

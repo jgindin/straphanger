@@ -26,7 +26,7 @@ class SubwayGraphEngineTest {
               fromStationId = "635",
               toStationId = "626",
               preferredRouteId = "4",
-            )
+            ),
           ),
         timestampEpochMs = daytimeEpochMs,
       )
@@ -39,7 +39,7 @@ class SubwayGraphEngineTest {
               fromStationId = "635",
               toStationId = "626",
               preferredRouteId = "6",
-            )
+            ),
           ),
         timestampEpochMs = daytimeEpochMs,
       )
@@ -79,7 +79,7 @@ class SubwayGraphEngineTest {
               fromStationId = "A31",
               toStationId = "A15",
               preferredRouteId = "A",
-            )
+            ),
           ),
         timestampEpochMs = daytimeEpochMs,
       )
@@ -92,7 +92,7 @@ class SubwayGraphEngineTest {
               fromStationId = "A31",
               toStationId = "A15",
               preferredRouteId = "A",
-            )
+            ),
           ),
         timestampEpochMs = lateNightEpochMs,
       )
@@ -133,7 +133,7 @@ class SubwayGraphEngineTest {
     assertEquals(StopRole.BOARDED, transferTrip.stationStops.first().role)
     assertEquals(StopRole.EXITED, transferTrip.stationStops.last().role)
     assertTrue(
-      transferTrip.stationStops.any { it.complexId == "602" && it.role == StopRole.TRANSFERRED }
+      transferTrip.stationStops.any { it.complexId == "602" && it.role == StopRole.TRANSFERRED },
     )
   }
 

@@ -15,7 +15,7 @@ object NotificationAccess {
       context
         .getSystemService(NotificationManager::class.java)
         ?.isNotificationListenerAccessGranted(
-          ComponentName(context, GoogleMapsTransitNotificationListener::class.java)
+          ComponentName(context, GoogleMapsTransitNotificationListener::class.java),
         ) ?: false
     } else {
       NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)

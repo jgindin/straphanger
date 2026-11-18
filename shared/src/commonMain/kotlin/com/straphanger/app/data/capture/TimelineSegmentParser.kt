@@ -87,7 +87,7 @@ internal class TimelineSegmentParser(private val isKnownRoute: (String) -> Boole
         explicitRouteId =
           extractRouteBullet(
             (activity["transitPath"] as? JsonObject)?.get("name")?.jsonPrimitive?.contentOrNull
-              ?: topCandidate?.get("transitLine")?.jsonPrimitive?.contentOrNull
+              ?: topCandidate?.get("transitLine")?.jsonPrimitive?.contentOrNull,
           ),
       )
     } else {
@@ -122,7 +122,7 @@ internal class TimelineSegmentParser(private val isKnownRoute: (String) -> Boole
         explicitRouteId =
           extractRouteBullet(
             transitPath?.get("name")?.jsonPrimitive?.contentOrNull
-              ?: transitPath?.get("line")?.jsonPrimitive?.contentOrNull
+              ?: transitPath?.get("line")?.jsonPrimitive?.contentOrNull,
           ),
       )
     } else {

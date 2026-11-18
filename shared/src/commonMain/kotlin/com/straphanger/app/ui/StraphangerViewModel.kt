@@ -74,7 +74,7 @@ class StraphangerViewModel private constructor(private val parts: ViewModelParts
       PassiveCaptureInputs(geofenceRegistrar, geofenceEvents, pendingGeofenceEvents),
       notificationSessions,
       notificationSessionsEnded,
-    )
+    ),
   ) {
     parts.start(seedInitialSampleRides, networkLoader, basemapLoader)
   }

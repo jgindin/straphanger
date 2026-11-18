@@ -214,7 +214,7 @@ private fun ReviewActionButton(
         onClick = { onConfirmAmbiguousRide(rideId, action.routeId, action.isExpress) },
         colors =
           ButtonDefaults.buttonColors(
-            containerColor = if (action.index == 0) MtaColors.ActionGreen else Color(0xFF2B3548)
+            containerColor = if (action.index == 0) MtaColors.ActionGreen else Color(0xFF2B3548),
           ),
         modifier = Modifier.testTag("confirm_candidate_${rideId}_${action.index}"),
       ) {
@@ -423,7 +423,7 @@ private fun PresetChip(
         .border(1.dp, Color(0xFF33435E), RoundedCornerShape(8.dp))
         .clickable { onClick() }
         .padding(horizontal = 10.dp, vertical = 6.dp)
-        .testTag(testTag)
+        .testTag(testTag),
   ) {
     Text(
       text = label,

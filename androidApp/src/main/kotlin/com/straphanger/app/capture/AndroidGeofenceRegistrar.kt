@@ -35,7 +35,7 @@ class AndroidGeofenceRegistrar(context: Context) : GeofenceRegistrar {
   }
 
   @SuppressLint(
-    "MissingPermission"
+    "MissingPermission",
   ) // A missing permission throws SecurityException, handled below.
   override suspend fun replaceAll(specs: List<ActiveGeofenceSpec>) {
     val geofences = specs.map { spec ->
@@ -51,7 +51,7 @@ class AndroidGeofenceRegistrar(context: Context) : GeofenceRegistrar {
     val request =
       GeofencingRequest.Builder()
         .setInitialTrigger(
-          GeofencingRequest.INITIAL_TRIGGER_ENTER or GeofencingRequest.INITIAL_TRIGGER_EXIT
+          GeofencingRequest.INITIAL_TRIGGER_ENTER or GeofencingRequest.INITIAL_TRIGGER_EXIT,
         )
         .addGeofences(geofences)
         .build()

@@ -51,7 +51,7 @@ internal fun StraphangerTheme(content: @Composable () -> Unit) {
         onBackground = MtaColors.TextPrimary,
         onSurface = MtaColors.TextPrimary,
         onSurfaceVariant = MtaColors.TextSecondary,
-      )
+      ),
   ) {
     CompositionLocalProvider(LocalContentColor provides MtaColors.TextPrimary, content = content)
   }
@@ -66,7 +66,7 @@ internal fun AppHeader(stats: SubwayStatsSnapshot) {
         .windowInsetsPadding(
           WindowInsets.statusBars
             .union(WindowInsets.displayCutout)
-            .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
         )
         .padding(horizontal = 16.dp, vertical = 10.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
@@ -117,7 +117,7 @@ internal fun StorageErrorBanner(storageError: String) {
         .background(Color(0xFF2A1416))
         .border(1.dp, Color(0xFFD64545))
         .padding(12.dp)
-        .testTag("storage_error_banner")
+        .testTag("storage_error_banner"),
   ) {
     Text(text = storageError, color = Color.White, fontSize = 12.sp)
   }
@@ -133,7 +133,7 @@ internal fun BottomNavBar(uiState: StraphangerUiState, onSelectTab: (AppTab) -> 
         .windowInsetsPadding(
           WindowInsets.navigationBars
             .union(WindowInsets.displayCutout)
-            .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+            .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
         )
         .padding(horizontal = 10.dp, vertical = 8.dp),
     horizontalArrangement = Arrangement.SpaceEvenly,

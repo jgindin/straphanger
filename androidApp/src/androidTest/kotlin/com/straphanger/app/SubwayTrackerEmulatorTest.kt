@@ -199,8 +199,8 @@ class SubwayTrackerEmulatorTest {
       .onNodeWithTag("background_location_disclosure")
       .assert(
         hasAnyDescendant(
-          hasText("Straphanger uses your location in the background", substring = true)
-        )
+          hasText("Straphanger uses your location in the background", substring = true),
+        ),
       )
 
     composeTestRule.onNodeWithTag("disclosure_not_now").performClick()
@@ -221,8 +221,8 @@ class SubwayTrackerEmulatorTest {
           hasText(
             "Straphanger can read Google Maps transit navigation notifications",
             substring = true,
-          )
-        )
+          ),
+        ),
       )
     composeTestRule.onNodeWithTag("disclosure_not_now").performClick()
     composeTestRule.onNodeWithTag("notification_access_disclosure").assertDoesNotExist()
