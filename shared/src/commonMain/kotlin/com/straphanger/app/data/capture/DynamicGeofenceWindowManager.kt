@@ -124,6 +124,9 @@ class DynamicGeofenceWindowManager(
  * the chain closes and a new one starts at the entered complex. A chain also closes when
  * [idleCloseMs] passes with no new station entry ([closeIfIdle], or the next entry).
  *
+ * A recorded ride needs review when its line is ambiguous or when it needed a transfer, since the
+ * chain holds only the first and last station.
+ *
  * Closing records a ride from origin to last only if they are different complexes, the trip took 2
  * to 120 minutes, and the effective distance is at least 0.3 miles and at least 6 mph. The
  * effective distance is the straight-line distance between the stations less two geofence radii,
@@ -284,6 +287,9 @@ class PassiveRideReconstructor(
       source = RideSource.PASSIVE_GPS,
       resolved = resolved,
       graphEngine = graphEngine,
+      // The chain knows only where the ride began and ended. A transfer between lines is a guess,
+      // so the user is asked to confirm the route.
+      forceNeedsReview = resolved.isAmbiguous || resolved.legs.size > 1,
     )
   }
 

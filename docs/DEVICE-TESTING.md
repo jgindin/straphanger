@@ -118,3 +118,18 @@ On an emulator, `scripts/dev/simulate-passive-ride.sh` moves the emulated GPS fr
 ## Reporting results
 
 For each check write pass or fail. For a fail, send the logcat output named above, your phone model and Android version, and the steps you did. The three things most likely to need a tweak are the notification text format, geofence radius indoors, and battery-saver behavior.
+
+## Diagnosing a wrongly recorded passive ride
+
+The app keeps every geofence transition it receives (station entries and exits, and anchor moves)
+in `files/geofence_event_log.json`, the latest 1000. Each entry has the time the device was at the
+location and the time the app heard about it, so late fixes show as a gap. Pull it, and the saved
+rides, from a debug build:
+
+```bash
+adb exec-out run-as com.straphanger.app.debug cat files/geofence_event_log.json > geofence_event_log.json
+adb exec-out run-as com.straphanger.app.debug cat files/rides.json > rides.json
+```
+
+A passive ride whose line had to be guessed, or that needed a transfer the chain never saw, is
+marked NEEDS REVIEW so you can confirm or correct it on the Rides tab.

@@ -5,6 +5,7 @@ import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.testutil.TestNetwork
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -93,5 +94,29 @@ class PassiveRideReconstructorTest {
     assertEquals("A31", ride.ride.originStationId)
     assertEquals("A15", ride.ride.destinationStationId)
     assertNull(reconstructor.unsavedChainOriginTimeMs)
+  }
+
+  @Test
+  fun aRideOnOneLineIsNotFlaggedForReview() {
+    // 28 St is served only by the 6, so the line is not a guess.
+    reconstructor.onStationGeofenceEntered("602", t0)
+    reconstructor.onStationGeofenceEntered("404", t0 + 4 * minute)
+    val ride = reconstructor.closeIfIdle(t0 + 4 * minute + reconstructor.idleCloseMs)
+
+    assertNotNull(ride)
+    assertEquals(1, ride.legs.size)
+    assertFalse(ride.ride.needsReview)
+  }
+
+  @Test
+  fun aRideThatNeededAGuessedTransferIsFlaggedForReview() {
+    // 14 St-Union Sq to Times Sq needs the Lex line and the shuttle; the chain saw only the ends.
+    reconstructor.onStationGeofenceEntered("602", t0)
+    reconstructor.onStationGeofenceEntered("611", t0 + 8 * minute)
+    val ride = reconstructor.closeIfIdle(t0 + 8 * minute + reconstructor.idleCloseMs)
+
+    assertNotNull(ride)
+    assertEquals(2, ride.legs.size)
+    assertTrue(ride.ride.needsReview)
   }
 }

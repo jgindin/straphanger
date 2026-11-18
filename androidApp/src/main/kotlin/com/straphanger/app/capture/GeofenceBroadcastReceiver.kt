@@ -27,7 +27,11 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
       onError(context, event.errorCode)
     } else {
       val pendingEvents = PassiveCaptureStorage.pendingEvents(context)
-      transitionsOf(event).forEach { onTransition(context, it, pendingEvents) }
+      val eventLog = PassiveCaptureStorage.eventLog(context)
+      transitionsOf(event).forEach {
+        eventLog.record(it, System.currentTimeMillis())
+        onTransition(context, it, pendingEvents)
+      }
     }
   }
 
