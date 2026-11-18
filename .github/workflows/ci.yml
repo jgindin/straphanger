@@ -85,7 +85,10 @@ jobs:
             **/build/outputs/androidTest-results/**
 
   # The shared tests on the iOS simulator, and the simulator framework link.
+  # Disabled: the macos-14 runner is not supported for this repository, so the job failed on
+  # every run. Remove the `if` once a supported macOS runner is available.
   ios-tests:
+    if: false
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v7
