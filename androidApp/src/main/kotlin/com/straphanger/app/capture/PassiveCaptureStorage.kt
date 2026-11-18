@@ -2,8 +2,10 @@ package com.straphanger.app.capture
 
 import android.content.Context
 import androidx.core.content.edit
+import com.straphanger.app.data.capture.FileGeofenceEventLog
 import com.straphanger.app.data.capture.FileNotificationSessionStore
 import com.straphanger.app.data.capture.FilePendingGeofenceEventStore
+import com.straphanger.app.data.capture.GeofenceEventLog
 import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import kotlinx.io.files.Path
@@ -16,6 +18,10 @@ object PassiveCaptureStorage {
 
   fun pendingEvents(context: Context): PendingGeofenceEventStore =
     FilePendingGeofenceEventStore(Path(context.filesDir.path, "pending_geofence_events.json"))
+
+  /** Every geofence transition received, for diagnosing wrongly recorded rides. */
+  fun eventLog(context: Context): GeofenceEventLog =
+    FileGeofenceEventLog(Path(context.filesDir.path, "geofence_event_log.json"))
 
   /** Google Maps navigation sessions recorded by the notification listener. */
   fun notificationSessions(context: Context): NotificationSessionStore =
