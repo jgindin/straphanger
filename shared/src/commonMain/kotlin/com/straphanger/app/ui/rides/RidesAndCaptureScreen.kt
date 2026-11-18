@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -251,6 +252,7 @@ private fun RideHistoryItem(
   onDelete: () -> Unit,
 ) {
   val needsReview = rec.ride.needsReview
+  var expanded by rememberSaveable(rec.ride.rideId) { mutableStateOf(false) }
   Column(
     modifier =
       Modifier.fillMaxWidth()
@@ -261,10 +263,17 @@ private fun RideHistoryItem(
           color = if (needsReview) MtaColors.AccentGold else MtaColors.CardBorder,
           shape = RoundedCornerShape(12.dp),
         )
+        .clickable { expanded = !expanded }
         .padding(12.dp)
         .testTag("ride_item_${rec.ride.rideId}"),
     verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
+    Text(
+      text = rideWhen(rec.ride.startTimeEpochMs, rec.ride.endTimeEpochMs),
+      color = MtaColors.TextSecondary,
+      fontSize = 12.sp,
+      modifier = Modifier.testTag("ride_when_${rec.ride.rideId}"),
+    )
     RideLegsRow(rec)
     Text(
       text =
@@ -274,6 +283,7 @@ private fun RideHistoryItem(
       fontSize = 14.sp,
       fontWeight = FontWeight.SemiBold,
     )
+    if (expanded) RideLegBreakdown(rec, graphEngine)
     Row(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.SpaceBetween,
@@ -290,6 +300,25 @@ private fun RideHistoryItem(
         modifier = Modifier.testTag("delete_ride_btn_${rec.ride.rideId}"),
       ) {
         Text("Delete", color = MtaColors.TextSecondary, fontSize = 12.sp)
+      }
+    }
+  }
+}
+
+/** One line per leg, shown when the card is tapped. */
+@Composable
+private fun RideLegBreakdown(rec: CompleteRideRecord, graphEngine: SubwayGraphEngine) {
+  Column(
+    modifier = Modifier.fillMaxWidth().testTag("ride_breakdown_${rec.ride.rideId}"),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    rec.legs.forEach { leg ->
+      Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        MtaRouteBullet(routeId = leg.routeId, size = 20.dp, fontSize = 10.sp)
+        Text(legDetail(leg, graphEngine), color = Color.White, fontSize = 12.sp)
       }
     }
   }

@@ -31,6 +31,24 @@ class RidesScreenTest : AppScreenTest() {
   }
 
   @Test
+  fun aRideCardShowsWhenItHappenedAndExpandsToItsLegs() {
+    val vm = launchApp()
+    openTab("RIDES")
+    composeRule.onNodeWithTag("preset_42_shuttle").performClick()
+    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    val rideId = vm.uiState.value.rides.single().ride.rideId
+
+    composeRule.onNodeWithTag("ride_when_$rideId", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithTag("ride_breakdown_$rideId", useUnmergedTree = true).assertDoesNotExist()
+
+    composeRule.onNodeWithTag("ride_item_$rideId").performClick()
+    composeRule.onNodeWithTag("ride_breakdown_$rideId", useUnmergedTree = true).assertIsDisplayed()
+
+    composeRule.onNodeWithTag("ride_item_$rideId").performClick()
+    composeRule.onNodeWithTag("ride_breakdown_$rideId", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
   fun needsReviewBannerOffersCandidatesAndClearsOnConfirm() {
     val vm = launchApp()
     openTab("RIDES")
