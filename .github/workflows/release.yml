@@ -60,7 +60,7 @@ jobs:
 
       - name: Upload the bundle and R8 mapping
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: straphanger-release-${{ github.ref_name }}
           path: |
