@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
+import com.straphanger.app.data.local.RideEntity
 import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.StraphangerUiState
@@ -51,9 +52,18 @@ fun RidesHistoryAndLoggerScreen(
   onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
   onKeepRideAsIs: (String) -> Unit = {},
   onDeleteRide: (String) -> Unit = {},
+  onChangeRideStations: (String, String, String) -> Boolean = { _, _, _ -> false },
 ) {
   val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
   var rideIdToDelete by remember { mutableStateOf<String?>(null) }
+  var rideIdToEdit by remember { mutableStateOf<String?>(null) }
+
+  EditStationsHost(
+    ride = uiState.rides.firstOrNull { it.ride.rideId == rideIdToEdit }?.ride,
+    graphEngine = graphEngine,
+    onChange = onChangeRideStations,
+    onDone = { rideIdToEdit = null },
+  )
 
   rideIdToDelete?.let { rideId ->
     DeleteRideDialog(
@@ -76,7 +86,13 @@ fun RidesHistoryAndLoggerScreen(
   ) {
     // Rides that need review: express or local, or a station name that matched several stations
     if (pendingReviewRides.isNotEmpty()) {
-      NeedsReviewBanner(pendingReviewRides, graphEngine, onConfirmAmbiguousRide, onKeepRideAsIs)
+      NeedsReviewBanner(
+        pendingReviewRides,
+        graphEngine,
+        onConfirmAmbiguousRide,
+        onKeepRideAsIs,
+        onEditStations = { rideIdToEdit = it },
+      )
     }
     QuickTripLoggerCard(
       uiState = uiState,
@@ -86,8 +102,33 @@ fun RidesHistoryAndLoggerScreen(
     )
     CardTitle("Recorded Subway Rides (${uiState.rides.size})", fontSize = 16.sp)
     uiState.rides.forEach { rec ->
-      RideHistoryItem(rec, graphEngine, onDelete = { rideIdToDelete = rec.ride.rideId })
+      RideHistoryItem(
+        rec,
+        graphEngine,
+        onEdit = { rideIdToEdit = rec.ride.rideId },
+        onDelete = { rideIdToDelete = rec.ride.rideId },
+      )
     }
+  }
+}
+
+/** Shows the station editor for [ride] until it is saved or dismissed; nothing when null. */
+@Composable
+private fun EditStationsHost(
+  ride: RideEntity?,
+  graphEngine: SubwayGraphEngine,
+  onChange: (String, String, String) -> Boolean,
+  onDone: () -> Unit,
+) {
+  if (ride != null) {
+    EditStationsDialog(
+      ride = ride,
+      graphEngine = graphEngine,
+      onSave = { origin, destination ->
+        onChange(ride.rideId, origin, destination).also { saved -> if (saved) onDone() }
+      },
+      onDismiss = onDone,
+    )
   }
 }
 
@@ -117,6 +158,7 @@ private fun NeedsReviewBanner(
   graphEngine: SubwayGraphEngine,
   onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
   onKeepRideAsIs: (String) -> Unit,
+  onEditStations: (String) -> Unit,
 ) {
   SectionCard(
     spacing = 8.dp,
@@ -146,6 +188,13 @@ private fun NeedsReviewBanner(
       ) {
         review.actions.forEach { action ->
           ReviewActionButton(rec.ride.rideId, action, onConfirmAmbiguousRide, onKeepRideAsIs)
+        }
+        Button(
+          onClick = { onEditStations(rec.ride.rideId) },
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
+          modifier = Modifier.testTag("review_edit_stations_${rec.ride.rideId}"),
+        ) {
+          Text("Edit stations", fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
       }
     }
@@ -249,6 +298,7 @@ private fun TripPresets(onUpdateLogForm: (String, String?, String, String?, Bool
 private fun RideHistoryItem(
   rec: CompleteRideRecord,
   graphEngine: SubwayGraphEngine,
+  onEdit: () -> Unit,
   onDelete: () -> Unit,
 ) {
   val needsReview = rec.ride.needsReview
@@ -295,6 +345,12 @@ private fun RideHistoryItem(
         fontSize = 11.sp,
         modifier = Modifier.weight(1f),
       )
+      TextButton(
+        onClick = onEdit,
+        modifier = Modifier.testTag("edit_ride_btn_${rec.ride.rideId}"),
+      ) {
+        Text("Edit", color = MtaColors.TextSecondary, fontSize = 12.sp)
+      }
       TextButton(
         onClick = onDelete,
         modifier = Modifier.testTag("delete_ride_btn_${rec.ride.rideId}"),

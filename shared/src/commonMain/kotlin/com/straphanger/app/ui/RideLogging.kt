@@ -7,6 +7,8 @@ import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.RideIds
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
+import com.straphanger.app.data.local.changeRideStations
+import com.straphanger.app.ui.rides.stationName
 import kotlinx.coroutines.flow.StateFlow
 
 /** Logging, reviewing and deleting rides on this device. */
@@ -34,6 +36,17 @@ interface RideLogging : StraphangerScreenState {
 
   /** Clears the review flag of [rideId] without changing its legs. */
   fun keepRideAsIs(rideId: String)
+
+  /**
+   * Changes where [rideId] started and ended, finding the lines again. Returns false, leaving the
+   * ride as it was, when the stations are the same, no route joins them, or the ride could not be
+   * saved.
+   */
+  fun changeRideStations(
+    rideId: String,
+    originStationId: String,
+    destinationStationId: String,
+  ): Boolean
 
   /** Deletes [rideId]. */
   fun deleteRide(rideId: String)
@@ -185,6 +198,28 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
   override fun keepRideAsIs(rideId: String) {
     dao.markReviewed(rideId) ?: return
     session.setStatusIfSaved { "Kept the ride as recorded" }
+  }
+
+  override fun changeRideStations(
+    rideId: String,
+    originStationId: String,
+    destinationStationId: String,
+  ): Boolean {
+    val engine = graphEngine
+    val updated = engine?.let {
+      dao.changeRideStations(rideId, originStationId, destinationStationId, it)
+    }
+    val saved = updated != null && dao.lastSaveSucceeded
+    if (saved && engine != null && updated != null) {
+      session.update {
+        it.copy(
+          statusMessage =
+            "Ride now runs ${engine.stationName(updated.ride.originStationId)} → " +
+              engine.stationName(updated.ride.destinationStationId)
+        )
+      }
+    }
+    return saved
   }
 
   override fun deleteRide(rideId: String) {

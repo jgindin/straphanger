@@ -6,6 +6,8 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import com.straphanger.app.testutil.BundledNetwork
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Instant
@@ -46,6 +48,40 @@ class RidesScreenTest : AppScreenTest() {
 
     composeRule.onNodeWithTag("ride_item_$rideId").performClick()
     composeRule.onNodeWithTag("ride_breakdown_$rideId", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun anyRideCardOpensTheStationEditor() {
+    val vm = launchApp()
+    openTab("RIDES")
+    composeRule.onNodeWithTag("preset_42_shuttle").performClick()
+    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    val rideId = vm.uiState.value.rides.single().ride.rideId
+
+    composeRule.onNodeWithTag("edit_ride_btn_$rideId").performScrollTo().performClick()
+
+    composeRule.onNodeWithTag("edit_stations_dialog").assertIsDisplayed()
+  }
+
+  @Test
+  fun editingFromTheReviewBannerMovesTheRideAndKeepsTheOthersAlone() {
+    val vm = launchApp()
+    openTab("RIDES")
+    composeRule.runOnUiThread { vm.simulateAmbiguousPassiveRide() }
+    val before = vm.uiState.value.rides.single().ride
+
+    composeRule.onNodeWithTag("review_edit_stations_${before.rideId}").performScrollTo().performClick()
+    composeRule.onNodeWithTag("edit_stations_choose_start").performClick()
+    composeRule.onNodeWithTag("edit_stations_search").performTextInput("86 St")
+    val newStart = BundledNetwork.engine().searchStations("86 St").distinctBy { it.name }.first().id
+    composeRule.onNodeWithTag("edit_stations_option_$newStart").performClick()
+    composeRule.onNodeWithTag("edit_stations_save").performClick()
+
+    composeRule.onNodeWithTag("edit_stations_dialog").assertDoesNotExist()
+    val after = vm.uiState.value.rides.single().ride
+    assertEquals(newStart, after.originStationId)
+    assertEquals(before.destinationStationId, after.destinationStationId)
+    assertEquals(before.startTimeEpochMs, after.startTimeEpochMs)
   }
 
   @Test

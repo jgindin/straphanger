@@ -124,4 +124,40 @@ class RideReviewTest {
 
     assertTrue(ride.ride.ambiguousCandidates.isNotEmpty())
   }
+
+  private fun viewModel() =
+    StraphangerViewModel(
+      backend = InMemoryPersistenceBackend(),
+      dispatcher = Dispatchers.Unconfined,
+      networkLoader = { TestNetwork.data },
+      basemapLoader = { TestBasemap.empty },
+    )
+
+  @Test
+  fun changingTheStationsRoutesTheRideAgainAndKeepsItsTimes() {
+    val vm = viewModel()
+    val ride = vm.simulateAmbiguousPassiveRide()!!.ride
+
+    // Ridden the other way: from 86 St down to 14 St-Union Sq.
+    assertTrue(vm.changeRideStations(ride.rideId, ride.destinationStationId, ride.originStationId))
+
+    val changed = vm.dao.getRideById(ride.rideId)!!.ride
+    assertEquals(ride.destinationStationId, changed.originStationId)
+    assertEquals(ride.originStationId, changed.destinationStationId)
+    assertEquals(ride.startTimeEpochMs, changed.startTimeEpochMs)
+    assertEquals(ride.endTimeEpochMs, changed.endTimeEpochMs)
+    assertEquals(1, vm.dao.getAllRides().size)
+  }
+
+  @Test
+  fun changingToTheSameStationOrNoRouteLeavesTheRideAlone() {
+    val vm = viewModel()
+    val before = vm.simulateAmbiguousPassiveRide()!!
+
+    assertFalse(vm.changeRideStations(before.ride.rideId, "635", "635"))
+    assertFalse(vm.changeRideStations(before.ride.rideId, "635", "no-such-station"))
+    assertFalse(vm.changeRideStations("no-such-ride", "635", "626"))
+
+    assertEquals(before, vm.dao.getRideById(before.ride.rideId))
+  }
 }
