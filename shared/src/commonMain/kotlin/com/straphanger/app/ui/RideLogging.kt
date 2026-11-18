@@ -66,6 +66,9 @@ private const val SIMULATED_RIDE_MINUTES = 10
 private const val SIMULATED_RIDE_ACTUAL_MINUTES = 10.5
 private const val MS_PER_MINUTE = 60_000L
 
+/** 2026-11-11 09:00 in New York, a Wednesday. */
+private const val SIMULATED_RIDE_START_EPOCH_MS = 1_794_405_600_000L
+
 internal class RideLogController(private val session: StraphangerSession) : RideLogging {
   override val uiState: StateFlow<StraphangerUiState>
     get() = session.state
@@ -142,7 +145,8 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
 
   override fun simulateAmbiguousPassiveRide(): CompleteRideRecord? {
     val engine = graphEngine ?: return null
-    val ts = session.clock.now().toEpochMilliseconds()
+    // A weekday morning, so express service runs and the ride is ambiguous whatever the time now.
+    val ts = SIMULATED_RIDE_START_EPOCH_MS
     val resolved =
       engine.resolveOriginToDestinationAuto(
         originStationId = StationIds.UNION_SQ_LEX,

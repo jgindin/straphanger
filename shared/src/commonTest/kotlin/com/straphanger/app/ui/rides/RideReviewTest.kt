@@ -4,6 +4,7 @@ import com.straphanger.app.data.gtfs.AmbiguousRouteCandidate
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RideEntity
 import com.straphanger.app.data.local.RideSource
+import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
 import com.straphanger.app.ui.StraphangerViewModel
@@ -11,6 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
 
 class RideReviewTest {
@@ -104,5 +106,22 @@ class RideReviewTest {
     assertEquals(ride.legs, kept.legs)
     assertEquals(ride.segments, kept.segments)
     assertEquals(0, vm.uiState.value.stats.pendingReviewCount)
+  }
+
+  @Test
+  fun theSimulatedRideIsAmbiguousEvenWhenNowIsLateAtNight() {
+    // Only local trains run late at night, so a ride timed "now" would have nothing to confirm.
+    val vm =
+      StraphangerViewModel(
+        backend = InMemoryPersistenceBackend(),
+        dispatcher = Dispatchers.Unconfined,
+        networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
+        clock = FixedClock(Instant.parse("2026-11-18T05:00:00Z")),
+      )
+
+    val ride = vm.simulateAmbiguousPassiveRide()!!
+
+    assertTrue(ride.ride.ambiguousCandidates.isNotEmpty())
   }
 }
