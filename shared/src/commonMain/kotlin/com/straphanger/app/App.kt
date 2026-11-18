@@ -307,6 +307,7 @@ private fun RidesTab(
     onConfirmAmbiguousRide = { id, r, exp -> viewModel.confirmAmbiguousRide(id, r, exp) },
     onKeepRideAsIs = viewModel::keepRideAsIs,
     onDeleteRide = viewModel::deleteRide,
+    onChangeRideStations = viewModel::changeRideStations,
   )
 }
 
