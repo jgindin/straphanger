@@ -3,7 +3,7 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
-## 0.1.0 (not yet released)
+## 0.17 (not yet released)
 
 - Subway map, ride statistics and a ride list, with the network generated from the MTA GTFS feed.
 - Manual ride logging, Google Maps Timeline import, and shared Google Maps route text.

@@ -167,7 +167,7 @@ Everything here is in [androidApp/src/main/kotlin/com/straphanger/app](../androi
 
 [androidApp/build.gradle.kts](../androidApp/build.gradle.kts) is where release engineering lives:
 
-- **Versions.** `version.properties` gives `versionName`; the build derives `versionCode = major*1_000_000 + minor*1_000 + patch`. `./gradlew syncIosVersion` writes the same numbers for iOS.
+- **Versions.** `version.properties` gives `versionName`, `<major>.<PR number>` (major is 0 while in beta); the build derives `versionCode = major*1_000_000 + pr*1_000`. `./gradlew syncIosVersion` writes the same numbers for iOS.
 - **Build types.** `debug` (suffix `.debug`), `releaseTest` (suffix `.releasetest`, a minified build used to run the device tests against R8 output) and `release` (`com.straphanger.app`, developer tools off).
 - **Signing.** From `keystore.properties` or `STRAPHANGER_UPLOAD_*` environment variables. `checkReleaseSigning` fails the build when neither is present, unless you pass `-Pstraphanger.allowDebugSignedRelease=true`.
 - **Shrinking.** R8 minify; keep rules in `proguard-rules.pro` (release) and `proguard-test-*.pro` (test-only, never in release).

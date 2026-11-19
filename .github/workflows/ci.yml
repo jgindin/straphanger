@@ -25,6 +25,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
       # Before the tests so that a formatting or static-analysis finding fails the job in seconds. Run
       #  ./gradlew ktfmtFormat to fix the formatting locally.
+      # Version is MAJOR.PR_NUMBER, so each pull request sets version.properties to its own number.
+      #  Dependabot's pull requests leave the version alone.
+      - name: Check the version names this pull request
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'dependabot/')
+        run: |
+          file_version="$(grep '^versionName=' version.properties | cut -d= -f2 | tr -d '[:space:]')"
+          if [[ ! "$file_version" =~ ^[0-9]+\.${{ github.event.pull_request.number }}$ ]]; then
+            echo "version.properties has versionName=$file_version; this is pull request ${{ github.event.pull_request.number }}, so it must be <major>.${{ github.event.pull_request.number }} (0.${{ github.event.pull_request.number }} while in beta)" >&2
+            exit 1
+          fi
       - name: Check Kotlin formatting, static analysis and the iOS version file
         run: ./gradlew ktfmtCheck detekt checkIosVersion
       - name: Run tests, check coverage, build the debug APK and run lint
