@@ -5,6 +5,8 @@ import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
+import com.straphanger.app.data.local.flagOverlappingRides
+import kotlin.math.abs
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -142,10 +144,11 @@ class PassiveRideReconstructor(
 ) {
   private val stationRadiusMiles = stationRadiusMeters / METERS_PER_MILE
 
-  private class Visit(val complexId: String, val timeMs: Long)
-
   private var origin: Visit? = null
   private var last: Visit? = null
+
+  /** When the last station of the chain was left, so an entry at the same fix can be ignored. */
+  private var departedAtMs: Long? = null
 
   val chainOriginComplexId: String?
     get() = origin?.complexId
@@ -176,6 +179,9 @@ class PassiveRideReconstructor(
       }
       // Older than the chain: out-of-order delivery.
       timestampEpochMs < previous.timeMs -> null
+      // Seen at the fix that reported leaving the last station: the train was already moving, so
+      // this station is only where the late fix landed, not where the ride began.
+      complexId != previous.complexId && isSameFixAsDeparture(timestampEpochMs) -> null
       timestampEpochMs - previous.timeMs >= idleCloseMs ->
         closeAndStartChain(complexId, timestampEpochMs)
       complexId == previous.complexId -> {
@@ -183,7 +189,7 @@ class PassiveRideReconstructor(
         if (origin === previous) startChain(complexId, timestampEpochMs)
         null
       }
-      isTransitHop(previous, complexId, timestampEpochMs - previous.timeMs) -> {
+      graphEngine.isTransitHop(previous, complexId, timestampEpochMs - previous.timeMs) -> {
         last = Visit(complexId, timestampEpochMs)
         null
       }
@@ -191,9 +197,35 @@ class PassiveRideReconstructor(
     }
   }
 
-  private fun isTransitHop(previous: Visit, complexId: String, gapMs: Long): Boolean {
-    val hopMph = graphEngine.complexMph(previous.complexId, complexId, gapMs)
-    return hopMph != null && hopMph >= MIN_SPEED_MPH && gapMs <= MAX_HOP_MS
+  private fun isSameFixAsDeparture(timestampEpochMs: Long): Boolean =
+    departedAtMs?.let { abs(timestampEpochMs - it) <= SAME_FIX_MS } == true
+
+  /**
+   * Handles leaving a station geofence. Platform fixes underground are sparse, so an exit is often
+   * reported only after the train has gone on. The station left is where the ride began (or ended),
+   * so a chain still at one station takes the exit as its boarding time, a chain that has dwelt at
+   * its last station for [DWELL_SPLIT_MS] is closed there and a new ride begins, and an exit from
+   * any other station is ignored. Returns the ride recorded by closing a chain, or null.
+   */
+  fun onStationGeofenceExited(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
+    val previous = last
+    val record =
+      when {
+        previous == null -> {
+          startChain(complexId, timestampEpochMs)
+          null
+        }
+        complexId != previous.complexId || timestampEpochMs < previous.timeMs -> return null
+        origin === previous -> {
+          startChain(complexId, timestampEpochMs)
+          null
+        }
+        timestampEpochMs - previous.timeMs >= DWELL_SPLIT_MS ->
+          closeAndStartChain(complexId, timestampEpochMs)
+        else -> null
+      }
+    departedAtMs = timestampEpochMs
+    return record
   }
 
   private fun closeAndStartChain(complexId: String, timestampEpochMs: Long): CompleteRideRecord? {
@@ -222,6 +254,7 @@ class PassiveRideReconstructor(
     val to = last
     origin = null
     last = null
+    departedAtMs = null
     return if (from != null && to != null) plausibleRide(from, to)?.let { saved(it, from) }
     else null
   }
@@ -255,6 +288,7 @@ class PassiveRideReconstructor(
   /** Saves [record]; returns it, or null when the save failed and the chain must be replayed. */
   private fun saved(record: CompleteRideRecord, from: Visit): CompleteRideRecord? {
     dao.insertOrReplaceRide(record)
+    if (dao.lastSaveSucceeded) dao.flagOverlappingRides(record.ride.rideId)
     if (!dao.lastSaveSucceeded) {
       unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
     }
@@ -301,7 +335,23 @@ class PassiveRideReconstructor(
     private const val METERS_PER_MILE = 1609.344
     const val MAX_HOP_MS = 30 * 60_000L
     const val DEFAULT_IDLE_CLOSE_MS = 15 * 60_000L
+    /** Time at a station after which leaving it ends the ride rather than passing through. */
+    const val DWELL_SPLIT_MS = 6 * 60_000L
+    private const val SAME_FIX_MS = 5_000L
   }
+}
+
+private class Visit(val complexId: String, val timeMs: Long)
+
+private fun SubwayGraphEngine.isTransitHop(
+  previous: Visit,
+  complexId: String,
+  gapMs: Long,
+): Boolean {
+  val hopMph = complexMph(previous.complexId, complexId, gapMs)
+  return hopMph != null &&
+    hopMph >= PassiveRideReconstructor.MIN_SPEED_MPH &&
+    gapMs <= PassiveRideReconstructor.MAX_HOP_MS
 }
 
 /** Straight-line miles between the complexes' first stations; null for an unknown complex. */

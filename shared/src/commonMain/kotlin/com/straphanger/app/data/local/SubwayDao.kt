@@ -141,7 +141,12 @@ class SubwayDao(
     val existing = getRideById(rideId) ?: return null
     val updated =
       existing.copy(
-        ride = existing.ride.copy(needsReview = false, ambiguousCandidates = emptyList()),
+        ride =
+          existing.ride.copy(
+            needsReview = false,
+            ambiguousCandidates = emptyList(),
+            overlapsRideIds = emptyList(),
+          ),
       )
     insertOrReplaceRide(updated)
     return updated

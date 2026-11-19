@@ -9,31 +9,31 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /**
- * Station entries recorded by the platform receiver, so entries that arrive while no view model is
- * running are not lost. The receiver appends every entry; [PassiveCaptureCoordinator] replays the
- * entries and keeps only those of the chain it has not yet closed.
+ * Station entries and exits recorded by the platform receiver, so entries that arrive while no view
+ * model is running are not lost. The receiver appends every entry; [PassiveCaptureCoordinator]
+ * replays the entries and keeps only those of the chain it has not yet closed.
  *
  * Calls are synchronous and not thread-safe. On Android the receiver and the coordinator both run
  * on the main thread, so they never overlap.
  */
 interface PendingGeofenceEventStore {
-  fun readAll(): List<GeofenceEvent.Entered>
+  fun readAll(): List<GeofenceEvent>
 
-  fun append(event: GeofenceEvent.Entered)
+  fun append(event: GeofenceEvent)
 
-  fun replaceAll(events: List<GeofenceEvent.Entered>)
+  fun replaceAll(events: List<GeofenceEvent>)
 }
 
 class InMemoryPendingGeofenceEventStore : PendingGeofenceEventStore {
-  private var events = emptyList<GeofenceEvent.Entered>()
+  private var events = emptyList<GeofenceEvent>()
 
-  override fun readAll(): List<GeofenceEvent.Entered> = events
+  override fun readAll(): List<GeofenceEvent> = events
 
-  override fun append(event: GeofenceEvent.Entered) {
+  override fun append(event: GeofenceEvent) {
     events = events + event
   }
 
-  override fun replaceAll(events: List<GeofenceEvent.Entered>) {
+  override fun replaceAll(events: List<GeofenceEvent>) {
     this.events = events
   }
 }
@@ -55,30 +55,37 @@ class FilePendingGeofenceEventStore(
     val epochMs: Long,
     val lat: Double,
     val lng: Double,
+    /** True for a station exit; entries stored before exits were kept are entries. */
+    val exited: Boolean = false,
   )
 
   private val stateFile = JsonStateFile(file, fileSystem, clock, LOG_TAG)
   private val serializer = ListSerializer(StoredEntry.serializer())
   private val json = Json { ignoreUnknownKeys = true }
 
-  override fun readAll(): List<GeofenceEvent.Entered> =
+  override fun readAll(): List<GeofenceEvent> =
     stateFile
       .read { json.decodeFromString(serializer, it) }
       .orEmpty()
-      .map { GeofenceEvent.Entered(it.geofenceId, it.epochMs, it.lat, it.lng) }
+      .map {
+        if (it.exited) GeofenceEvent.Exited(it.geofenceId, it.epochMs, it.lat, it.lng)
+        else GeofenceEvent.Entered(it.geofenceId, it.epochMs, it.lat, it.lng)
+      }
 
-  override fun append(event: GeofenceEvent.Entered) {
+  override fun append(event: GeofenceEvent) {
     replaceAll(readAll() + event)
   }
 
-  override fun replaceAll(events: List<GeofenceEvent.Entered>) {
+  override fun replaceAll(events: List<GeofenceEvent>) {
     val text =
       events
         .takeIf { it.isNotEmpty() }
         ?.let { kept ->
           json.encodeToString(
             serializer,
-            kept.map { StoredEntry(it.geofenceId, it.epochMs, it.lat, it.lng) },
+            kept.map {
+              StoredEntry(it.geofenceId, it.epochMs, it.lat, it.lng, it is GeofenceEvent.Exited)
+            },
           )
         }
     stateFile.write(text)

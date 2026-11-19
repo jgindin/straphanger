@@ -14,10 +14,10 @@ import com.straphanger.app.data.capture.GeofenceEventBus
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 
 /**
- * Records station entries (not the window anchor) in the pending-event file, then forwards every
- * transition to [GeofenceEventBus]. The file keeps entries that arrive while no view model is
- * running; the coordinator replays it when it starts and on each entry it receives. When no
- * coordinator is running, leaving the window anchor registers a new window around the triggering
+ * Records station entries and exits (not the window anchor) in the pending-event file, then
+ * forwards every transition to [GeofenceEventBus]. The file keeps entries that arrive while no view
+ * model is running; the coordinator replays it when it starts and on each entry it receives. When
+ * no coordinator is running, leaving the window anchor registers a new window around the triggering
  * location here.
  */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
@@ -64,7 +64,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     pendingEvents: PendingGeofenceEventStore,
   ) {
     Log.i(TAG, "$transition")
-    if (transition is GeofenceEvent.Entered && isStation(transition.geofenceId)) {
+    if (isStation(transition.geofenceId)) {
       pendingEvents.append(transition)
     }
     // With no coordinator running (the app process was gone), move the window here.

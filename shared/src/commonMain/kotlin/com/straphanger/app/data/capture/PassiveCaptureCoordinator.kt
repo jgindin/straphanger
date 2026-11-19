@@ -53,7 +53,7 @@ class PassiveCaptureCoordinator(
   private var lastLng = 0.0
 
   /** Entries already given to the reconstructor that are still in [pendingEvents]. */
-  private val handled = mutableSetOf<GeofenceEvent.Entered>()
+  private val handled = mutableSetOf<GeofenceEvent>()
 
   /**
    * Replays pending entries, registers the window around the given point and starts handling
@@ -119,13 +119,15 @@ class PassiveCaptureCoordinator(
 
   private suspend fun handle(event: GeofenceEvent) {
     when (event) {
-      is GeofenceEvent.Exited -> {
+      is GeofenceEvent.Exited ->
         if (event.geofenceId == DynamicGeofenceWindowManager.MACRO_ANCHOR_ID) {
           register(event.lat, event.lng)
+        } else {
+          handleStationEvent(event)
+          drainPending()
         }
-      }
       is GeofenceEvent.Entered -> {
-        handleEntry(event)
+        handleStationEvent(event)
         drainPending()
       }
     }
@@ -136,15 +138,26 @@ class PassiveCaptureCoordinator(
    * chain.
    */
   private fun drainPending() {
-    pendingEvents.readAll().sortedBy { it.epochMs }.forEach { handleEntry(it) }
+    // At the same instant an exit comes first: it says where the ride began.
+    pendingEvents
+      .readAll()
+      .sortedWith(compareBy({ it.epochMs }, { it is GeofenceEvent.Entered }))
+      .forEach { handleStationEvent(it) }
     trimPending()
   }
 
-  private fun handleEntry(event: GeofenceEvent.Entered) {
-    if (!handled.add(event)) return
-    val complexId = DynamicGeofenceWindowManager.complexIdForGeofence(event.geofenceId) ?: return
-    recorded(reconstructor.onStationGeofenceEntered(complexId, event.epochMs))
-    scheduleIdleClose()
+  private fun handleStationEvent(event: GeofenceEvent) {
+    val complexId = DynamicGeofenceWindowManager.complexIdForGeofence(event.geofenceId)
+    if (complexId != null && handled.add(event)) {
+      recorded(
+        when (event) {
+          is GeofenceEvent.Entered ->
+            reconstructor.onStationGeofenceEntered(complexId, event.epochMs)
+          is GeofenceEvent.Exited -> reconstructor.onStationGeofenceExited(complexId, event.epochMs)
+        },
+      )
+      scheduleIdleClose()
+    }
   }
 
   private fun closeIfIdle() {
