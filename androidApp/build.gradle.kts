@@ -7,14 +7,14 @@ plugins {
   alias(libs.plugins.play.publisher)
 }
 
-/** versionCode = major * 1_000_000 + minor * 1_000 + patch, so 0.1.0 -> 1000. */
+/** versionCode = major * 1_000_000 + pr * 1_000, so 0.17 -> 17000. */
 fun versionCodeFor(name: String): Int {
-  require(Regex("""^\d+\.\d+\.\d+$""").matches(name)) {
-    "versionName '$name' in version.properties must look like MAJOR.MINOR.PATCH"
+  require(Regex("""^\d+\.\d+$""").matches(name)) {
+    "versionName '$name' in version.properties must look like MAJOR.PR_NUMBER"
   }
-  val (major, minor, patch) = name.split('.').map { it.toInt() }
-  require(minor < 1000 && patch < 1000) { "minor and patch must be below 1000 in '$name'" }
-  return major * 1_000_000 + minor * 1_000 + patch
+  val (major, pr) = name.split('.').map { it.toInt() }
+  require(pr < 1000) { "the PR number must be below 1000 in '$name'" }
+  return major * 1_000_000 + pr * 1_000
 }
 
 val appVersionName: String =

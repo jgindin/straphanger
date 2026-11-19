@@ -19,7 +19,7 @@ Without either, `assembleRelease` and `bundleRelease` fail with `Release signing
 
 ## Version
 
-`version.properties` holds `versionName=MAJOR.MINOR.PATCH`. The build derives `versionCode = major * 1_000_000 + minor * 1_000 + patch` (0.1.0 is 1000). Minor and patch must stay below 1000. Edit the file to bump the version; Play requires a higher versionCode for every upload.
+`version.properties` holds `versionName=<major>.<PR number>`, with major 0 while the app is in beta. Every pull request sets it to its own number (CI fails otherwise; Dependabot is exempt), so the version rises with each merge. The build derives `versionCode = major * 1_000_000 + pr * 1_000` (0.17 is 17000); the PR number must stay below 1000. Play requires a higher versionCode for every upload. The About screen shows the version.
 
 ## Build the bundle
 
@@ -44,11 +44,11 @@ R8 minification and resource shrinking are on for release. Keep `androidApp/buil
 
 ## Releasing a version
 
-1. Edit `version.properties` to the new `versionName`, run `./gradlew syncIosVersion` (iOS reads `iosApp/Configuration/Version.xcconfig`; CI fails if it is stale), and add an entry to `CHANGELOG.md`.
+1. Check `version.properties` holds the version to release (it is set by the last merged pull request), run `./gradlew syncIosVersion` (iOS reads `iosApp/Configuration/Version.xcconfig`; CI fails if it is stale), and add an entry to `CHANGELOG.md`.
 2. Write the release notes in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 3. Run `scripts/check-listing.sh` if you changed anything under `androidApp/src/main/play/listings`.
 4. `jj commit -m "release: vX.Y.Z"`, then move `main` to that commit and push it.
-5. Tag it and push the tag: `git tag vX.Y.Z <commit> && git push origin vX.Y.Z`. The tag must equal `v` plus `versionName`, or the workflow stops.
+5. Tag it and push the tag: `git tag v<versionName> <commit> && git push origin v<versionName>`. The tag must equal `v` plus `versionName`, or the workflow stops.
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`. It checks the tag against `version.properties`, runs `scripts/check-listing.sh`, runs the shared tests, builds the signed bundle, publishes it to the Play **internal testing** track, and attaches the AAB and `mapping.txt` to the run as workflow artifacts. Promote the release to other tracks in the Play Console.
 
