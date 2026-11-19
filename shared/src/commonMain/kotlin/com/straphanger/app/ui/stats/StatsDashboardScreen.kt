@@ -43,6 +43,7 @@ fun StatsDashboardScreen(
   uiState: StraphangerUiState,
   onGroupingModeChange: (StationGroupingMode) -> Unit,
   onVisitFilterModeChange: (StationVisitFilterMode) -> Unit,
+  onLineSelect: (String) -> Unit = {},
 ) {
   val stats = uiState.stats
   Column(
@@ -62,7 +63,7 @@ fun StatsDashboardScreen(
     )
     HeroMetrics(uiState)
     StationCountingCard(uiState, onGroupingModeChange, onVisitFilterModeChange)
-    LineCompletionCard(stats)
+    LineCompletionCard(stats, onLineSelect)
     BoroughCard(stats)
     if (stats.topStations.isNotEmpty() || stats.monthlyTrends.isNotEmpty()) {
       TopStationsAndTrendsCard(stats)
@@ -189,13 +190,16 @@ private fun RowScope.ModeToggle(
 
 /** Per-line completion bars with route bullets. */
 @Composable
-private fun LineCompletionCard(stats: SubwayStatsSnapshot) {
+private fun LineCompletionCard(stats: SubwayStatsSnapshot, onLineSelect: (String) -> Unit) {
   SectionCard(spacing = 10.dp) {
     CardTitle("Per-Line Track Completion")
     val sortedLines = stats.lineCompletionStats.sortedByDescending { it.completionPercent }
     sortedLines.take(12).forEach { lineStat ->
       val rId = lineStat.routeInfo.routeId
-      Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+      Column(
+        modifier = Modifier.fillMaxWidth().clickable { onLineSelect(rId) }.testTag("line_row_$rId"),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+      ) {
         Row(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.SpaceBetween,

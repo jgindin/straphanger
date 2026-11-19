@@ -101,6 +101,21 @@ class ViewModelControllersTest {
   }
 
   @Test
+  fun showingRidesOnALineOpensTheRidesTabAndClearingKeepsIt() {
+    val vm = viewModel()
+    vm.selectTab(AppTab.STATS)
+
+    vm.showRidesOnRoute("L")
+    assertEquals("L", vm.uiState.value.ridesRouteFilter)
+    assertEquals(AppTab.RIDES, vm.uiState.value.activeTab)
+
+    vm.selectTab(AppTab.MAP)
+    vm.showRidesOnRoute(null)
+    assertEquals(null, vm.uiState.value.ridesRouteFilter)
+    assertEquals(AppTab.MAP, vm.uiState.value.activeTab)
+  }
+
+  @Test
   fun updateLogFormKeepsFieldsNotGiven() {
     val vm = viewModel()
     vm.updateLogForm(

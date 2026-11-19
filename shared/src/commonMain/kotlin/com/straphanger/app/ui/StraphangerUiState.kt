@@ -26,6 +26,8 @@ data class StraphangerUiState(
   val mapColorMode: MapColorMode = MapColorMode.OFFICIAL_MTA_COLORS,
   val selectedRouteFilter: String? = null,
   val selectedStationId: String? = null,
+  /** When set, the Rides tab lists only the rides with a leg on this route. */
+  val ridesRouteFilter: String? = null,
   /** The land, parks and roads under the map; null while loading or if it could not be loaded. */
   val basemap: ProjectedBasemap? = null,
   val stationGroupingMode: StationGroupingMode = StationGroupingMode.INDIVIDUAL_STATIONS,

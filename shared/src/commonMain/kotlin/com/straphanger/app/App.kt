@@ -285,6 +285,7 @@ private fun TabContent(
         uiState = uiState,
         onGroupingModeChange = viewModel::setStationGroupingMode,
         onVisitFilterModeChange = viewModel::setStationVisitFilterMode,
+        onLineSelect = viewModel::showRidesOnRoute,
       )
     AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
     AppTab.SOURCES -> SourcesTab(viewModel, uiState, overlays, platform, onBackupMessage)
@@ -308,6 +309,7 @@ private fun RidesTab(
     onKeepRideAsIs = viewModel::keepRideAsIs,
     onDeleteRide = viewModel::deleteRide,
     onChangeRideStations = viewModel::changeRideStations,
+    onClearRouteFilter = { viewModel.showRidesOnRoute(null) },
   )
 }
 
