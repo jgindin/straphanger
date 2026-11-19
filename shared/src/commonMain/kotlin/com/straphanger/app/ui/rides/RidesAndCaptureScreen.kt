@@ -53,6 +53,7 @@ fun RidesHistoryAndLoggerScreen(
   onKeepRideAsIs: (String) -> Unit = {},
   onDeleteRide: (String) -> Unit = {},
   onChangeRideStations: (String, String, String) -> Boolean = { _, _, _ -> false },
+  onClearRouteFilter: () -> Unit = {},
 ) {
   val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
   var rideIdToDelete by remember { mutableStateOf<String?>(null) }
@@ -100,8 +101,13 @@ fun RidesHistoryAndLoggerScreen(
       onUpdateLogForm = onUpdateLogForm,
       onSubmitQuickRide = onSubmitQuickRide,
     )
-    CardTitle("Recorded Subway Rides (${uiState.rides.size})", fontSize = 16.sp)
-    uiState.rides.forEach { rec ->
+    val routeFilter = uiState.ridesRouteFilter
+    val shownRides =
+      if (routeFilter == null) uiState.rides
+      else uiState.rides.filter { rec -> rec.legs.any { it.routeId == routeFilter } }
+    CardTitle("Recorded Subway Rides (${shownRides.size})", fontSize = 16.sp)
+    if (routeFilter != null) RouteFilterChip(routeFilter, onClear = onClearRouteFilter)
+    shownRides.forEach { rec ->
       RideHistoryItem(
         rec,
         graphEngine,

@@ -20,6 +20,9 @@ interface ScreenNavigation : StraphangerScreenState {
 
   fun selectStationOnMap(stationId: String?)
 
+  /** Lists only the rides on [routeId] (all rides when null) and shows the Rides tab. */
+  fun showRidesOnRoute(routeId: String?)
+
   fun setStationGroupingMode(mode: StationGroupingMode)
 
   fun setStationVisitFilterMode(mode: StationVisitFilterMode)
@@ -62,6 +65,15 @@ internal class ScreenNavigationController(private val session: StraphangerSessio
 
   override fun selectStationOnMap(stationId: String?) {
     session.update { it.copy(selectedStationId = stationId) }
+  }
+
+  override fun showRidesOnRoute(routeId: String?) {
+    session.update {
+      it.copy(
+        ridesRouteFilter = routeId,
+        activeTab = if (routeId == null) it.activeTab else AppTab.RIDES,
+      )
+    }
   }
 
   override fun setStationGroupingMode(mode: StationGroupingMode) {

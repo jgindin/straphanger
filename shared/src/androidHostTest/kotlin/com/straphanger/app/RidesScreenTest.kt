@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -48,6 +49,28 @@ class RidesScreenTest : AppScreenTest() {
 
     composeRule.onNodeWithTag("ride_item_$rideId").performClick()
     composeRule.onNodeWithTag("ride_breakdown_$rideId", useUnmergedTree = true).assertDoesNotExist()
+  }
+
+  @Test
+  fun tappingALineOnTheStatisticsListsOnlyItsRides() {
+    val vm = launchApp()
+    composeRule.runOnUiThread { vm.loadDemoRides() }
+    val routeId = vm.uiState.value.rides.first().legs.first().routeId
+    val onLine =
+      vm.uiState.value.rides.count { rec -> rec.legs.any { it.routeId == routeId } }
+    openTab("STATS")
+
+    composeRule.onNodeWithTag("line_row_$routeId").performScrollTo().performClick()
+
+    composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
+    composeRule.onNodeWithTag("route_filter_chip").performScrollTo().assertIsDisplayed()
+    composeRule.onNodeWithText("Recorded Subway Rides ($onLine)").assertExists()
+
+    composeRule.onNodeWithTag("route_filter_chip").performClick()
+    composeRule.onNodeWithTag("route_filter_chip").assertDoesNotExist()
+    composeRule
+      .onNodeWithText("Recorded Subway Rides (${vm.uiState.value.rides.size})")
+      .assertExists()
   }
 
   @Test
