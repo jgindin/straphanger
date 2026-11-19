@@ -64,6 +64,10 @@ internal fun searchComplexes(all: List<StationComplex>, query: String): List<Sta
       .take(MAX_RESULTS)
 }
 
+/** [favorites] with [complexId] added at the end, or removed when it is already there. */
+internal fun toggleFavorite(favorites: List<String>, complexId: String): List<String> =
+  if (complexId in favorites) favorites - complexId else favorites + complexId
+
 internal fun minutesText(minutes: Int): String = if (minutes == 0) "now" else "$minutes min"
 
 private const val SECONDS_PER_MINUTE = 60

@@ -34,6 +34,8 @@ import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
 import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.data.local.FavoriteStationsStore
+import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.realtime.RealtimeFeedClient
 import com.straphanger.app.data.realtime.RealtimeSnapshot
@@ -69,6 +71,7 @@ import kotlinx.coroutines.launch
  * @param appVersion the app's version name, shown on the About screen.
  * @param licensesContent the open-source license list for the About screen; null where the platform
  *   has none.
+ * @param favoriteStations where the stations starred on the Status tab are kept.
  *
  * Both request callbacks run only after the user taps "Continue" on the matching disclosure.
  */
@@ -84,6 +87,7 @@ fun App(
   onRequestNotificationAccess: () -> Unit = {},
   appVersion: String = "",
   licensesContent: (@Composable () -> Unit)? = null,
+  favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
 ) {
   val realtime = remember {
     RealtimeFeedClient(HttpClient(), nowEpochSeconds = { Clock.System.now().epochSeconds })
@@ -107,6 +111,7 @@ fun App(
       licensesContent,
       realtime::fetch,
       { Clock.System.now().epochSeconds },
+      favoriteStations,
     ),
   )
 }
@@ -158,6 +163,8 @@ internal class PlatformHooks(
   /** Reads the MTA's live feeds for the given lines (see [RealtimeFeedClient]). */
   val fetchRealtime: suspend (Collection<String>) -> RealtimeSnapshot,
   val nowEpochSeconds: () -> Long,
+  /** Where the Status tab keeps the stations the rider starred. */
+  val favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
 )
 
 /** The disclosures and the About screen, shown over the tabs; each survives recreation. */
@@ -301,7 +308,12 @@ private fun TabContent(
         onLineSelect = viewModel::showRidesOnRoute,
       )
     AppTab.STATUS ->
-      StatusScreen(graphEngine.network, platform.fetchRealtime, platform.nowEpochSeconds)
+      StatusScreen(
+        graphEngine.network,
+        platform.fetchRealtime,
+        platform.nowEpochSeconds,
+        platform.favoriteStations,
+      )
     AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
     AppTab.SOURCES -> SourcesTab(viewModel, uiState, overlays, platform, onBackupMessage)
   }

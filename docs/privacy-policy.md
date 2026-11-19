@@ -13,7 +13,7 @@ Straphanger is an app that records the subway rides you take in New York City. I
 
 ## What the app stores
 
-- Your rides, and the station entries passive capture has not yet turned into rides, are stored on your phone in the app's private storage.
+- Your rides, and the station entries passive capture has not yet turned into rides, are stored on your phone in the app's private storage. So are the stations you star as favorites on the Status tab.
 - While you use Google Maps navigation with notification access on, the app keeps the text of that navigation notification (the route, the stations and the start time) on your phone until the trip ends and the ride is saved.
 - To keep passive capture following you, the app remembers the centre point of its current set of station geofences. This is a location on your phone and is never sent anywhere.
 - If passive capture is on, the app registers its geofences again after your phone restarts. It does this in the background, using your phone's last known location, and does not need the app to be open.
