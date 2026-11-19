@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.testutil.BundledBasemap
@@ -81,6 +82,9 @@ abstract class AppScreenTest {
   }
   protected var realtimeNow: Long = 1_800_000_000L
 
+  /** Where the Status tab keeps starred stations; a test can seed it or read it back. */
+  protected var favorites = InMemoryFavoriteStationsStore()
+
   protected fun launchApp(
     viewModel: StraphangerViewModel = newViewModel(),
     withLicenses: Boolean = true,
@@ -99,6 +103,7 @@ abstract class AppScreenTest {
             licensesContent = if (withLicenses) ({ Text("Apache License 2.0") }) else null,
             fetchRealtime = { realtime(it) },
             nowEpochSeconds = { realtimeNow },
+            favoriteStations = favorites,
           ),
       )
     }

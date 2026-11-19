@@ -12,12 +12,14 @@ import com.straphanger.app.data.realtime.ArrivalBoard
 import com.straphanger.app.data.realtime.Direction
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.data.realtime.ServiceAlert
+import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.ui.status.StatusState
 import com.straphanger.app.ui.status.minutesText
 import com.straphanger.app.ui.status.refreshStatus
 import com.straphanger.app.ui.status.searchComplexes
 import com.straphanger.app.ui.status.stationComplexes
+import com.straphanger.app.ui.status.toggleFavorite
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -60,6 +62,42 @@ class StatusScreenTest : AppScreenTest() {
       composeRule.onAllNodesWithTag("status_arrival_4").fetchSemanticsNodes().size == 2
     }
     composeRule.onNodeWithTag("status_freshness").assertTextContains("Up to date.")
+  }
+
+  @Test
+  fun starringAStationSavesItAndListsItFirstNextTime() {
+    launchApp()
+    openTab("STATUS")
+    composeRule.onNodeWithTag("status_search").performTextInput("Union Sq")
+    composeRule.onNodeWithTag("status_station_${unionSq.complexId}").performClick()
+    composeRule.onNodeWithTag("status_favorite_toggle").assertTextContains("☆ Favorite")
+
+    composeRule.onNodeWithTag("status_favorite_toggle").performClick()
+
+    composeRule.onNodeWithTag("status_favorite_toggle").assertTextContains("★ Favorite")
+    assertEquals(listOf(unionSq.complexId), favorites.read())
+  }
+
+  @Test
+  fun savedFavoritesAreListedAndOpenWithOneTapAndCanBeRemoved() {
+    favorites = InMemoryFavoriteStationsStore(listOf(unionSq.complexId, "no-such-complex"))
+    launchApp()
+    openTab("STATUS")
+
+    // A saved id the network no longer has is skipped instead of crashing the list.
+    composeRule.onNodeWithTag("status_station_${unionSq.complexId}").performClick()
+    composeRule.onNodeWithTag("status_arrivals").assertIsDisplayed()
+    composeRule.onNodeWithTag("status_favorite_toggle").assertTextContains("★ Favorite")
+
+    composeRule.onNodeWithTag("status_favorite_toggle").performClick()
+
+    assertEquals(listOf("no-such-complex"), favorites.read())
+  }
+
+  @Test
+  fun togglingAFavoriteAddsAtTheEndAndRemoves() {
+    assertEquals(listOf("a", "b"), toggleFavorite(listOf("a"), "b"))
+    assertEquals(listOf("a"), toggleFavorite(listOf("a", "b"), "b"))
   }
 
   @Test

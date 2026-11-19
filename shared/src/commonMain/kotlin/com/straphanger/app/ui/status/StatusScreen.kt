@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayNetworkData
+import com.straphanger.app.data.local.FavoriteStationsStore
+import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.data.realtime.AlertKind
 import com.straphanger.app.data.realtime.Arrival
 import com.straphanger.app.data.realtime.Direction
@@ -55,9 +57,11 @@ internal fun StatusScreen(
   network: SubwayNetworkData,
   fetch: suspend (Collection<String>) -> RealtimeSnapshot,
   nowEpochSeconds: () -> Long,
+  favorites: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
 ) {
   val complexes = remember(network) { stationComplexes(network) }
   var query by rememberSaveable { mutableStateOf("") }
+  var favoriteIds by remember { mutableStateOf(favorites.read()) }
   var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
   val selected = complexes.firstOrNull { it.complexId == selectedId }
   var refreshRequests by remember { mutableLongStateOf(0) }
@@ -83,13 +87,28 @@ internal fun StatusScreen(
   ) {
     item { Spacer(Modifier.height(6.dp)) }
     item { StationSearch(query, { query = it }) }
+    if (query.isBlank()) {
+      items(favoriteIds.mapNotNull { id -> complexes.firstOrNull { it.complexId == id } }) { complex
+        ->
+        if (complex.complexId != selectedId) {
+          StationRow(complex, favorite = true) { selectedId = complex.complexId }
+        }
+      }
+    }
     items(searchComplexes(complexes, query).filter { it.complexId != selectedId }) { complex ->
       StationRow(complex) {
         selectedId = complex.complexId
         query = ""
       }
     }
-    if (selected != null) item { ArrivalsCard(selected, state, now) }
+    if (selected != null) {
+      item {
+        ArrivalsCard(selected, state, now, selected.complexId in favoriteIds) {
+          favoriteIds = toggleFavorite(favoriteIds, selected.complexId)
+          favorites.write(favoriteIds)
+        }
+      }
+    }
     item { FreshnessLine(state, now) { refreshRequests++ } }
     item { AlertsSection(state.snapshot?.alerts.orEmpty(), selected?.routes.orEmpty()) }
     item { Spacer(Modifier.height(6.dp)) }
@@ -108,7 +127,11 @@ private fun StationSearch(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-private fun StationRow(complex: StationComplex, onClick: () -> Unit) {
+private fun StationRow(
+  complex: StationComplex,
+  favorite: Boolean = false,
+  onClick: () -> Unit,
+) {
   Row(
     modifier =
       Modifier.fillMaxWidth()
@@ -119,6 +142,7 @@ private fun StationRow(complex: StationComplex, onClick: () -> Unit) {
         .testTag("status_station_${complex.complexId}"),
     horizontalArrangement = Arrangement.SpaceBetween,
   ) {
+    if (favorite) Text("★ ", color = MtaColors.AccentGold, fontSize = 14.sp)
     Text(complex.name, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
     Bullets(complex.routes)
   }
@@ -132,9 +156,36 @@ private fun Bullets(routes: List<String>) {
 }
 
 @Composable
-private fun ArrivalsCard(complex: StationComplex, state: StatusState, now: Long) {
+private fun ArrivalsCard(
+  complex: StationComplex,
+  state: StatusState,
+  now: Long,
+  isFavorite: Boolean,
+  onToggleFavorite: () -> Unit,
+) {
   SectionCard(spacing = 8.dp, modifier = Modifier.testTag("status_arrivals")) {
-    Text(complex.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+      Text(
+        complex.name,
+        color = Color.White,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.weight(1f),
+      )
+      Text(
+        if (isFavorite) "★ Favorite" else "☆ Favorite",
+        color = MtaColors.AccentGold,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier =
+          Modifier.clickable(onClick = onToggleFavorite)
+            .padding(4.dp)
+            .testTag("status_favorite_toggle"),
+      )
+    }
     val board = state.snapshot?.arrivals
     val arrivals =
       complex.stationIds

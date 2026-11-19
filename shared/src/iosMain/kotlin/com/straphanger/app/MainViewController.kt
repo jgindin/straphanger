@@ -1,6 +1,7 @@
 package com.straphanger.app
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.straphanger.app.data.local.FileFavoriteStationsStore
 import com.straphanger.app.data.local.FileRidePersistenceBackend
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.io.files.Path
@@ -23,5 +24,9 @@ fun MainViewController() = ComposeUIViewController {
       ?.path ?: error("Documents directory is not available")
   val version =
     NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: ""
-  App(FileRidePersistenceBackend(Path(documents, "rides.json")), appVersion = version)
+  App(
+    FileRidePersistenceBackend(Path(documents, "rides.json")),
+    appVersion = version,
+    favoriteStations = FileFavoriteStationsStore(Path(documents, "favorite-stations.json")),
+  )
 }

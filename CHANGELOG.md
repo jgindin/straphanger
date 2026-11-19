@@ -3,6 +3,10 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.20 (not yet released)
+
+- Status tab: star a station to keep it as a favorite. Favorites are listed above the search box and open with one tap. They are kept on the device in `favorite-stations.json` and are not part of backups.
+
 ## 0.19 (not yet released)
 
 - Status tab: pick a station to see the next trains in each direction, with the MTA's current service alerts (delays first, planned work on request).

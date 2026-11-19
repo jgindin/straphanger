@@ -17,6 +17,7 @@ import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import com.straphanger.app.capture.AndroidGeofenceRegistrar
 import com.straphanger.app.capture.NotificationAccess
 import com.straphanger.app.capture.PassiveCaptureStorage
+import com.straphanger.app.data.local.FileFavoriteStationsStore
 import com.straphanger.app.data.local.FileRidePersistenceBackend
 import com.straphanger.app.permissions.CapturePermissions
 import com.straphanger.app.permissions.rememberPassiveCapturePermissionRequest
@@ -41,6 +42,7 @@ class MainActivity : ComponentActivity() {
     val geofenceRegistrar = AndroidGeofenceRegistrar(applicationContext)
     val pendingGeofenceEvents = PassiveCaptureStorage.pendingEvents(applicationContext)
     val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+    val favoriteStations = FileFavoriteStationsStore(Path(filesDir.path, "favorite-stations.json"))
     setContent {
       val requestPassiveCapture =
         rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
@@ -62,6 +64,7 @@ class MainActivity : ComponentActivity() {
         },
         onRequestNotificationAccess = { startActivity(NotificationAccess.settingsIntent()) },
         appVersion = versionName,
+        favoriteStations = favoriteStations,
         licensesContent = {
           val libraries by produceLibraries(R.raw.aboutlibraries)
           LibrariesContainer(libraries)
