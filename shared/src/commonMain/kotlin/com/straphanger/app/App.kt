@@ -35,6 +35,8 @@ import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.data.realtime.RealtimeFeedClient
+import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.StraphangerUiState
@@ -46,7 +48,10 @@ import com.straphanger.app.ui.permissions.NotificationAccessDisclosure
 import com.straphanger.app.ui.rides.DataSourcesAndSyncScreen
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
+import com.straphanger.app.ui.status.StatusScreen
 import com.straphanger.app.ui.theme.MtaColors
+import io.ktor.client.HttpClient
+import kotlin.time.Clock
 import kotlinx.coroutines.launch
 
 /**
@@ -80,6 +85,9 @@ fun App(
   appVersion: String = "",
   licensesContent: (@Composable () -> Unit)? = null,
 ) {
+  val realtime = remember {
+    RealtimeFeedClient(HttpClient(), nowEpochSeconds = { Clock.System.now().epochSeconds })
+  }
   val viewModel: StraphangerViewModel = viewModel {
     StraphangerViewModel(
       backend,
@@ -97,6 +105,8 @@ fun App(
       onRequestNotificationAccess,
       appVersion,
       licensesContent,
+      realtime::fetch,
+      { Clock.System.now().epochSeconds },
     ),
   )
 }
@@ -145,6 +155,9 @@ internal class PlatformHooks(
   val onRequestNotificationAccess: () -> Unit,
   val appVersion: String,
   val licensesContent: (@Composable () -> Unit)?,
+  /** Reads the MTA's live feeds for the given lines (see [RealtimeFeedClient]). */
+  val fetchRealtime: suspend (Collection<String>) -> RealtimeSnapshot,
+  val nowEpochSeconds: () -> Long,
 )
 
 /** The disclosures and the About screen, shown over the tabs; each survives recreation. */
@@ -287,6 +300,8 @@ private fun TabContent(
         onVisitFilterModeChange = viewModel::setStationVisitFilterMode,
         onLineSelect = viewModel::showRidesOnRoute,
       )
+    AppTab.STATUS ->
+      StatusScreen(graphEngine.network, platform.fetchRealtime, platform.nowEpochSeconds)
     AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
     AppTab.SOURCES -> SourcesTab(viewModel, uiState, overlays, platform, onBackupMessage)
   }

@@ -21,7 +21,12 @@ Straphanger is an app that records the subway rides you take in New York City. I
 
 ## What the app sends
 
-The app sends nothing about you to the developer or to any analytics or advertising service. The one network request it makes is to resolve a shortened Google Maps link (`maps.app.goo.gl`) that you shared to the app. That request goes to Google and contains the shortened link you shared. Like any network request, it also shows your phone's IP address to Google. Your location, your rides and your notifications are never sent.
+The app sends nothing about you to the developer or to any analytics or advertising service. It makes two kinds of network request.
+
+- **Shortened Google Maps links.** To resolve a shortened link (`maps.app.goo.gl`) that you shared to the app, it asks Google where the link goes. The request contains the shortened link you shared.
+- **Live train times and service alerts.** While the Status tab is open, the app downloads the MTA's public real-time feeds (`api-endpoint.mta.info`) every 30 seconds: the alerts feed, and the feeds for the lines at the station you picked. The request names a feed (a whole group of lines), never a station, a place or you. The MTA does not require an account or a key.
+
+Like any network request, each shows your phone's IP address to the server it goes to (Google or the MTA). Your location, your rides, your notifications and the station you picked are never sent.
 
 Station geofencing uses Google Play services on your phone. Google Play services handles that location under Google's own privacy policy.
 
