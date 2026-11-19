@@ -59,15 +59,30 @@ class EditStationsDialogTest {
     }
 
     rule.onNodeWithTag("edit_stations_search").performTextInput("125 St")
-    val newStart = engine.searchStations("125 St").distinctBy { it.name }.first().id
+    val newStart = StationIds.HARLEM_125_8AV
     rule.onNodeWithTag("edit_stations_option_$newStart").performClick()
     rule.onNodeWithTag("edit_stations_choose_end").performClick()
     rule.onNodeWithTag("edit_stations_search").performTextInput("Union Sq")
-    val newEnd = engine.searchStations("Union Sq").distinctBy { it.name }.first().id
+    val newEnd = StationIds.UNION_SQ_LEX
     rule.onNodeWithTag("edit_stations_option_$newEnd").performClick()
     rule.onNodeWithTag("edit_stations_save").performClick()
 
     assertEquals(newStart to newEnd, saved)
+  }
+
+  @Test
+  fun searchingFindsTheStationNearestTheRidesOwnAmongThoseWithTheSameName() {
+    var saved: Pair<String, String>? = null
+    val fromEighthAv = ride.copy(originStationId = "A30", destinationStationId = "A09")
+    rule.setContent {
+      EditStationsDialog(fromEighthAv, engine, { o, d -> true.also { saved = o to d } }, {})
+    }
+
+    rule.onNodeWithTag("edit_stations_search").performTextInput("14")
+    rule.onNodeWithTag("edit_stations_option_${StationIds.FOURTEENTH_ST_8AV}").performClick()
+    rule.onNodeWithTag("edit_stations_save").performClick()
+
+    assertEquals(StationIds.FOURTEENTH_ST_8AV to "A09", saved)
   }
 
   @Test

@@ -96,7 +96,7 @@ class RidesScreenTest : AppScreenTest() {
     composeRule.onNodeWithTag("review_edit_stations_${before.rideId}").performScrollTo().performClick()
     composeRule.onNodeWithTag("edit_stations_choose_start").performClick()
     composeRule.onNodeWithTag("edit_stations_search").performTextInput("86 St")
-    val newStart = BundledNetwork.engine().searchStations("86 St").distinctBy { it.name }.first().id
+    val newStart = BundledNetwork.engine().searchStations("86 St").first().id
     composeRule.onNodeWithTag("edit_stations_option_$newStart").performClick()
     composeRule.onNodeWithTag("edit_stations_save").performClick()
 
