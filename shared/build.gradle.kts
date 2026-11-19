@@ -53,6 +53,7 @@ kotlin {
       implementation(libs.androidx.lifecycle.runtime.compose)
       implementation(libs.kotlinx.coroutines.core)
       implementation(libs.kotlinx.serialization.json)
+      implementation(libs.kotlinx.serialization.protobuf)
       implementation(libs.kotlinx.datetime)
       implementation(libs.kotlinx.io.core)
       implementation(libs.ktor.client.core)

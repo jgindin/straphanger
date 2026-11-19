@@ -18,6 +18,7 @@ import com.straphanger.app.testutil.BundledBasemap
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.ui.CaptureAccessState
+import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.time.Instant
 import kotlinx.coroutines.cancel
@@ -74,6 +75,12 @@ abstract class AppScreenTest {
       )
       .also { viewModels += it }
 
+  /** What the Status tab's feed fetch does; tests replace it. Offline by default. */
+  protected var realtime: suspend (Collection<String>) -> RealtimeSnapshot = {
+    throw java.io.IOException("offline")
+  }
+  protected var realtimeNow: Long = 1_800_000_000L
+
   protected fun launchApp(
     viewModel: StraphangerViewModel = newViewModel(),
     withLicenses: Boolean = true,
@@ -90,6 +97,8 @@ abstract class AppScreenTest {
             onRequestNotificationAccess = { notificationAccessRequests++ },
             appVersion = "9.8.7",
             licensesContent = if (withLicenses) ({ Text("Apache License 2.0") }) else null,
+            fetchRealtime = { realtime(it) },
+            nowEpochSeconds = { realtimeNow },
           ),
       )
     }

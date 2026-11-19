@@ -13,8 +13,9 @@ enum class MapColorMode(val label: String) {
 }
 
 enum class AppTab(val label: String) {
-  MAP("Subway Map"),
-  STATS("Statistics"),
+  MAP("Map"),
+  STATS("Stats"),
+  STATUS("Status"),
   RIDES("Rides & Log"),
   SOURCES("Import & Backup"),
 }

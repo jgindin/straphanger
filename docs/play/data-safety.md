@@ -30,7 +30,7 @@ The `play-policy-insights` skill could not delegate to subagents in this session
 - **Fine and coarse location.** Station geofences and speed checks need precise location. Both are requested together, as Android requires for precise location. No change.
 - **Passive capture default.** `PassiveCaptureStorage.isTurnedOn` defaults to false. Passive capture starts only after the user turns it on, reads the disclosure and grants permission.
 - **Disclosure wording.** The copy names location and says it is used "even when the app is closed or not in use", which matches Play's wording check for background location. No change.
-- **Network use.** `INTERNET` is used for short-link resolution only. There is no analytics, ad or crash library in the dependencies. No change.
+- **Network use.** `INTERNET` is used for short-link resolution and for reading the MTA's public real-time feeds on the Status tab (no key, no account; the request names a group of lines, not the user or a station). Nothing is sent to the developer, so the answers stay "no data collected". There is no analytics, ad or crash library in the dependencies. No change.
 - **Silent transfers.** None found. Station entries and rides stay in `filesDir`.
 - **Foreground location on Android 17 (targetSdk 37).** The app targets 36, so the Location Button suggestion does not apply yet.
 - **Notification listener.** Not a Play-restricted permission. The disclosure covers it and the privacy policy names it.

@@ -115,6 +115,10 @@ flowchart LR
   G -->|ride| H[SubwayDao]
 ```
 
+### 5d. Live train times
+
+[data/realtime/](../shared/src/commonMain/kotlin/com/straphanger/app/data/realtime/) reads the MTA's GTFS-Realtime feeds. `GtfsRealtime.kt` holds the few protobuf fields the app reads (decoded with `kotlinx-serialization-protobuf`), `RealtimeFeed.kt` maps lines to the feed that carries them, `RealtimeFeedClient` fetches the needed feeds and the alerts together (one feed failing marks the snapshot `partial`; all failing throws), `ArrivalBoard` turns trip updates into per-station arrivals (stop ids are station ids plus `N` or `S`), and `ServiceAlerts.kt` keeps the alerts in effect now. The Status tab is `ui/status/StatusScreen.kt`, with its refresh and search logic in `StatusState.kt`. Tests use real feed bytes saved under `androidHostTest/resources/realtime`. The design, including what is not built (favorites, departure alerts), is in [REALTIME-DESIGN.md](REALTIME-DESIGN.md) on the `realtime-design` branch and the spec in `docs/superpowers/specs/`.
+
 ## 6. Statistics
 
 [SubwayStatsCalculator.kt](../shared/src/commonMain/kotlin/com/straphanger/app/domain/stats/SubwayStatsCalculator.kt) is a pure function from rides plus the network to a `SubwayStatsSnapshot`: miles ridden and unique miles, line completion, boroughs, favourite stations, monthly trend, route pairs. Achievements are a table of `AchievementDefinition`s evaluated by `AchievementEngine` at the bottom of the file.
