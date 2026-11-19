@@ -3,6 +3,10 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.21 (not yet released)
+
+- Edit stations: every station is offered, so "14" finds the 14 St on the A/C/E as well as the 1/2/3 and F/M ones. Stations nearest the one being replaced come first, with their lines and distance, and the dialog uses the app's dark colours.
+
 ## 0.20 (not yet released)
 
 - Status tab: star a station to keep it as a favorite. Favorites are listed above the search box and open with one tap. They are kept on the device in `favorite-stations.json` and are not part of backups.
