@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.ui.StraphangerViewModel
@@ -72,6 +73,31 @@ class MapAndStatsScreenTest : AppScreenTest() {
       for (y in 0 until pixels.height) if (pixels[x, y].toArgb() == argb) count++
     }
     return count
+  }
+
+  private fun mapPixels(): List<Int> {
+    val pixels = composeRule.onNodeWithTag("subway_map_canvas").captureToImage().toPixelMap()
+    return List(pixels.width * pixels.height) { pixels[it % pixels.width, it / pixels.width].toArgb() }
+  }
+
+  @Test
+  fun draggingAfterZoomingInKeepsTheZoom() {
+    val vm = launchApp()
+    composeRule.waitUntil(timeoutMillis = 5_000) { vm.uiState.value.basemap != null }
+    val opening = mapPixels()
+    composeRule.onNodeWithTag("map_zoom_in").performClick()
+    composeRule.onNodeWithTag("map_zoom_in").performClick()
+    val zoomed = mapPixels()
+    assertTrue(zoomed != opening)
+
+    composeRule.onNodeWithTag("subway_map_canvas").performTouchInput {
+      swipeLeft(startX = centerX, endX = centerX - 40f)
+    }
+
+    // It used to snap back to the opening view on the first drag.
+    val dragged = mapPixels()
+    assertTrue(dragged != opening, "the drag put the map back at the opening view")
+    assertTrue(dragged != zoomed, "the drag did not move the map")
   }
 
   @Test

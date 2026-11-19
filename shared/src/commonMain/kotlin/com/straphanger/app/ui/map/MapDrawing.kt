@@ -20,7 +20,7 @@ private const val STATION_CULL_MARGIN_PX = 20f
 private const val UNRIDDEN_TRACK_WIDTH = 4.5f
 private const val RIDDEN_GLOW_WIDTH = 13f
 private const val RIDDEN_TRACK_WIDTH = 6.5f
-private const val RIDDEN_GLOW_ALPHA = 0.28f
+private const val RIDDEN_GLOW_ALPHA = 0.35f
 private const val HIGHWAY_WIDTH = 1.8f
 private const val ARTERIAL_WIDTH = 1.1f
 private val TRACK_ZOOM_SCALE = 0.9f..1.8f
@@ -139,7 +139,7 @@ private fun DrawScope.drawRiddenSegment(
   if (!ridden) return
   val start = viewport.toScreen(seg.startX, seg.startY)
   val end = viewport.toScreen(seg.endX, seg.endY)
-  val color = riddenSegmentColor(seg, rideCount, layers)
+  val color = MtaColors.mapLineColor(riddenSegmentColor(seg, rideCount, layers))
   val scale = viewport.zoom.coerceIn(TRACK_ZOOM_SCALE)
   drawLine(
     color = color.copy(alpha = RIDDEN_GLOW_ALPHA),

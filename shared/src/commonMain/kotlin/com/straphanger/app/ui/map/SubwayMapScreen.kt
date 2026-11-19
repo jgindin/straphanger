@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -185,6 +186,9 @@ private fun SubwayMapCanvas(
   onTransform: (centroid: Offset, pan: Offset, zoom: Float) -> Unit,
   onStationSelect: (String?) -> Unit,
 ) {
+  // The gesture detector outlives recompositions, so it must call the latest callback; the first
+  // one holds the view the map opened with and would snap the map back on every gesture.
+  val latestOnTransform by rememberUpdatedState(onTransform)
   Canvas(
     modifier =
       // Clipped: the basemap's fills are drawn with the canvas transformed and would otherwise
@@ -194,7 +198,7 @@ private fun SubwayMapCanvas(
         .testTag("subway_map_canvas")
         .pointerInput(Unit) {
           detectTransformGestures { centroid, pan, gestureZoom, _ ->
-            onTransform(centroid, pan, gestureZoom)
+            latestOnTransform(centroid, pan, gestureZoom)
           }
         }
         .pointerInput(view) {

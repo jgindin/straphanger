@@ -10,18 +10,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+private const val MAP_LINE_MIN_LUMINANCE = 0.1f
+
 object MtaColors {
   val DarkBg = Color(0xFF0B0E14)
   val CardBg = Color(0xFF141A24)
   val CardBorder = Color(0xFF232C3D)
-  val UnriddenTrack = Color(0xFF283142)
-  val UnriddenStation = Color(0xFF3E4A61)
+  val UnriddenTrack = Color(0xFF4F5B75)
+  val UnriddenStation = Color(0xFF8995AE)
   val TextPrimary = Color(0xFFF3F6FA)
   val TextSecondary = Color(0xFF9BA7B8)
   val AccentGold = Color(0xFFFCCC0A)
@@ -34,11 +38,18 @@ object MtaColors {
   val BasemapWater = Color(0xFF010307)
   val BasemapLand = Color(0xFF12161F)
   val BasemapPark = Color(0xFF0A1D12)
-  val BasemapArterial = Color(0xFF171C26)
-  val BasemapHighway = Color(0xFF1C2230)
+  val BasemapArterial = Color(0xFF212838)
+  val BasemapHighway = Color(0xFF2B3448)
 
   /** Filled-button green; white text on it is 5.5:1 (the line green 0xFF00933C gives 4.0:1). */
   val ActionGreen = Color(0xFF007A33)
+
+  /**
+   * [line] lightened when it is dark enough to vanish into the dark basemap, as the A, C and E
+   * blues do.
+   */
+  fun mapLineColor(line: Color): Color =
+    if (line.luminance() >= MAP_LINE_MIN_LUMINANCE) line else lerp(line, Color.White, 0.4f)
 
   fun parseHexColor(hex: String): Color {
     val clean = hex.removePrefix("#").trim()
