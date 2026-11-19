@@ -119,4 +119,67 @@ class PassiveRideReconstructorTest {
     assertEquals(2, ride.legs.size)
     assertTrue(ride.ride.needsReview)
   }
+
+  // The fix that reports leaving a station often lands in the next one, since underground fixes
+  // are sparse. These sequences are from a real day's log.
+
+  @Test
+  fun anEntryAtTheFixThatReportsADepartureIsNotWhereTheRideBegan() {
+    // Waited at 14 St (8 Av); the exit came at a fix already inside 125 St.
+    reconstructor.onStationGeofenceEntered("618", t0)
+    assertNull(reconstructor.onStationGeofenceExited("618", t0 + 5 * minute))
+    assertNull(reconstructor.onStationGeofenceEntered("153", t0 + 5 * minute))
+
+    assertEquals("618", reconstructor.chainOriginComplexId)
+    assertEquals(t0 + 5 * minute, reconstructor.chainOriginTimeMs)
+    assertEquals("618", reconstructor.chainLastComplexId)
+  }
+
+  @Test
+  fun aDepartureFromAStationWithNoEarlierEntryStartsTheChainThere() {
+    assertNull(reconstructor.onStationGeofenceExited("602", t0))
+    assertNull(reconstructor.onStationGeofenceEntered("397", t0))
+    assertNull(reconstructor.onStationGeofenceEntered("397", t0 + 12 * minute))
+
+    val ride = reconstructor.closeIfIdle(t0 + 40 * minute)
+
+    assertNotNull(ride)
+    assertEquals("635", ride.ride.originStationId)
+    assertEquals("626", ride.ride.destinationStationId)
+  }
+
+  @Test
+  fun aLongWaitAtTheLastStationEndsTheRideThereAndStartsAnother() {
+    reconstructor.onStationGeofenceEntered("602", t0)
+    reconstructor.onStationGeofenceEntered("397", t0 + 12 * minute)
+
+    val ride = reconstructor.onStationGeofenceExited("397", t0 + 20 * minute)
+
+    assertNotNull(ride)
+    assertEquals("626", ride.ride.destinationStationId)
+    assertEquals("397", reconstructor.chainOriginComplexId)
+    assertEquals(t0 + 20 * minute, reconstructor.chainOriginTimeMs)
+  }
+
+  @Test
+  fun passingThroughAStationGeofenceDoesNotEndTheRide() {
+    reconstructor.onStationGeofenceEntered("602", t0)
+    reconstructor.onStationGeofenceEntered("397", t0 + 12 * minute)
+
+    assertNull(reconstructor.onStationGeofenceExited("397", t0 + 14 * minute))
+
+    assertEquals("602", reconstructor.chainOriginComplexId)
+    assertEquals("397", reconstructor.chainLastComplexId)
+  }
+
+  @Test
+  fun leavingAStationThatIsNotTheChainsLastIsIgnored() {
+    reconstructor.onStationGeofenceEntered("602", t0)
+    reconstructor.onStationGeofenceEntered("397", t0 + 12 * minute)
+
+    assertNull(reconstructor.onStationGeofenceExited("602", t0 + 13 * minute))
+
+    assertEquals("602", reconstructor.chainOriginComplexId)
+    assertEquals(t0, reconstructor.chainOriginTimeMs)
+  }
 }

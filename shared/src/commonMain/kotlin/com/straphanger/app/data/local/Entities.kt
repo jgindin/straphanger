@@ -26,6 +26,8 @@ data class RideEntity(
   val source: RideSource,
   val needsReview: Boolean = false,
   val ambiguousCandidates: List<AmbiguousRouteCandidate> = emptyList(),
+  /** Rides whose time span overlaps this one; nobody rides two trains at once, so one is wrong. */
+  val overlapsRideIds: List<String> = emptyList(),
   val notes: String = "",
 )
 
