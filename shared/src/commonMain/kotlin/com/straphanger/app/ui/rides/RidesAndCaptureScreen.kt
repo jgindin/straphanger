@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +22,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -127,13 +130,40 @@ private fun RecordedRides(
   CardTitle("Recorded Subway Rides (${shownRides.size})", fontSize = 16.sp)
   if (routeFilter != null) RouteFilterChip(routeFilter, onClear = onClearRouteFilter)
   shownRides.forEach { rec ->
-    RideHistoryItem(
-      rec,
-      graphEngine,
-      next = nextRides[rec.ride.rideId],
-      actions = reviewActions,
-      onDelete = { onDelete(rec.ride.rideId) },
-    )
+    HighlightedWhenOpenedFromNotification(
+      highlighted = rec.ride.rideId == uiState.highlightedRideId,
+    ) {
+      RideHistoryItem(
+        rec,
+        graphEngine,
+        next = nextRides[rec.ride.rideId],
+        actions = reviewActions,
+        onDelete = { onDelete(rec.ride.rideId) },
+      )
+    }
+  }
+}
+
+/** Frames [content] and scrolls it into view while [highlighted]; otherwise just shows it. */
+@Composable
+private fun HighlightedWhenOpenedFromNotification(
+  highlighted: Boolean,
+  content: @Composable () -> Unit,
+) {
+  if (!highlighted) {
+    content()
+    return
+  }
+  val requester = remember { BringIntoViewRequester() }
+  LaunchedEffect(Unit) { requester.bringIntoView() }
+  Box(
+    modifier =
+      Modifier.bringIntoViewRequester(requester)
+        .border(2.dp, MtaColors.AccentGreen, RoundedCornerShape(14.dp))
+        .padding(2.dp)
+        .testTag("ride_row_highlighted"),
+  ) {
+    content()
   }
 }
 

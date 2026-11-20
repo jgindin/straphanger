@@ -51,7 +51,13 @@ internal class PassiveCaptureController(private val session: StraphangerSession)
 
   override fun updateCaptureAccess(access: CaptureAccessState) {
     captureAccess = access
-    session.update { it.copy(googleMapsNotificationEnabled = access.notificationAccessEnabled) }
+    session.update {
+      it.copy(
+        googleMapsNotificationEnabled = access.notificationAccessEnabled,
+        rideNotificationsTurnedOn = access.rideNotificationsTurnedOn,
+        postNotificationsGranted = access.postNotificationsGranted,
+      )
+    }
     applyCaptureAccess()
   }
 

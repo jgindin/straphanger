@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.location.LocationManagerCompat
 import com.google.android.gms.location.LocationServices
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
@@ -21,7 +22,9 @@ import com.straphanger.app.capture.PassiveCaptureStorage
 import com.straphanger.app.data.local.FileFavoriteStationsStore
 import com.straphanger.app.permissions.CapturePermissions
 import com.straphanger.app.permissions.rememberPassiveCapturePermissionRequest
+import com.straphanger.app.permissions.rememberPostNotificationsPermissionRequest
 import com.straphanger.app.ui.CaptureAccessState
+import com.straphanger.app.ui.RideTapInbox
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.init
 import kotlinx.io.files.Path
@@ -38,12 +41,17 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     FileKit.init(this)
     handleIncomingShareIntent(intent)
+    handleRideTapIntent(intent)
     val captureRuntime = CaptureRuntimeHolder.get(applicationContext)
     val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
     val favoriteStations = FileFavoriteStationsStore(Path(filesDir.path, "favorite-stations.json"))
     setContent {
       val requestPassiveCapture =
         rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
+      val requestPostNotifications = rememberPostNotificationsPermissionRequest { granted ->
+        if (!granted) PassiveCaptureStorage.setRideNotificationsTurnedOn(this, false)
+        refreshCaptureAccess()
+      }
       App(
         // The process-wide runtime owns rides.json, capture and navigation sessions.
         backend = null,
@@ -59,6 +67,15 @@ class MainActivity : ComponentActivity() {
           refreshCaptureAccess()
         },
         onRequestNotificationAccess = { startActivity(NotificationAccess.settingsIntent()) },
+        onRequestRideNotifications = {
+          PassiveCaptureStorage.setRideNotificationsTurnedOn(this, true)
+          refreshCaptureAccess()
+          requestPostNotifications()
+        },
+        onDisableRideNotifications = {
+          PassiveCaptureStorage.setRideNotificationsTurnedOn(this, false)
+          refreshCaptureAccess()
+        },
         appVersion = versionName,
         favoriteStations = favoriteStations,
         licensesContent = {
@@ -77,6 +94,7 @@ class MainActivity : ComponentActivity() {
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     handleIncomingShareIntent(intent)
+    handleRideTapIntent(intent)
   }
 
   /**
@@ -93,6 +111,8 @@ class MainActivity : ComponentActivity() {
           locationManager != null && LocationManagerCompat.isLocationEnabled(locationManager),
         notificationAccessEnabled = NotificationAccess.isEnabled(this),
         passiveCaptureTurnedOn = PassiveCaptureStorage.isTurnedOn(this),
+        rideNotificationsTurnedOn = PassiveCaptureStorage.rideNotificationsTurnedOn(this),
+        postNotificationsGranted = NotificationManagerCompat.from(this).areNotificationsEnabled(),
         geofencesDroppedCount = PassiveCaptureStorage.geofencesDroppedCount(this),
         lastKnownLat = captureAccess.value.lastKnownLat,
         lastKnownLng = captureAccess.value.lastKnownLng,
@@ -125,6 +145,11 @@ class MainActivity : ComponentActivity() {
         SharedRouteInbox.enqueueSharedRouteText(sharedText)
       }
     }
+  }
+
+  /** A tapped "ride recorded" notification carries the ride to open. */
+  private fun handleRideTapIntent(intent: Intent?) {
+    intent?.getStringExtra(EXTRA_RIDE_ID)?.let { RideTapInbox.open(it) }
   }
 
   companion object {

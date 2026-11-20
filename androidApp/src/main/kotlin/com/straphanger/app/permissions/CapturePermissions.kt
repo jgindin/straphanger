@@ -59,3 +59,23 @@ fun rememberPassiveCapturePermissionRequest(onResult: () -> Unit): () -> Unit {
     }
   }
 }
+
+/**
+ * Returns a function that asks for permission to post notifications, which Android 13 and later
+ * require. [onResult] runs with whether the permission is now granted; before Android 13 nothing is
+ * asked and it runs at once with true.
+ */
+@Composable
+fun rememberPostNotificationsPermissionRequest(onResult: (granted: Boolean) -> Unit): () -> Unit {
+  val launcher =
+    rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+      onResult(granted)
+    }
+  return {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+      onResult(true)
+    }
+  }
+}

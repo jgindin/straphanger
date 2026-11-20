@@ -22,6 +22,8 @@ enum class AppTab(val label: String) {
 
 data class StraphangerUiState(
   val activeTab: AppTab = AppTab.MAP,
+  /** The ride a tapped notification opened; the Rides tab scrolls to it until the tab changes. */
+  val highlightedRideId: String? = null,
   val rides: List<CompleteRideRecord> = emptyList(),
   val stats: SubwayStatsSnapshot,
   val mapColorMode: MapColorMode = MapColorMode.OFFICIAL_MTA_COLORS,
@@ -44,6 +46,10 @@ data class StraphangerUiState(
   val passiveGeofenceEnabled: Boolean = false,
   /** True when the Google Maps notification listener has notification access. */
   val googleMapsNotificationEnabled: Boolean = false,
+  /** The user's choice to be notified when a ride is recorded. */
+  val rideNotificationsTurnedOn: Boolean = false,
+  /** False when the user chose notifications but the system blocks them for the app. */
+  val postNotificationsGranted: Boolean = true,
   val activeGeofenceCount: Int = 0,
   /** Why station geofences are not registered, or null. */
   val passiveCaptureError: String? = null,
@@ -74,6 +80,10 @@ data class CaptureAccessState(
    */
   val geofencesDroppedCount: Int = 0,
   val notificationAccessEnabled: Boolean = false,
+  /** The user's saved choice to be notified when a ride is recorded. */
+  val rideNotificationsTurnedOn: Boolean = false,
+  /** The system lets the app post notifications. Unknown counts as allowed. */
+  val postNotificationsGranted: Boolean = true,
   /** The user's saved choice for passive capture; when false no geofences are registered. */
   val passiveCaptureTurnedOn: Boolean = true,
   val lastKnownLat: Double? = null,
