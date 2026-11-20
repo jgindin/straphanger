@@ -20,3 +20,6 @@
 -keep class androidx.lifecycle.** { *; }
 -keep class androidx.savedstate.** { *; }
 -keep class androidx.activity.** { *; }
+# The emulator tests drop the process's capture runtime to make the next activity read rides.json
+# from disk (CaptureRuntimeHolder.resetForTest, otherwise unused and so removed).
+-keep class com.straphanger.app.capture.CaptureRuntimeHolder { *; }

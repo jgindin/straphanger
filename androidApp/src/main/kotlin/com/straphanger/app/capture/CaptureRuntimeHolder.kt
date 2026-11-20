@@ -5,13 +5,17 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.straphanger.app.MainActivity
 import com.straphanger.app.R
 import com.straphanger.app.data.capture.RideCaptureRuntime
 import com.straphanger.app.data.local.FileRidePersistenceBackend
+import com.straphanger.app.diagnostics.DiagnosticsLog
 import com.straphanger.app.notify.AndroidRideNotifier
 import java.io.FileOutputStream
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
@@ -30,6 +34,18 @@ object CaptureRuntimeHolder {
   fun get(context: Context): RideCaptureRuntime =
     runtime
       ?: synchronized(this) { runtime ?: build(context.applicationContext).also { runtime = it } }
+
+  /**
+   * Drops the runtime, as a new process would start without one, so the next [get] builds a fresh
+   * one that reads `rides.json` from disk. For instrumented tests only.
+   */
+  @VisibleForTesting
+  fun resetForTest() {
+    synchronized(this) {
+      runtime?.scope?.cancel()
+      runtime = null
+    }
+  }
 
   /**
    * Turns what was recorded while nothing ran into rides, from a receiver's [onReceive]: holds the
@@ -51,12 +67,24 @@ object CaptureRuntimeHolder {
         val other = alongside?.let { launch { it() } }
         val passive = BackgroundGeofenceRefresher.captureAllowed(appContext)
         val done =
-          withTimeoutOrNull(CATCH_UP_TIMEOUT_MS) { runtime.catchUp(passiveCapture = passive) }
+          withTimeoutOrNull(CATCH_UP_TIMEOUT_MS) { catchUpSafely(runtime, passive, reason) }
         if (done == null) Log.w(TAG, "$reason: catch-up timed out")
         other?.join()
       } finally {
         pending.finish()
       }
+    }
+  }
+
+  /** Runs the catch-up; an unexpected failure is logged rather than crashing the process. */
+  @Suppress("TooGenericExceptionCaught") // Any failure must not take the receiver's process down.
+  private suspend fun catchUpSafely(runtime: RideCaptureRuntime, passive: Boolean, reason: String) {
+    try {
+      runtime.catchUp(passiveCapture = passive)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      DiagnosticsLog.warn(TAG, "$reason: catch-up failed", e)
     }
   }
 
