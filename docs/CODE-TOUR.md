@@ -113,13 +113,15 @@ flowchart LR
   E --> F
   F --> G[PassiveRideReconstructor<br/>chain rule]
   G -->|ride| H[SubwayDao]
+  B -->|goAsync| I[CaptureRuntimeHolder<br/>catchUpInBackground]
+  I -->|runtime.catchUp| F
 ```
 
 ### 5d. One runtime, and the notification
 
 - [RideCaptureRuntime.kt](../shared/src/commonMain/kotlin/com/straphanger/app/data/capture/RideCaptureRuntime.kt) is the single owner, per process, of the rides DAO, passive capture and the Google Maps sessions. Whatever ends a ride (the app, a receiver or the listener) goes through it, and it tells a `RideNotifier` about each recorded ride. `catchUp()` processes pending geofence entries and closes idle rides.
-- On Android, `CaptureRuntimeHolder` holds the runtime. The geofence, boot and listener receivers call `catchUp()`. When no process is running, `AlarmIdleCloseScheduler` sets a platform alarm and `IdleCloseReceiver` closes the idle ride when it fires; this is why a notification comes 6 to 15 minutes after the ride.
-- `AndroidRideNotifier` ([notify/](../shared/src/androidMain/kotlin/com/straphanger/app/notify/AndroidRideNotifier.kt)) posts "Rides recorded" (or "Express or local? Tap to confirm"). Tapping it opens the Rides tab with the ride highlighted. The switch is on the Data sources screen and is off by default.
+- On Android, `CaptureRuntimeHolder` holds the runtime. The geofence, boot and idle-close receivers call `catchUp()` through `CaptureRuntimeHolder.catchUpInBackground` (held with `goAsync()`, bounded by a timeout; an unexpected failure is logged, not thrown). The notification listener calls `start()`, which loads the network and starts recording ended navigation sessions. When no process is running, `AlarmIdleCloseScheduler` sets a platform alarm and `IdleCloseReceiver` closes the idle ride when it fires; this is why a passive capture notification comes 6 to 15 minutes after the ride. A Google Maps navigation ride is notified when the navigation ends.
+- `AndroidRideNotifier` ([notify/](../shared/src/androidMain/kotlin/com/straphanger/app/notify/AndroidRideNotifier.kt)) posts on the "Rides recorded" channel. The title is the line and stations (such as "A · 14 St → 168 St") and the text the duration, with "Express or local? Tap to confirm" added for a ride that needs review. Tapping it opens the Rides tab with the ride highlighted. The switch is on the Data sources screen and is off by default.
 
 ### 5e. Live train times
 
@@ -166,7 +168,7 @@ Every interactive element has a `testTag`; the instrumented tests find things by
 Everything here is in [androidApp/src/main/kotlin/com/straphanger/app](../androidApp/src/main/kotlin/com/straphanger/app/).
 
 - [StraphangerApplication.kt](../androidApp/src/main/kotlin/com/straphanger/app/StraphangerApplication.kt): sets the diagnostics sink at process start, so it covers receivers and the listener too.
-- [MainActivity.kt](../androidApp/src/main/kotlin/com/straphanger/app/MainActivity.kt): builds the registrar, file-backed stores and permission state and passes them to `App()`. It also receives text shared from Google Maps and hands it to `SharedRouteInbox`.
+- [MainActivity.kt](../androidApp/src/main/kotlin/com/straphanger/app/MainActivity.kt): takes the process's runtime from `CaptureRuntimeHolder` (which owns the registrar and the file-backed stores), reads the permission state on resume and passes both to `App()`. It also receives text shared from Google Maps and hands it to `SharedRouteInbox`, and opens the ride a tapped notification names; neither is repeated when the activity is recreated or reopened from recents.
 - [capture/](../androidApp/src/main/kotlin/com/straphanger/app/capture/):
   - `AndroidGeofenceRegistrar`: registers the geofence window with Play services.
   - `GeofenceBroadcastReceiver`: appends station entries to the pending file, forwards events, and (if the app isn't running and you left the anchor) asks `BackgroundGeofenceRefresher` to register a new window using `goAsync()` and a 20-second timeout.

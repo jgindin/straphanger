@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
+import com.straphanger.app.capture.CaptureRuntimeHolder
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -18,6 +19,9 @@ import org.junit.Test
  * Exercises kotlinx-serialization decoding/encoding of rides.json against the (minified) app. Each
  * test manages its own activity. The test orchestrator clears app data before every test
  * (clearPackageData), so each starts with no rides file.
+ *
+ * The process keeps one ride capture runtime, which holds the rides in memory, so a second activity
+ * alone would not read the file again. [relaunchAsNewProcess] drops that runtime first.
  */
 class RidePersistenceEmulatorTest {
 
@@ -38,6 +42,14 @@ class RidePersistenceEmulatorTest {
         composeTestRule.onAllNodesWithTag("network_loading").fetchSemanticsNodes().isEmpty()
     }
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
+  }
+
+  /** Launches the activity as a new process would: its new runtime decodes rides.json from disk. */
+  private fun relaunchAsNewProcess() {
+    scenario?.close()
+    scenario = null
+    CaptureRuntimeHolder.resetForTest()
+    launch()
   }
 
   private fun headerRideCount(): Int =
@@ -70,8 +82,8 @@ class RidePersistenceEmulatorTest {
     composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
     assertEquals(1, headerRideCount())
 
-    // A new activity gets a new ViewModel, which must decode rides.json from disk.
-    launch()
+    // A fresh runtime and view model, which must decode rides.json from disk.
+    relaunchAsNewProcess()
     composeTestRule.waitUntil(timeoutMillis = 15_000) { headerRideCount() == 1 }
     assertEquals(1, headerRideCount())
   }
@@ -93,8 +105,8 @@ class RidePersistenceEmulatorTest {
     composeTestRule.waitUntil(timeoutMillis = 5_000) { headerRideCount() == 0 }
     assertEquals(0, headerRideCount())
 
-    // The deletion was saved: a fresh view model decodes no rides.
-    launch()
+    // The deletion was saved: a fresh runtime decodes no rides from disk.
+    relaunchAsNewProcess()
     assertEquals(0, headerRideCount())
   }
 
