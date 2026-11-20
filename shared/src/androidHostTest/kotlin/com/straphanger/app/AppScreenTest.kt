@@ -2,6 +2,9 @@ package com.straphanger.app
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -56,6 +59,10 @@ abstract class AppScreenTest {
   protected var passiveCaptureRequests = 0
   protected var notificationAccessRequests = 0
   protected var passiveCaptureDisables = 0
+  protected var rideNotificationRequests = 0
+  protected var rideNotificationDisables = 0
+  /** What the platform reports; a test can change it while the app is shown. */
+  protected var captureAccess by mutableStateOf(CaptureAccessState())
   protected val viewModels = mutableListOf<StraphangerViewModel>()
 
   @After
@@ -93,12 +100,14 @@ abstract class AppScreenTest {
     composeRule.setContent {
       App(
         viewModel = viewModel,
-        captureAccess = CaptureAccessState(),
+        captureAccess = captureAccess,
         platform =
           PlatformHooks(
             onRequestPassiveCapture = { passiveCaptureRequests++ },
             onDisablePassiveCapture = { passiveCaptureDisables++ },
             onRequestNotificationAccess = { notificationAccessRequests++ },
+            onRequestRideNotifications = { rideNotificationRequests++ },
+            onDisableRideNotifications = { rideNotificationDisables++ },
             appVersion = "9.8.7",
             licensesContent = if (withLicenses) ({ Text("Apache License 2.0") }) else null,
             fetchRealtime = { realtime(it) },

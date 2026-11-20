@@ -64,6 +64,8 @@ fun DataSourcesAndSyncScreen(
   onRequestPassiveCapture: () -> Unit = {},
   onDisablePassiveCapture: () -> Unit = {},
   onRequestNotificationAccess: () -> Unit = {},
+  onRequestRideNotifications: () -> Unit = {},
+  onDisableRideNotifications: () -> Unit = {},
   onOpenAbout: () -> Unit = {},
 ) {
   val backup =
@@ -102,6 +104,8 @@ fun DataSourcesAndSyncScreen(
       onRequestPassiveCapture = onRequestPassiveCapture,
       onDisablePassiveCapture = onDisablePassiveCapture,
       onRequestNotificationAccess = onRequestNotificationAccess,
+      onRequestRideNotifications = onRequestRideNotifications,
+      onDisableRideNotifications = onDisableRideNotifications,
     )
     BackupCard(backup, onBackupMessage)
     Button(
@@ -192,6 +196,8 @@ private fun PassiveCaptureCard(
   onRequestPassiveCapture: () -> Unit,
   onDisablePassiveCapture: () -> Unit,
   onRequestNotificationAccess: () -> Unit,
+  onRequestRideNotifications: () -> Unit,
+  onDisableRideNotifications: () -> Unit,
 ) {
   SectionCard(spacing = 6.dp) {
     CardTitle("2. Passive Capture")
@@ -213,6 +219,15 @@ private fun PassiveCaptureCard(
       checked = uiState.googleMapsNotificationEnabled,
       onCheckedChange = { onRequestNotificationAccess() },
       testTag = "notification_access_toggle",
+    )
+    CaptureToggleRow(
+      title = "Notify me when a ride is recorded",
+      detail = rideNotificationsDetail(uiState),
+      checked = uiState.rideNotificationsTurnedOn && uiState.postNotificationsGranted,
+      onCheckedChange = { on ->
+        if (on) onRequestRideNotifications() else onDisableRideNotifications()
+      },
+      testTag = "ride_notifications_toggle",
     )
   }
 }
@@ -288,6 +303,14 @@ private fun CaptureToggleRow(
 
 private fun filePickerFailedMessage(failure: Throwable): String =
   "Could not open the file picker: ${failure.message ?: "unknown error"}"
+
+private fun rideNotificationsDetail(uiState: StraphangerUiState): String =
+  when {
+    !uiState.rideNotificationsTurnedOn -> "Off."
+    !uiState.postNotificationsGranted ->
+      "Notifications are blocked for Straphanger in system settings."
+    else -> "A notification appears when passive capture or Google Maps records a ride."
+  }
 
 private fun geofenceDetail(uiState: StraphangerUiState): String =
   when {
