@@ -150,6 +150,22 @@ class RideCaptureRuntimeTest {
   }
 
   @Test
+  fun catchUpWithoutPassiveCaptureRecordsOnlyNavigationSessions() = runTest {
+    val session =
+      NavigationNotificationSession("k1", t0, t0, navText, navText, endMs = t0 + 14 * minute)
+    val sessions =
+      InMemoryNotificationSessionStore(NotificationSessionState(completed = listOf(session)))
+    val pending = storedRide(t0 + 60 * minute)
+    val runtime = runtime(pending, nowMs = t0 + 120 * minute, sessions = sessions)
+
+    runtime.catchUp(passiveCapture = false)
+
+    val ride = runtime.dao.getAllRides().single().ride
+    assertEquals(RideSource.GMAPS_NOTIFICATION, ride.source)
+    assertEquals(2, pending.readAll().size)
+  }
+
+  @Test
   fun aDuplicateNavigationSessionIsNotNotified() = runTest {
     val first =
       NavigationNotificationSession("k1", t0, t0, navText, navText, endMs = t0 + 14 * minute)

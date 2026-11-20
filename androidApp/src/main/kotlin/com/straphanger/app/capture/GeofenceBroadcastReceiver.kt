@@ -11,26 +11,57 @@ import com.straphanger.app.data.capture.BackgroundWindowRefresh
 import com.straphanger.app.data.capture.DynamicGeofenceWindowManager
 import com.straphanger.app.data.capture.GeofenceEvent
 import com.straphanger.app.data.capture.GeofenceEventBus
-import com.straphanger.app.data.capture.PendingGeofenceEventStore
 
 /**
  * Records station entries and exits (not the window anchor) in the pending-event file, then
  * forwards every transition to [GeofenceEventBus]. The file keeps entries that arrive while no view
  * model is running; the coordinator replays it when it starts and on each entry it receives. When
- * no coordinator is running, leaving the window anchor registers a new window around the triggering
- * location here.
+ * no coordinator is running, the process's [CaptureRuntimeHolder] runtime replays it here, which
+ * records and notifies a finished ride, and leaving the window anchor registers a new window around
+ * the triggering location.
  */
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val event = GeofencingEvent.fromIntent(intent) ?: return
     if (event.hasError()) {
       onError(context, event.errorCode)
-    } else {
-      val pendingEvents = PassiveCaptureStorage.pendingEvents(context)
-      val eventLog = PassiveCaptureStorage.eventLog(context)
-      transitionsOf(event).forEach {
-        eventLog.record(it, System.currentTimeMillis())
-        onTransition(context, it, pendingEvents)
+      return
+    }
+    val pendingEvents = PassiveCaptureStorage.pendingEvents(context)
+    val eventLog = PassiveCaptureStorage.eventLog(context)
+    // Read before emitting: a running coordinator is a collector and handles the events itself.
+    val appRunning = GeofenceEventBus.hasCollectors
+    val transitions = transitionsOf(event)
+    transitions.forEach {
+      eventLog.record(it, System.currentTimeMillis())
+      Log.i(TAG, "$it")
+      if (isStation(it.geofenceId)) pendingEvents.append(it)
+    }
+    afterTransitions(context, transitions, appRunning)
+    transitions.forEach { GeofenceEventBus.emit(it) }
+  }
+
+  /**
+   * With no coordinator running (the app process was gone), turns the stored entries into rides
+   * here, and moves the window when the anchor was left. Both share one [goAsync].
+   */
+  private fun afterTransitions(
+    context: Context,
+    transitions: List<GeofenceEvent>,
+    appRunning: Boolean,
+  ) {
+    val anchorExit =
+      transitions
+        .firstOrNull { BackgroundWindowRefresh.shouldRefresh(it, appRunning) }
+        ?.takeIf { BackgroundGeofenceRefresher.captureAllowed(context) }
+    val refresh: (suspend () -> Unit)? = anchorExit?.let { exit ->
+      { BackgroundGeofenceRefresher.refreshNow(context, "Anchor exit") { exit.lat to exit.lng } }
+    }
+    if (!appRunning && transitions.any { isStation(it.geofenceId) }) {
+      CaptureRuntimeHolder.catchUpInBackground(this, context, "Geofence", alongside = refresh)
+    } else if (anchorExit != null) {
+      BackgroundGeofenceRefresher.refresh(this, context, "Anchor exit") {
+        anchorExit.lat to anchorExit.lng
       }
     }
   }
@@ -56,27 +87,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         else -> null
       }
     }
-  }
-
-  private fun onTransition(
-    context: Context,
-    transition: GeofenceEvent,
-    pendingEvents: PendingGeofenceEventStore,
-  ) {
-    Log.i(TAG, "$transition")
-    if (isStation(transition.geofenceId)) {
-      pendingEvents.append(transition)
-    }
-    // With no coordinator running (the app process was gone), move the window here.
-    if (
-      BackgroundWindowRefresh.shouldRefresh(transition, GeofenceEventBus.hasCollectors) &&
-        BackgroundGeofenceRefresher.captureAllowed(context)
-    ) {
-      BackgroundGeofenceRefresher.refresh(this, context, "Anchor exit") {
-        transition.lat to transition.lng
-      }
-    }
-    GeofenceEventBus.emit(transition)
   }
 
   private fun isStation(geofenceId: String): Boolean =

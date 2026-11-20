@@ -15,6 +15,7 @@ object PassiveCaptureStorage {
   private const val PREFS = "passive_capture"
   private const val KEY_TURNED_ON = "turned_on"
   private const val KEY_GEOFENCES_DROPPED = "geofences_dropped"
+  private const val KEY_RIDE_NOTIFICATIONS = "ride_notifications_turned_on"
 
   fun pendingEvents(context: Context): PendingGeofenceEventStore =
     FilePendingGeofenceEventStore(Path(context.filesDir.path, "pending_geofence_events.json"))
@@ -33,6 +34,18 @@ object PassiveCaptureStorage {
 
   fun setTurnedOn(context: Context, on: Boolean) {
     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_TURNED_ON, on) }
+  }
+
+  /** "Notify me when a ride is recorded"; off until the user turns it on. */
+  fun rideNotificationsTurnedOn(context: Context): Boolean =
+    context
+      .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+      .getBoolean(KEY_RIDE_NOTIFICATIONS, false)
+
+  fun setRideNotificationsTurnedOn(context: Context, on: Boolean) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+      putBoolean(KEY_RIDE_NOTIFICATIONS, on)
+    }
   }
 
   private const val KEY_ANCHOR_LAT = "window_anchor_lat"

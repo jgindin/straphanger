@@ -37,6 +37,7 @@ import com.straphanger.app.data.capture.RideCaptureRuntime
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.FavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
+import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.data.realtime.RealtimeFeedClient
 import com.straphanger.app.data.realtime.RealtimeSnapshot
@@ -58,6 +59,7 @@ import kotlin.time.Clock
 import kotlinx.coroutines.launch
 
 /**
+ * @param backend the rides file; null when [captureRuntime] is given, since the runtime owns it.
  * @param geofenceRegistrar registers station geofences; null where passive capture is not
  *   available.
  * @param captureAccess the platform's current permission state; the platform refreshes it on
@@ -74,13 +76,14 @@ import kotlinx.coroutines.launch
  *   has none.
  * @param favoriteStations where the stations starred on the Status tab are kept.
  * @param captureRuntime the process-wide ride capture runtime the background receivers share; when
- *   null, the view model builds its own from the parameters above.
+ *   given, [backend], [geofenceRegistrar], [pendingGeofenceEvents] and [notificationSessions] are
+ *   ignored, and when null the view model builds its own runtime from them.
  *
  * Both request callbacks run only after the user taps "Continue" on the matching disclosure.
  */
 @Composable
 fun App(
-  backend: RidePersistenceBackend,
+  backend: RidePersistenceBackend?,
   geofenceRegistrar: GeofenceRegistrar? = null,
   pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
   notificationSessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
@@ -96,9 +99,10 @@ fun App(
   val realtime = remember {
     RealtimeFeedClient(HttpClient(), nowEpochSeconds = { Clock.System.now().epochSeconds })
   }
+  require(backend != null || captureRuntime != null) { "App needs a backend or a captureRuntime" }
   val viewModel: StraphangerViewModel = viewModel {
     StraphangerViewModel(
-      backend,
+      backend ?: InMemoryPersistenceBackend(),
       geofenceRegistrar = geofenceRegistrar,
       pendingGeofenceEvents = pendingGeofenceEvents,
       notificationSessions = notificationSessions,
