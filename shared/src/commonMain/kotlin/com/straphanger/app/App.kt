@@ -75,6 +75,8 @@ import kotlinx.coroutines.launch
  * @param onRequestRideNotifications saves the user's choice to be notified of recorded rides and,
  *   where the platform needs it, asks for permission to post notifications.
  * @param onDisableRideNotifications saves the user's choice not to be notified.
+ * @param onOpenNotificationSettings opens the system settings where the user can allow this app's
+ *   notifications, for when they are blocked.
  * @param appVersion the app's version name, shown on the About screen.
  * @param licensesContent the open-source license list for the About screen; null where the platform
  *   has none.
@@ -97,6 +99,7 @@ fun App(
   onRequestNotificationAccess: () -> Unit = {},
   onRequestRideNotifications: () -> Unit = {},
   onDisableRideNotifications: () -> Unit = {},
+  onOpenNotificationSettings: () -> Unit = {},
   appVersion: String = "",
   licensesContent: (@Composable () -> Unit)? = null,
   favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
@@ -124,6 +127,7 @@ fun App(
       onRequestNotificationAccess,
       onRequestRideNotifications,
       onDisableRideNotifications,
+      onOpenNotificationSettings,
       appVersion,
       licensesContent,
       realtime::fetch,
@@ -182,6 +186,7 @@ internal class PlatformHooks(
   val onRequestNotificationAccess: () -> Unit,
   val onRequestRideNotifications: () -> Unit,
   val onDisableRideNotifications: () -> Unit,
+  val onOpenNotificationSettings: () -> Unit,
   val appVersion: String,
   val licensesContent: (@Composable () -> Unit)?,
   /** Reads the MTA's live feeds for the given lines (see [RealtimeFeedClient]). */
@@ -393,6 +398,7 @@ private fun SourcesTab(
     },
     onRequestRideNotifications = platform.onRequestRideNotifications,
     onDisableRideNotifications = platform.onDisableRideNotifications,
+    onOpenNotificationSettings = platform.onOpenNotificationSettings,
     onOpenAbout = { overlays.showAbout = true },
   )
 }

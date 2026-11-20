@@ -3,6 +3,7 @@ package com.straphanger.app
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -41,15 +42,16 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     FileKit.init(this)
     handleIncomingShareIntent(intent)
-    handleRideTapIntent(intent)
+    // A recreation (rotation) must not reopen the ride and force the Rides tab again.
+    if (savedInstanceState == null) handleRideTapIntent(intent)
     val captureRuntime = CaptureRuntimeHolder.get(applicationContext)
     val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
     val favoriteStations = FileFavoriteStationsStore(Path(filesDir.path, "favorite-stations.json"))
     setContent {
       val requestPassiveCapture =
         rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
-      val requestPostNotifications = rememberPostNotificationsPermissionRequest { granted ->
-        if (!granted) PassiveCaptureStorage.setRideNotificationsTurnedOn(this, false)
+      val requestPostNotifications = rememberPostNotificationsPermissionRequest {
+        // A denial keeps the choice on; the switch then shows the blocked text.
         refreshCaptureAccess()
       }
       App(
@@ -72,6 +74,12 @@ class MainActivity : ComponentActivity() {
           refreshCaptureAccess()
           requestPostNotifications()
         },
+        onOpenNotificationSettings = {
+          startActivity(
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+              .putExtra(Settings.EXTRA_APP_PACKAGE, packageName),
+          )
+        },
         onDisableRideNotifications = {
           PassiveCaptureStorage.setRideNotificationsTurnedOn(this, false)
           refreshCaptureAccess()
@@ -93,6 +101,7 @@ class MainActivity : ComponentActivity() {
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
+    setIntent(intent)
     handleIncomingShareIntent(intent)
     handleRideTapIntent(intent)
   }

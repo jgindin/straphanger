@@ -57,7 +57,21 @@ class RideNotificationScreenTest : AppScreenTest() {
     composeRule.onNodeWithTag("ride_notifications_toggle").performScrollTo().assertIsOff()
     composeRule
       .onNodeWithTag("ride_notifications_toggle_detail", useUnmergedTree = true)
-      .assertTextEquals("Notifications are blocked for Straphanger in system settings.")
+      .assertTextEquals(
+        "Notifications are blocked for Straphanger. Tap to allow them in system settings.",
+      )
+  }
+
+  @Test
+  fun tappingTheBlockedSwitchOpensNotificationSettings() {
+    captureAccess =
+      CaptureAccessState(rideNotificationsTurnedOn = true, postNotificationsGranted = false)
+    launchApp()
+    openTab("SOURCES")
+    composeRule.onNodeWithTag("ride_notifications_toggle").performScrollTo().performClick()
+    assertEquals(1, notificationSettingsOpens)
+    assertEquals(0, rideNotificationRequests)
+    assertEquals(0, rideNotificationDisables)
   }
 
   @Test
@@ -67,12 +81,16 @@ class RideNotificationScreenTest : AppScreenTest() {
     // The last row is far down the list, so showing it means the list scrolled to it.
     val rideId = vm.uiState.value.rides.last().ride.rideId
 
-    composeRule.runOnUiThread { RideTapInbox.open(rideId) }
+    composeRule.runOnUiThread {
+      vm.showRidesOnRoute("NOT_A_LINE")
+      RideTapInbox.open(rideId)
+    }
 
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("ride_item_$rideId").assertIsDisplayed()
     composeRule.onNodeWithTag("ride_row_highlighted").assertIsDisplayed()
+    assertEquals(null, vm.uiState.value.ridesRouteFilter)
 
     openTab("STATS")
     openTab("RIDES")

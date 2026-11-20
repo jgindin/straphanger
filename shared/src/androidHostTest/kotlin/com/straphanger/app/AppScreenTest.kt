@@ -62,6 +62,7 @@ abstract class AppScreenTest {
   protected var rideNotificationRequests = 0
   protected var rideNotificationDisables = 0
   /** What the platform reports; a test can change it while the app is shown. */
+  protected var notificationSettingsOpens = 0
   protected var captureAccess by mutableStateOf(CaptureAccessState())
   protected val viewModels = mutableListOf<StraphangerViewModel>()
 
@@ -108,6 +109,7 @@ abstract class AppScreenTest {
             onRequestNotificationAccess = { notificationAccessRequests++ },
             onRequestRideNotifications = { rideNotificationRequests++ },
             onDisableRideNotifications = { rideNotificationDisables++ },
+            onOpenNotificationSettings = { notificationSettingsOpens++ },
             appVersion = "9.8.7",
             licensesContent = if (withLicenses) ({ Text("Apache License 2.0") }) else null,
             fetchRealtime = { realtime(it) },
