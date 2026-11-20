@@ -12,7 +12,7 @@ sealed interface ReviewAction {
     val label: String,
   ) : ReviewAction
 
-  /** Clear the review flag and keep the ride as recorded. */
+  /** "Looks right": clear the review flag and keep the ride as recorded. */
   data object KeepAsIs : ReviewAction
 }
 
@@ -22,7 +22,7 @@ data class RideReview(val prompt: String, val actions: List<ReviewAction>)
  * The question and choices for a ride that needs review. A ride with route candidates (express or
  * local on the same stretch) offers one button per candidate. A ride without candidates was flagged
  * because a station name matched more than one station; the app cannot offer the alternatives, so
- * it offers only "Keep as is".
+ * it offers only "Looks right".
  */
 fun reviewFor(ride: RideEntity): RideReview {
   val candidates = ride.ambiguousCandidates

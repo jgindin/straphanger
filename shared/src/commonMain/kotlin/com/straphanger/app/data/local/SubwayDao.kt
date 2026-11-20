@@ -76,8 +76,12 @@ class SubwayDao(
     reportingSaveFailure { persistThenPublish(updated) }
   }
 
-  fun insertOrReplaceRides(records: List<CompleteRideRecord>) {
-    reportingSaveFailure { replaceRidesOrThrow(records) }
+  /** Saves [records] and deletes the rides in [deletingRideIds], in one write. */
+  fun insertOrReplaceRides(
+    records: List<CompleteRideRecord>,
+    deletingRideIds: Set<String> = emptySet(),
+  ) {
+    reportingSaveFailure { replaceRidesOrThrow(records, deletingRideIds) }
   }
 
   /**
@@ -85,10 +89,13 @@ class SubwayDao(
    * The failure is the backend's [kotlinx.io.IOException] or [IllegalStateException], or an
    * [IllegalStateException] when saves are blocked.
    */
-  fun replaceRidesOrThrow(records: List<CompleteRideRecord>) {
-    if (records.isEmpty()) return
-    val incomingIds = records.map { it.ride.rideId }.toSet()
-    val updated = _ridesFlow.value.filterNot { it.ride.rideId in incomingIds } + records
+  fun replaceRidesOrThrow(
+    records: List<CompleteRideRecord>,
+    deletingRideIds: Set<String> = emptySet(),
+  ) {
+    if (records.isEmpty() && deletingRideIds.isEmpty()) return
+    val replacedIds = records.map { it.ride.rideId }.toSet() + deletingRideIds
+    val updated = _ridesFlow.value.filterNot { it.ride.rideId in replacedIds } + records
     persistThenPublish(updated)
   }
 
@@ -112,23 +119,8 @@ class SubwayDao(
     graphEngine: SubwayGraphEngine,
   ): CompleteRideRecord? {
     val existing = getRideById(rideId) ?: return null
-    val legRequests = confirmedLegRequests(existing, confirmedRouteId, confirmedIsExpress)
-    val resolved =
-      graphEngine.resolveTrip(
-        legs = legRequests,
-        timestampEpochMs = existing.ride.startTimeEpochMs,
-        actualDurationMinutes = existing.ride.durationMinutes,
-      )
     val updatedRecord =
-      buildCompleteRideRecord(
-        rideId = existing.ride.rideId,
-        startTimeEpochMs = existing.ride.startTimeEpochMs,
-        endTimeEpochMs = existing.ride.endTimeEpochMs,
-        source = existing.ride.source,
-        resolved = resolved.copy(isAmbiguous = false, ambiguousCandidates = emptyList()),
-        graphEngine = graphEngine,
-        notes = existing.ride.notes,
-      )
+      existing.confirmedOn(RouteChoice(confirmedRouteId, confirmedIsExpress), graphEngine)
     insertOrReplaceRide(updatedRecord)
     return updatedRecord
   }
@@ -281,6 +273,31 @@ private fun stopEntities(
       legIndex = stop.legIndex,
     )
   }
+
+/**
+ * This ride resolved again with its first leg on [choice], no longer asking express or local. The
+ * other legs keep their routes.
+ */
+internal fun CompleteRideRecord.confirmedOn(
+  choice: RouteChoice,
+  graphEngine: SubwayGraphEngine,
+): CompleteRideRecord {
+  val resolved =
+    graphEngine.resolveTrip(
+      legs = confirmedLegRequests(this, choice.routeId, choice.isExpress),
+      timestampEpochMs = ride.startTimeEpochMs,
+      actualDurationMinutes = ride.durationMinutes,
+    )
+  return SubwayDao.buildCompleteRideRecord(
+    rideId = ride.rideId,
+    startTimeEpochMs = ride.startTimeEpochMs,
+    endTimeEpochMs = ride.endTimeEpochMs,
+    source = ride.source,
+    resolved = resolved.copy(isAmbiguous = false, ambiguousCandidates = emptyList()),
+    graphEngine = graphEngine,
+    notes = ride.notes,
+  )
+}
 
 // The first leg takes the confirmed route; the others keep theirs.
 private fun confirmedLegRequests(

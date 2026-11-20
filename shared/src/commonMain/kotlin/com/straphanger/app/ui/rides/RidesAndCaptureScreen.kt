@@ -23,9 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -35,13 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
-import com.straphanger.app.data.local.RideEntity
+import com.straphanger.app.data.local.RouteChoice
+import com.straphanger.app.data.local.nextRideToCombine
 import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.StraphangerUiState
-import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.theme.MtaColors
-import com.straphanger.app.ui.theme.MtaRouteBullet
 
 @Composable
 fun RidesHistoryAndLoggerScreen(
@@ -52,29 +49,33 @@ fun RidesHistoryAndLoggerScreen(
   onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
   onKeepRideAsIs: (String) -> Unit = {},
   onDeleteRide: (String) -> Unit = {},
-  onChangeRideStations: (String, String, String) -> Boolean = { _, _, _ -> false },
+  onChangeRideStations: (String, String, String, RouteChoice?) -> Boolean = { _, _, _, _ -> false },
+  onCombineRides: (String, String) -> Boolean = { _, _ -> false },
   onClearRouteFilter: () -> Unit = {},
 ) {
   val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
+  val nextRides = remember(uiState.rides, graphEngine) { nextRidesOf(uiState.rides, graphEngine) }
   var rideIdToDelete by remember { mutableStateOf<String?>(null) }
   var rideIdToEdit by remember { mutableStateOf<String?>(null) }
+  var ridesToCombine by remember {
+    mutableStateOf<Pair<CompleteRideRecord, CompleteRideRecord>?>(null)
+  }
+  val reviewActions =
+    RideReviewActions(
+      onConfirmAmbiguousRide = onConfirmAmbiguousRide,
+      onKeepRideAsIs = onKeepRideAsIs,
+      onEditStations = { rideIdToEdit = it },
+      onCombine = { first, second -> ridesToCombine = first to second },
+    )
 
   EditStationsHost(
-    ride = uiState.rides.firstOrNull { it.ride.rideId == rideIdToEdit }?.ride,
+    rec = uiState.rides.firstOrNull { it.ride.rideId == rideIdToEdit },
     graphEngine = graphEngine,
     onChange = onChangeRideStations,
     onDone = { rideIdToEdit = null },
   )
-
-  rideIdToDelete?.let { rideId ->
-    DeleteRideDialog(
-      onConfirm = {
-        rideIdToDelete = null
-        onDeleteRide(rideId)
-      },
-      onDismiss = { rideIdToDelete = null },
-    )
-  }
+  CombineRidesHost(ridesToCombine, graphEngine, onCombineRides) { ridesToCombine = null }
+  DeleteRideHost(rideIdToDelete, onDeleteRide) { rideIdToDelete = null }
 
   Column(
     modifier =
@@ -87,13 +88,7 @@ fun RidesHistoryAndLoggerScreen(
   ) {
     // Rides that need review: express or local, or a station name that matched several stations
     if (pendingReviewRides.isNotEmpty()) {
-      NeedsReviewBanner(
-        pendingReviewRides,
-        graphEngine,
-        onConfirmAmbiguousRide,
-        onKeepRideAsIs,
-        onEditStations = { rideIdToEdit = it },
-      )
+      NeedsReviewBanner(pendingReviewRides, graphEngine, nextRides, reviewActions)
     }
     QuickTripLoggerCard(
       uiState = uiState,
@@ -101,45 +96,106 @@ fun RidesHistoryAndLoggerScreen(
       onUpdateLogForm = onUpdateLogForm,
       onSubmitQuickRide = onSubmitQuickRide,
     )
-    val routeFilter = uiState.ridesRouteFilter
-    val shownRides =
-      if (routeFilter == null) uiState.rides
-      else uiState.rides.filter { rec -> rec.legs.any { it.routeId == routeFilter } }
-    CardTitle("Recorded Subway Rides (${shownRides.size})", fontSize = 16.sp)
-    if (routeFilter != null) RouteFilterChip(routeFilter, onClear = onClearRouteFilter)
-    shownRides.forEach { rec ->
-      RideHistoryItem(
-        rec,
-        graphEngine,
-        onEdit = { rideIdToEdit = rec.ride.rideId },
-        onDelete = { rideIdToDelete = rec.ride.rideId },
-      )
+    RecordedRides(uiState, graphEngine, nextRides, reviewActions, onClearRouteFilter) {
+      rideIdToDelete = it
     }
   }
 }
 
-/** Shows the station editor for [ride] until it is saved or dismissed; nothing when null. */
-@Composable
-private fun EditStationsHost(
-  ride: RideEntity?,
+/** The ride each ride could be combined with, by ride id; null where there is none. */
+private fun nextRidesOf(
+  rides: List<CompleteRideRecord>,
   graphEngine: SubwayGraphEngine,
-  onChange: (String, String, String) -> Boolean,
+): Map<String, CompleteRideRecord?> = rides.associate {
+  it.ride.rideId to nextRideToCombine(rides, it.ride, graphEngine)
+}
+
+/** Every recorded ride, or only those on the line being filtered on. */
+@Composable
+private fun RecordedRides(
+  uiState: StraphangerUiState,
+  graphEngine: SubwayGraphEngine,
+  nextRides: Map<String, CompleteRideRecord?>,
+  reviewActions: RideReviewActions,
+  onClearRouteFilter: () -> Unit,
+  onDelete: (String) -> Unit,
+) {
+  val routeFilter = uiState.ridesRouteFilter
+  val shownRides =
+    if (routeFilter == null) uiState.rides
+    else uiState.rides.filter { rec -> rec.legs.any { it.routeId == routeFilter } }
+  CardTitle("Recorded Subway Rides (${shownRides.size})", fontSize = 16.sp)
+  if (routeFilter != null) RouteFilterChip(routeFilter, onClear = onClearRouteFilter)
+  shownRides.forEach { rec ->
+    RideHistoryItem(
+      rec,
+      graphEngine,
+      next = nextRides[rec.ride.rideId],
+      actions = reviewActions,
+      onDelete = { onDelete(rec.ride.rideId) },
+    )
+  }
+}
+
+/** Asks before combining the pair in [rides]; nothing when null. */
+@Composable
+private fun CombineRidesHost(
+  rides: Pair<CompleteRideRecord, CompleteRideRecord>?,
+  graphEngine: SubwayGraphEngine,
+  onCombine: (String, String) -> Boolean,
   onDone: () -> Unit,
 ) {
-  if (ride != null) {
-    EditStationsDialog(
-      ride = ride,
+  rides?.let { (first, second) ->
+    CombineRidesDialog(
+      first = first,
+      second = second,
       graphEngine = graphEngine,
-      onSave = { origin, destination ->
-        onChange(ride.rideId, origin, destination).also { saved -> if (saved) onDone() }
+      onConfirm = {
+        onDone()
+        onCombine(first.ride.rideId, second.ride.rideId)
       },
       onDismiss = onDone,
     )
   }
 }
 
+/** Shows the station editor for [rec] until it is saved or dismissed; nothing when null. */
 @Composable
-private fun DeleteRideDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun EditStationsHost(
+  rec: CompleteRideRecord?,
+  graphEngine: SubwayGraphEngine,
+  onChange: (String, String, String, RouteChoice?) -> Boolean,
+  onDone: () -> Unit,
+) {
+  if (rec != null) {
+    val ride = rec.ride
+    // The line the ride is on, once nothing is left to ask about it.
+    val currentRoute =
+      rec.legs
+        .singleOrNull()
+        ?.takeIf { ride.ambiguousCandidates.isEmpty() }
+        ?.let { RouteChoice(it.routeId, it.isExpress) }
+    EditStationsDialog(
+      ride = ride,
+      graphEngine = graphEngine,
+      currentRoute = currentRoute,
+      onSave = { origin, destination, choice ->
+        onChange(ride.rideId, origin, destination, choice).also { saved -> if (saved) onDone() }
+      },
+      onDismiss = onDone,
+    )
+  }
+}
+
+/** Asks before deleting [rideId]; nothing when null. */
+@Composable
+private fun DeleteRideHost(rideId: String?, onDelete: (String) -> Unit, onDone: () -> Unit) {
+  if (rideId == null) return
+  val onConfirm = {
+    onDone()
+    onDelete(rideId)
+  }
+  val onDismiss = onDone
   AlertDialog(
     onDismissRequest = onDismiss,
     title = { Text("Delete this ride?") },
@@ -156,85 +212,6 @@ private fun DeleteRideDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     },
     modifier = Modifier.testTag("delete_ride_dialog"),
   )
-}
-
-@Composable
-private fun NeedsReviewBanner(
-  rides: List<CompleteRideRecord>,
-  graphEngine: SubwayGraphEngine,
-  onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
-  onKeepRideAsIs: (String) -> Unit,
-  onEditStations: (String) -> Unit,
-) {
-  SectionCard(
-    spacing = 8.dp,
-    modifier = Modifier.testTag("needs_review_banner"),
-    background = Color(0xFF281F12),
-    borderColor = MtaColors.AccentGold,
-  ) {
-    Text(
-      text = "Needs review: ${countOf(rides.size, "ride")}",
-      color = MtaColors.AccentGold,
-      fontSize = 15.sp,
-      fontWeight = FontWeight.ExtraBold,
-    )
-    rides.forEach { rec ->
-      val review = reviewFor(rec.ride)
-      Text(
-        text =
-          "${graphEngine.stationName(rec.ride.originStationId)} → " +
-            "${graphEngine.stationName(rec.ride.destinationStationId)} " +
-            "(${rec.ride.totalDistanceMiles} mi). ${review.prompt}",
-        color = Color.White,
-        fontSize = 13.sp,
-      )
-      Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-      ) {
-        review.actions.forEach { action ->
-          ReviewActionButton(rec.ride.rideId, action, onConfirmAmbiguousRide, onKeepRideAsIs)
-        }
-        Button(
-          onClick = { onEditStations(rec.ride.rideId) },
-          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
-          modifier = Modifier.testTag("review_edit_stations_${rec.ride.rideId}"),
-        ) {
-          Text("Edit stations", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun ReviewActionButton(
-  rideId: String,
-  action: ReviewAction,
-  onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
-  onKeepRideAsIs: (String) -> Unit,
-) {
-  when (action) {
-    is ReviewAction.ConfirmCandidate ->
-      Button(
-        onClick = { onConfirmAmbiguousRide(rideId, action.routeId, action.isExpress) },
-        colors =
-          ButtonDefaults.buttonColors(
-            containerColor = if (action.index == 0) MtaColors.ActionGreen else Color(0xFF2B3548),
-          ),
-        modifier = Modifier.testTag("confirm_candidate_${rideId}_${action.index}"),
-      ) {
-        Text(action.label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-      }
-    ReviewAction.KeepAsIs ->
-      Button(
-        onClick = { onKeepRideAsIs(rideId) },
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
-        modifier = Modifier.testTag("keep_as_is_$rideId"),
-      ) {
-        Text("Keep as is", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-      }
-  }
 }
 
 /** Supports origin, an optional transfer, destination, and express or local. */
@@ -297,122 +274,6 @@ private fun TripPresets(onUpdateLogForm: (String, String?, String, String?, Bool
         },
       )
     }
-  }
-}
-
-@Composable
-private fun RideHistoryItem(
-  rec: CompleteRideRecord,
-  graphEngine: SubwayGraphEngine,
-  onEdit: () -> Unit,
-  onDelete: () -> Unit,
-) {
-  val needsReview = rec.ride.needsReview
-  var expanded by rememberSaveable(rec.ride.rideId) { mutableStateOf(false) }
-  Column(
-    modifier =
-      Modifier.fillMaxWidth()
-        .clip(RoundedCornerShape(12.dp))
-        .background(MtaColors.CardBg)
-        .border(
-          width = 1.dp,
-          color = if (needsReview) MtaColors.AccentGold else MtaColors.CardBorder,
-          shape = RoundedCornerShape(12.dp),
-        )
-        .clickable { expanded = !expanded }
-        .padding(12.dp)
-        .testTag("ride_item_${rec.ride.rideId}"),
-    verticalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    Text(
-      text = rideWhen(rec.ride.startTimeEpochMs, rec.ride.endTimeEpochMs),
-      color = MtaColors.TextSecondary,
-      fontSize = 12.sp,
-      modifier = Modifier.testTag("ride_when_${rec.ride.rideId}"),
-    )
-    RideLegsRow(rec)
-    Text(
-      text =
-        "${graphEngine.stationName(rec.ride.originStationId)} → " +
-          graphEngine.stationName(rec.ride.destinationStationId),
-      color = Color.White,
-      fontSize = 14.sp,
-      fontWeight = FontWeight.SemiBold,
-    )
-    if (expanded) RideLegBreakdown(rec, graphEngine)
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(
-        text = rideDetail(rec),
-        color = if (needsReview) MtaColors.AccentGold else MtaColors.TextSecondary,
-        fontSize = 11.sp,
-        modifier = Modifier.weight(1f),
-      )
-      TextButton(
-        onClick = onEdit,
-        modifier = Modifier.testTag("edit_ride_btn_${rec.ride.rideId}"),
-      ) {
-        Text("Edit", color = MtaColors.TextSecondary, fontSize = 12.sp)
-      }
-      TextButton(
-        onClick = onDelete,
-        modifier = Modifier.testTag("delete_ride_btn_${rec.ride.rideId}"),
-      ) {
-        Text("Delete", color = MtaColors.TextSecondary, fontSize = 12.sp)
-      }
-    }
-  }
-}
-
-/** One line per leg, shown when the card is tapped. */
-@Composable
-private fun RideLegBreakdown(rec: CompleteRideRecord, graphEngine: SubwayGraphEngine) {
-  Column(
-    modifier = Modifier.fillMaxWidth().testTag("ride_breakdown_${rec.ride.rideId}"),
-    verticalArrangement = Arrangement.spacedBy(4.dp),
-  ) {
-    rec.legs.forEach { leg ->
-      Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        MtaRouteBullet(routeId = leg.routeId, size = 20.dp, fontSize = 10.sp)
-        Text(legDetail(leg, graphEngine), color = Color.White, fontSize = 12.sp)
-      }
-    }
-  }
-}
-
-/** Each leg's route bullet with express or local, and the ride's distance and duration. */
-@Composable
-private fun RideLegsRow(rec: CompleteRideRecord) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.SpaceBetween,
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Row(
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      rec.legs.forEach { leg ->
-        MtaRouteBullet(routeId = leg.routeId, size = 24.dp, fontSize = 11.sp)
-        Text(
-          text = if (leg.isExpress) "Express" else "Local",
-          color = MtaColors.TextSecondary,
-          fontSize = 11.sp,
-        )
-      }
-    }
-    Text(
-      text = "${rec.ride.totalDistanceMiles} mi • ${rec.ride.durationMinutes} min",
-      color = MtaColors.AccentGreen,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Bold,
-    )
   }
 }
 

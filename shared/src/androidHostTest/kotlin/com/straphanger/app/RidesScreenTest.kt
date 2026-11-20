@@ -1,15 +1,25 @@
 package com.straphanger.app
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import com.straphanger.app.data.local.CompleteRideRecord
+import com.straphanger.app.data.local.RideSource
+import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.testutil.BundledNetwork
+import com.straphanger.app.ui.StationIds
+import com.straphanger.app.ui.rides.rideWhen
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 import org.junit.Test
@@ -116,12 +126,13 @@ class RidesScreenTest : AppScreenTest() {
     composeRule.runOnUiThread { vm.simulateAmbiguousPassiveRide() }
     composeRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
     composeRule.onNodeWithTag("nav_tab_RIDES").assert(hasText("(1)", substring = true))
+    val inBanner = hasAnyAncestor(hasTestTag("needs_review_banner"))
     composeRule
-      .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_1"))
+      .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_1") and inBanner)
       .assertIsDisplayed()
 
     composeRule
-      .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_0"))
+      .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_0") and inBanner)
       .performClick()
 
     composeRule.onNodeWithTag("needs_review_banner").assertDoesNotExist()

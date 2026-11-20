@@ -336,6 +336,7 @@ private fun RidesTab(
     onKeepRideAsIs = viewModel::keepRideAsIs,
     onDeleteRide = viewModel::deleteRide,
     onChangeRideStations = viewModel::changeRideStations,
+    onCombineRides = viewModel::combineRides,
     onClearRouteFilter = { viewModel.showRidesOnRoute(null) },
   )
 }
