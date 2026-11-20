@@ -4,14 +4,17 @@ import com.straphanger.app.data.gtfs.SubwayGraphEngine
 
 /**
  * Moves [rideId] to start at [originStationId] and end at [destinationStationId], finding the lines
- * again and keeping its times, source and notes. Returns the updated ride, or null when there is no
- * such ride, the stations are the same, or no route joins them.
+ * again and keeping its times, source and notes. With a [choice] that is one of the ways to ride
+ * between the stations (express or local), the ride is stored on it and no longer asks; without
+ * one, the app decides. Returns the updated ride, or null when there is no such ride, the stations
+ * are the same, or no route joins them.
  */
 fun SubwayDao.changeRideStations(
   rideId: String,
   originStationId: String,
   destinationStationId: String,
   graphEngine: SubwayGraphEngine,
+  choice: RouteChoice? = null,
 ): CompleteRideRecord? {
   val existing = getRideById(rideId)
   val resolved =
@@ -27,8 +30,9 @@ fun SubwayDao.changeRideStations(
       }
       ?.takeIf { it.legs.isNotEmpty() }
   return if (existing == null || resolved == null) null
-  else
-    SubwayDao.buildCompleteRideRecord(
+  else {
+    val moved =
+      SubwayDao.buildCompleteRideRecord(
         rideId = existing.ride.rideId,
         startTimeEpochMs = existing.ride.startTimeEpochMs,
         endTimeEpochMs = existing.ride.endTimeEpochMs,
@@ -37,5 +41,12 @@ fun SubwayDao.changeRideStations(
         graphEngine = graphEngine,
         notes = existing.ride.notes,
       )
-      .also { insertOrReplaceRide(it) }
+    val offered =
+      resolved.ambiguousCandidates.any {
+        it.routeId == choice?.routeId && it.isExpress == choice.isExpress
+      }
+    (if (choice != null && offered) moved.confirmedOn(choice, graphEngine) else moved).also {
+      insertOrReplaceRide(it)
+    }
+  }
 }

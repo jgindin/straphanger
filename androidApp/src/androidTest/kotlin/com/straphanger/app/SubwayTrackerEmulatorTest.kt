@@ -8,7 +8,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -127,8 +129,13 @@ class SubwayTrackerEmulatorTest {
     composeTestRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
 
     // 4. Confirm the first candidate (the express) and verify the review banner clears
+    // The ride's row in the list has the same buttons, so use the banner's.
     composeTestRule
-      .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_0"))
+      .onNode(
+        hasTestTagPrefix("confirm_candidate_") and
+          hasTestTagSuffix("_0") and
+          hasAnyAncestor(hasTestTag("needs_review_banner")),
+      )
       .performClick()
     composeTestRule.onNodeWithTag("needs_review_banner").assertDoesNotExist()
 

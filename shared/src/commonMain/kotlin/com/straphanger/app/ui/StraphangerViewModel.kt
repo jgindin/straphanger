@@ -41,6 +41,7 @@ class StraphangerViewModel private constructor(private val parts: ViewModelParts
   ViewModel(parts.session.scope),
   ScreenNavigation by parts.navigation,
   RideLogging by parts.rideLog,
+  RideEditing by parts.rideEdit,
   TimelineFileImport by parts.timeline,
   BackupActions by parts.backup,
   CaptureAccessControl by parts.capture {
@@ -108,6 +109,7 @@ internal class ViewModelParts(
 ) {
   val navigation = ScreenNavigationController(session)
   val rideLog = RideLogController(session)
+  val rideEdit = RideEditController(session)
   val timeline = TimelineImportController(session, computeDispatcher)
   val backup = BackupController(session)
   val capture =

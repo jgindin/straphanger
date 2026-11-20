@@ -3,6 +3,13 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.23 (not yet released)
+
+- Rides to review: "Looks right" (was "Keep as is") marks a ride as correct, and the review buttons also appear on the ride in the list.
+- The review box shows each ride's date and time.
+- "Combine with next ride" joins two rides that are really one trip, such as 168 St → 103 St and 103 St → 14 St, into a single ride.
+- Edit stations: after choosing the stations, choose which train it was (for example A Express or C Local), or let the app decide.
+
 ## 0.22 (not yet released)
 
 - Map: every line is drawn in its MTA colour, ridden or not (ridden ones are thicker with a glow); water is dark blue, land lighter charcoal and parks green; stations and line widths are bigger and scale with the screen.
