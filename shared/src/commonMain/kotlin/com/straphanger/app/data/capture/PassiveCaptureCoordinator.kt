@@ -33,7 +33,8 @@ data class PassiveCaptureStatus(
  * from [events]. Each entry is handled once. After handling, the store keeps only the entries of
  * the chain that is still open and of any chain whose ride could not be saved, so a restart replays
  * them and entries recorded while nothing was running are not lost. A chain idle for the
- * reconstructor's idle period is closed by a timer.
+ * reconstructor's idle period is closed by a timer, and by [IdleCloseScheduler] when this process
+ * is no longer running by then.
  */
 class PassiveCaptureCoordinator(
   private val windowManager: DynamicGeofenceWindowManager,
@@ -45,6 +46,8 @@ class PassiveCaptureCoordinator(
   private val pendingEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
   /** Called for every ride recorded, once it has been saved. */
   private val onRecorded: (CompleteRideRecord) -> Unit = {},
+  /** Closes an idle chain after this process has died; see [scheduleIdleClose]. */
+  private val idleCloseScheduler: IdleCloseScheduler = IdleCloseScheduler.None,
 ) {
   private val _status = MutableStateFlow(PassiveCaptureStatus())
   val status: StateFlow<PassiveCaptureStatus> = _status.asStateFlow()
@@ -178,10 +181,21 @@ class PassiveCaptureCoordinator(
     scheduleIdleClose()
   }
 
+  /**
+   * Arms the in-process timer and the platform alarm to close the open chain once idle, or cancels
+   * the alarm when no chain is open. The timer dies with the process; the alarm does not, and calls
+   * [catchUp] through the runtime.
+   */
   private fun scheduleIdleClose() {
     idleTimer?.cancel()
-    val lastMs = reconstructor.chainLastTimeMs ?: return
-    val waitMs = lastMs + reconstructor.idleCloseMs - clock.now().toEpochMilliseconds()
+    val lastMs = reconstructor.chainLastTimeMs
+    if (lastMs == null) {
+      idleCloseScheduler.cancel()
+      return
+    }
+    val closeAtMs = lastMs + reconstructor.idleCloseMs
+    idleCloseScheduler.schedule(closeAtMs)
+    val waitMs = closeAtMs - clock.now().toEpochMilliseconds()
     idleTimer = scope.launch {
       if (waitMs > 0) delay(waitMs)
       closeIfIdle()

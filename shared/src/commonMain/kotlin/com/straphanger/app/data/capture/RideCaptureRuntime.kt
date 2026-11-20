@@ -45,6 +45,8 @@ class RideCaptureRuntime(
   notificationSessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
   private val notificationSessionsEnded: Flow<Int> = NotificationSessionSignal.endedCount,
   private val notifier: RideNotifier = RideNotifier.None,
+  /** Wakes the process to close an idle ride chain; see [PassiveCaptureCoordinator]. */
+  private val idleCloseScheduler: IdleCloseScheduler = IdleCloseScheduler.None,
 ) {
   /** Never cancelled: a view model keeps its own scope. */
   val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -118,6 +120,7 @@ class RideCaptureRuntime(
         clock = clock,
         pendingEvents = pendingEvents,
         onRecorded = ::onSaved,
+        idleCloseScheduler = idleCloseScheduler,
       )
     }
   }

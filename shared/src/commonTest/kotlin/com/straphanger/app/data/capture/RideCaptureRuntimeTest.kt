@@ -6,15 +6,18 @@ import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
+import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.StationIds
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -40,10 +43,12 @@ class RideCaptureRuntimeTest {
     nowMs: Long = t0 + 30 * minute,
     backend: RidePersistenceBackend = InMemoryPersistenceBackend(),
     sessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
+    clock: FixedClock = FixedClock(Instant.fromEpochMilliseconds(nowMs)),
+    idleCloseScheduler: IdleCloseScheduler = IdleCloseScheduler.None,
   ) =
     RideCaptureRuntime(
       backend = backend,
-      clock = FixedClock(Instant.fromEpochMilliseconds(nowMs)),
+      clock = clock,
       dispatcher = Dispatchers.Unconfined,
       networkLoader = { TestNetwork.data },
       registrar = FakeGeofenceRegistrar(),
@@ -52,6 +57,7 @@ class RideCaptureRuntimeTest {
       notificationSessions = sessions,
       notificationSessionsEnded = MutableStateFlow(0),
       notifier = notifier,
+      idleCloseScheduler = idleCloseScheduler,
     )
 
   private fun station(complexId: String) = DynamicGeofenceWindowManager.stationGeofenceId(complexId)
@@ -196,6 +202,57 @@ class RideCaptureRuntimeTest {
     assertNotNull(record)
     assertEquals(1, runtime.dao.getAllRides().size)
     assertTrue(notifier.posted.isEmpty())
+  }
+
+  @Test
+  fun catchUpInAFreshRuntimeRecordsOnceAndTheAppDoesNotRepeatIt() = runTest {
+    // One rides file and one pending store, as a fresh process would find them.
+    val backend = InMemoryPersistenceBackend()
+    val pending = storedRide(t0)
+    val alarm = RecordingIdleCloseScheduler()
+
+    // The first process handles the entries before the chain goes idle, then dies.
+    val first =
+      runtime(pending, nowMs = t0 + 11 * minute, backend = backend, idleCloseScheduler = alarm)
+    first.catchUp()
+    assertTrue(first.dao.getAllRides().isEmpty())
+    assertEquals(t0 + 10 * minute + PassiveRideReconstructor.DEFAULT_IDLE_CLOSE_MS, alarm.current)
+    first.scope.cancel()
+
+    // The alarm wakes a fresh process after the idle period.
+    val second =
+      runtime(pending, nowMs = t0 + 30 * minute, backend = backend, idleCloseScheduler = alarm)
+    second.catchUp()
+    assertEquals(1, second.dao.getAllRides().size)
+    assertEquals(1, notifier.posted.size)
+    assertNull(alarm.current)
+
+    // The user then opens the app and capture starts: nothing is recorded or notified again.
+    val vm = viewModel(second)
+    vm.updateCaptureAccess(
+      CaptureAccessState(locationGranted = true, lastKnownLat = 40.73, lastKnownLng = -73.99),
+    )
+    assertTrue(vm.uiState.value.passiveGeofenceEnabled)
+    assertEquals(1, vm.uiState.value.rides.size)
+    assertEquals(1, second.dao.getAllRides().size)
+    assertEquals(1, notifier.posted.size)
+  }
+
+  @Test
+  fun catchUpTwiceAfterIdleNotifiesOnce() = runTest {
+    val clock = FixedClock(Instant.fromEpochMilliseconds(t0 + 11 * minute))
+    val alarm = RecordingIdleCloseScheduler()
+    val runtime = runtime(storedRide(t0), clock = clock, idleCloseScheduler = alarm)
+    runtime.catchUp()
+    assertEquals(t0 + 10 * minute + PassiveRideReconstructor.DEFAULT_IDLE_CLOSE_MS, alarm.current)
+
+    // The alarm fires, and a second wake-up follows it.
+    clock.instant = Instant.fromEpochMilliseconds(t0 + 26 * minute)
+    runtime.catchUp()
+    runtime.catchUp()
+
+    assertEquals(runtime.dao.getAllRides().single().ride.rideId, notifier.posted.single().first)
+    assertNull(alarm.current)
   }
 
   private fun viewModel(runtime: RideCaptureRuntime) =
