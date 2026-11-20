@@ -61,9 +61,12 @@ abstract class AppScreenTest {
   protected var passiveCaptureDisables = 0
   protected var rideNotificationRequests = 0
   protected var rideNotificationDisables = 0
-  /** What the platform reports; a test can change it while the app is shown. */
   protected var notificationSettingsOpens = 0
-  protected var captureAccess by mutableStateOf(CaptureAccessState())
+  /**
+   * What the platform reports; a test can change it while the app is shown. Null is the platform
+   * not having read it yet.
+   */
+  protected var captureAccess by mutableStateOf<CaptureAccessState?>(CaptureAccessState())
   protected val viewModels = mutableListOf<StraphangerViewModel>()
 
   @After

@@ -64,7 +64,8 @@ import kotlinx.coroutines.launch
  * @param geofenceRegistrar registers station geofences; null where passive capture is not
  *   available.
  * @param captureAccess the platform's current permission state; the platform refreshes it on
- *   resume.
+ *   resume. Null until the platform has read it, so a view model built while capture is already
+ *   running (the app reopened in a live process) does not stop it on a placeholder state.
  * @param pendingGeofenceEvents station entries recorded by the platform receiver.
  * @param notificationSessions Google Maps navigation sessions recorded by the notification
  *   listener.
@@ -93,7 +94,7 @@ fun App(
   geofenceRegistrar: GeofenceRegistrar? = null,
   pendingGeofenceEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
   notificationSessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
-  captureAccess: CaptureAccessState = CaptureAccessState(),
+  captureAccess: CaptureAccessState? = CaptureAccessState(),
   onRequestPassiveCapture: () -> Unit = {},
   onDisablePassiveCapture: () -> Unit = {},
   onRequestNotificationAccess: () -> Unit = {},
@@ -141,10 +142,10 @@ fun App(
 @Composable
 internal fun App(
   viewModel: StraphangerViewModel,
-  captureAccess: CaptureAccessState,
+  captureAccess: CaptureAccessState?,
   platform: PlatformHooks,
 ) {
-  LaunchedEffect(captureAccess) { viewModel.updateCaptureAccess(captureAccess) }
+  LaunchedEffect(captureAccess) { captureAccess?.let { viewModel.updateCaptureAccess(it) } }
   LaunchedEffect(Unit) {
     RideTapInbox.pendingRideId.collect {
       RideTapInbox.consume()?.let { rideId -> viewModel.showRide(rideId) }
