@@ -285,12 +285,24 @@ class PassiveRideReconstructor(
       effectiveMiles / (durationMs / 3_600_000.0) >= MIN_SPEED_MPH
   }
 
-  /** Saves [record]; returns it, or null when the save failed and the chain must be replayed. */
+  /**
+   * Saves [record]; returns it, or null when the save failed and the chain must be replayed, or
+   * when a replay found the ride already stored.
+   */
   private fun saved(record: CompleteRideRecord, from: Visit): CompleteRideRecord? {
+    // A replayed chain whose ride is already stored: keep the stored ride, which the user may have
+    // edited, and do not report it again.
+    if (dao.getAllRides().any { it.ride.rideId == record.ride.rideId }) {
+      if (unsavedChainOriginTimeMs == from.timeMs) unsavedChainOriginTimeMs = null
+      return null
+    }
     dao.insertOrReplaceRide(record)
     if (dao.lastSaveSucceeded) dao.flagOverlappingRides(record.ride.rideId)
     if (!dao.lastSaveSucceeded) {
       unsavedChainOriginTimeMs = minOf(unsavedChainOriginTimeMs ?: from.timeMs, from.timeMs)
+    } else if (unsavedChainOriginTimeMs == from.timeMs) {
+      // The replay of the oldest unsaved chain was saved; its entries need not be kept.
+      unsavedChainOriginTimeMs = null
     }
     return record.takeIf { dao.lastSaveSucceeded }
   }

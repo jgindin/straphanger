@@ -1,13 +1,9 @@
 package com.straphanger.app.ui
 
-import com.straphanger.app.data.capture.GeofenceEvent
-import com.straphanger.app.data.capture.GeofenceRegistrar
+import com.straphanger.app.data.capture.NetworkServices
 import com.straphanger.app.data.capture.PassiveCaptureCoordinator
 import com.straphanger.app.data.capture.PassiveCaptureStatus
-import com.straphanger.app.data.capture.PassiveRideReconstructor
-import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.local.RideEntity
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /** Receives the platform's permission and access state. */
@@ -24,58 +20,31 @@ interface CaptureAccessControl {
 private const val DEFAULT_WINDOW_LAT = 40.7347
 private const val DEFAULT_WINDOW_LNG = -73.9899
 
-/** Runs passive capture (station geofences) while the user's choice and permissions allow it. */
-internal class PassiveCaptureController(
-  private val session: StraphangerSession,
-  /** Registers station geofences; null on platforms without passive capture. */
-  private val registrar: GeofenceRegistrar?,
-  private val events: Flow<GeofenceEvent>,
-  private val pendingEvents: PendingGeofenceEventStore,
-) : CaptureAccessControl {
+/**
+ * Runs passive capture (station geofences) while the user's choice and permissions allow it. The
+ * coordinator belongs to [com.straphanger.app.data.capture.RideCaptureRuntime], so it records rides
+ * on the runtime's DAO and outlives the view model; this controller only starts and stops it.
+ */
+internal class PassiveCaptureController(private val session: StraphangerSession) :
+  CaptureAccessControl {
   private var coordinator: PassiveCaptureCoordinator? = null
   private var captureAccess = CaptureAccessState()
   private var handledGeofencesDroppedCount = 0
 
-  /**
-   * Creates the passive capture coordinator in the view model's scope, so rides it records are
-   * written on the view model dispatcher like every other DAO change.
-   */
-  fun start(services: NetworkServices) {
-    val registrar = registrar ?: return
-    val created =
-      PassiveCaptureCoordinator(
-        windowManager = services.geofenceManager,
-        reconstructor =
-          PassiveRideReconstructor(
-            services.graphEngine,
-            session.dao,
-            stationRadiusMeters = services.geofenceManager.stationRadiusMeters,
-          ),
-        registrar = registrar,
-        events = events,
-        scope = session.scope,
-        clock = session.clock,
-        pendingEvents = pendingEvents,
-      )
+  /** Starts showing [created]'s state; null where the platform has no passive capture. */
+  fun start(created: PassiveCaptureCoordinator?) {
+    created ?: return
     coordinator = created
-    session.scope.launch {
-      var ridesSeen = 0
-      created.status.collect { status ->
-        val newRide = status.lastRecordedRide?.takeIf { status.ridesRecorded > ridesSeen }
-        ridesSeen = status.ridesRecorded
-        showStatus(status, newRide?.let { recordedRideMessage(services, it.ride) })
-      }
-    }
+    session.scope.launch { created.status.collect { status -> showStatus(status) } }
     applyCaptureAccess()
   }
 
-  private fun showStatus(status: PassiveCaptureStatus, recordedRide: String?) {
+  private fun showStatus(status: PassiveCaptureStatus) {
     session.update {
       it.copy(
         passiveGeofenceEnabled = status.running && status.registeredCount > 0,
         activeGeofenceCount = status.registeredCount,
         passiveCaptureError = status.error ?: captureBlockedReason(),
-        statusMessage = recordedRide ?: it.statusMessage,
       )
     }
   }
@@ -126,10 +95,8 @@ internal class PassiveCaptureController(
   }
 }
 
-private fun recordedRideMessage(
-  services: NetworkServices,
-  ride: RideEntity,
-): String {
+/** The status shown when passive capture records a ride. */
+internal fun recordedPassiveRideMessage(services: NetworkServices, ride: RideEntity): String {
   val origin = services.graphEngine.getStation(ride.originStationId)?.name
   val destination = services.graphEngine.getStation(ride.destinationStationId)?.name
   return "Recorded passive ride: $origin → $destination"

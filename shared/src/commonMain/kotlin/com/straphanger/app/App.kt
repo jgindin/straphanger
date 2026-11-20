@@ -33,6 +33,7 @@ import com.straphanger.app.data.capture.InMemoryNotificationSessionStore
 import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
 import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
+import com.straphanger.app.data.capture.RideCaptureRuntime
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.FavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
@@ -72,6 +73,8 @@ import kotlinx.coroutines.launch
  * @param licensesContent the open-source license list for the About screen; null where the platform
  *   has none.
  * @param favoriteStations where the stations starred on the Status tab are kept.
+ * @param captureRuntime the process-wide ride capture runtime the background receivers share; when
+ *   null, the view model builds its own from the parameters above.
  *
  * Both request callbacks run only after the user taps "Continue" on the matching disclosure.
  */
@@ -88,6 +91,7 @@ fun App(
   appVersion: String = "",
   licensesContent: (@Composable () -> Unit)? = null,
   favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
+  captureRuntime: RideCaptureRuntime? = null,
 ) {
   val realtime = remember {
     RealtimeFeedClient(HttpClient(), nowEpochSeconds = { Clock.System.now().epochSeconds })
@@ -98,6 +102,7 @@ fun App(
       geofenceRegistrar = geofenceRegistrar,
       pendingGeofenceEvents = pendingGeofenceEvents,
       notificationSessions = notificationSessions,
+      runtime = captureRuntime,
     )
   }
   App(

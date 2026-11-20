@@ -11,31 +11,34 @@ import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
 import com.straphanger.app.data.capture.NotificationSessionSignal
 import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
+import com.straphanger.app.data.capture.RideCaptureRuntime
+import com.straphanger.app.data.capture.loadBundledData
 import com.straphanger.app.data.gtfs.NycSubwayNetworkCatalog
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.SubwayNetworkData
+import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
+import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
 import com.straphanger.app.data.sync.BackupExportManager
 import com.straphanger.app.diagnostics.DiagnosticsLog
 import com.straphanger.app.ui.map.projectBasemap
 import kotlin.time.Clock
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.io.IOException
-import org.jetbrains.compose.resources.MissingResourceException
 
 /**
  * The app's screen state and actions. The actions live in collaborators that share one
- * [StraphangerSession]; the view model delegates to them, so its public API is theirs. Every DAO
- * write runs on the view model dispatcher; only Timeline parsing runs on the compute dispatcher.
+ * [StraphangerSession]; the view model delegates to them, so its public API is theirs. The DAO, the
+ * network and capture belong to the process-wide [RideCaptureRuntime]. Every DAO write runs on the
+ * runtime's dispatcher; only Timeline parsing runs on the compute dispatcher.
  */
 class StraphangerViewModel private constructor(private val parts: ViewModelParts) :
   ViewModel(parts.session.scope),
@@ -68,16 +71,33 @@ class StraphangerViewModel private constructor(private val parts: ViewModelParts
      */
     notificationSessions: NotificationSessionStore = InMemoryNotificationSessionStore(),
     notificationSessionsEnded: Flow<Int> = NotificationSessionSignal.endedCount,
+    /**
+     * The process-wide capture runtime, which owns the DAO. When null, one is built from the
+     * parameters above and cancelled with this view model; when given, those parameters are ignored
+     * and the runtime is never cancelled here.
+     */
+    runtime: RideCaptureRuntime? = null,
   ) : this(
     ViewModelParts(
-      StraphangerSession(backend, clock, dispatcher),
+      runtime
+        ?: RideCaptureRuntime(
+          backend = backend,
+          clock = clock,
+          dispatcher = dispatcher,
+          networkLoader = networkLoader,
+          registrar = geofenceRegistrar,
+          geofenceEvents = geofenceEvents,
+          pendingEvents = pendingGeofenceEvents,
+          notificationSessions = notificationSessions,
+          notificationSessionsEnded = notificationSessionsEnded,
+        ),
       computeDispatcher,
-      PassiveCaptureInputs(geofenceRegistrar, geofenceEvents, pendingGeofenceEvents),
-      notificationSessions,
-      notificationSessionsEnded,
     ),
   ) {
-    parts.start(seedInitialSampleRides, networkLoader, basemapLoader)
+    // A runtime built here is this view model's alone, so it ends with it, as capture did before
+    // the runtime existed. A runtime passed in is shared and outlives the view model.
+    if (runtime == null) addCloseable { parts.runtime.scope.cancel() }
+    parts.start(seedInitialSampleRides, basemapLoader)
   }
 
   override val uiState: StateFlow<StraphangerUiState> = parts.session.state.asStateFlow()
@@ -93,42 +113,32 @@ class StraphangerViewModel private constructor(private val parts: ViewModelParts
     get() = parts.session.backupManager
 }
 
-internal class PassiveCaptureInputs(
-  val registrar: GeofenceRegistrar?,
-  val events: Flow<GeofenceEvent>,
-  val pendingEvents: PendingGeofenceEventStore,
-)
-
 /** The view model's collaborators, and the start-up that loads the network and wires them up. */
 internal class ViewModelParts(
-  val session: StraphangerSession,
+  val runtime: RideCaptureRuntime,
   private val computeDispatcher: CoroutineDispatcher,
-  capture: PassiveCaptureInputs,
-  notificationSessions: NotificationSessionStore,
-  notificationSessionsEnded: Flow<Int>,
 ) {
+  val session = StraphangerSession(runtime.dao, runtime.clock, runtime.dispatcher)
   val navigation = ScreenNavigationController(session)
   val rideLog = RideLogController(session)
   val rideEdit = RideEditController(session)
   val timeline = TimelineImportController(session, computeDispatcher)
   val backup = BackupController(session)
-  val capture =
-    PassiveCaptureController(session, capture.registrar, capture.events, capture.pendingEvents)
-  private val recorder =
-    CapturedRideRecorder(session, notificationSessions, notificationSessionsEnded)
+  val capture = PassiveCaptureController(session)
+  private val recorder = CapturedRideRecorder(session)
 
-  fun start(
-    seedInitialSampleRides: Boolean,
-    networkLoader: suspend () -> SubwayNetworkData,
-    basemapLoader: suspend () -> NycBasemap,
-  ) {
+  fun start(seedInitialSampleRides: Boolean, basemapLoader: suspend () -> NycBasemap) {
     session.scope.launch {
       session.dao.loadError.collect { error -> session.update { it.copy(loadError = error) } }
     }
+    // Subscribed before the runtime starts, so rides recorded at start-up are shown too.
+    session.scope.launch { runtime.recordedRides.collect { showRecordedRide(it) } }
+    runtime.start()
     session.scope.launch {
-      loadBundledData(networkLoader)
+      runtime
+        .network()
         .fold(
-          onSuccess = { network -> onNetworkLoaded(network, seedInitialSampleRides) },
+          onSuccess = { onNetworkLoaded(seedInitialSampleRides) },
           onFailure = { e -> reportNetworkLoadFailure(e) },
         )
     }
@@ -145,8 +155,8 @@ internal class ViewModelParts(
     }
   }
 
-  private fun onNetworkLoaded(network: SubwayNetworkData, seedInitialSampleRides: Boolean) {
-    val services = NetworkServices(SubwayGraphEngine(network), session.clock)
+  private fun onNetworkLoaded(seedInitialSampleRides: Boolean) {
+    val services = checkNotNull(runtime.services) { "The network loaded without its services" }
     session.services = services
     session.update { it.copy(isNetworkLoaded = true) }
     if (seedInitialSampleRides && session.dao.getAllRides().isEmpty()) {
@@ -159,7 +169,22 @@ internal class ViewModelParts(
       }
     }
     recorder.start(services)
-    capture.start(services)
+    capture.start(runtime.coordinator)
+  }
+
+  /** Shows the status for a ride the runtime recorded from passive capture or Google Maps. */
+  private fun showRecordedRide(record: CompleteRideRecord) {
+    val services = runtime.services ?: return
+    val ride = record.ride
+    session.setStatus(
+      if (ride.source == RideSource.PASSIVE_GPS) {
+        recordedPassiveRideMessage(services, ride)
+      } else {
+        "Recorded ride from Google Maps navigation: " +
+          "${services.stationName(ride.originStationId)} → " +
+          services.stationName(ride.destinationStationId)
+      },
+    )
   }
 
   private fun reportNetworkLoadFailure(e: Throwable) {
@@ -174,22 +199,3 @@ internal class ViewModelParts(
     const val BASEMAP_LOG_TAG = "StraphangerBasemap"
   }
 }
-
-/**
- * Loads bundled data (the network or the basemap), returning the failures loading it can raise: a
- * missing bundled resource, an I/O error, bad JSON ([kotlinx.serialization.SerializationException]
- * is an [IllegalArgumentException]), or an [IllegalStateException]. Cancellation is rethrown.
- */
-private suspend fun <T> loadBundledData(loader: suspend () -> T): Result<T> =
-  try {
-    Result.success(loader())
-  } catch (e: MissingResourceException) {
-    Result.failure(e)
-  } catch (e: IOException) {
-    Result.failure(e)
-  } catch (e: IllegalArgumentException) {
-    Result.failure(e)
-  } catch (e: IllegalStateException) {
-    if (e is CancellationException) throw e
-    Result.failure(e)
-  }
