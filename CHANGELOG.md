@@ -3,6 +3,10 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.22 (not yet released)
+
+- Map: every line is drawn in its MTA colour, ridden or not (ridden ones are thicker with a glow); water is dark blue, land lighter charcoal and parks green; stations and line widths are bigger and scale with the screen.
+
 ## 0.21 (not yet released)
 
 - Edit stations: every station is offered, so "14" finds the 14 St on the A/C/E as well as the 1/2/3 and F/M ones. Stations nearest the one being replaced come first, with their lines and distance, and the dialog uses the app's dark colours.
