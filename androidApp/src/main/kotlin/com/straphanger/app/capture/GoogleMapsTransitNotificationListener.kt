@@ -10,8 +10,9 @@ import com.straphanger.app.data.capture.NotificationSessionTracker
 /**
  * Follows Google Maps navigation notifications. Maps updates one ongoing notification many times
  * during a trip; [NotificationSessionTracker] keeps the latest text per notification key in a file
- * and ends the session when the notification is removed or another key replaces it. The view model
- * turns each ended session into one ride. This service never writes rides itself.
+ * and ends the session when the notification is removed or another key replaces it. The process's
+ * [CaptureRuntimeHolder] runtime turns each ended session into one ride. This service never writes
+ * rides itself.
  */
 class GoogleMapsTransitNotificationListener : NotificationListenerService() {
 
@@ -21,6 +22,9 @@ class GoogleMapsTransitNotificationListener : NotificationListenerService() {
 
   override fun onListenerConnected() {
     super.onListenerConnected()
+    // The runtime's collector turns each ended session into a ride and its notification, also
+    // when no app is open. The service is long-lived, so the work needs no goAsync.
+    CaptureRuntimeHolder.get(applicationContext).start()
     // A removal missed while disconnected ends the open session now.
     val active =
       try {

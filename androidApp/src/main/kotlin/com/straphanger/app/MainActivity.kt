@@ -15,16 +15,15 @@ import com.google.android.gms.location.LocationServices
 import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import com.straphanger.app.capture.AndroidGeofenceRegistrar
+import com.straphanger.app.capture.CaptureRuntimeHolder
 import com.straphanger.app.capture.NotificationAccess
 import com.straphanger.app.capture.PassiveCaptureStorage
 import com.straphanger.app.data.local.FileFavoriteStationsStore
-import com.straphanger.app.data.local.FileRidePersistenceBackend
 import com.straphanger.app.permissions.CapturePermissions
 import com.straphanger.app.permissions.rememberPassiveCapturePermissionRequest
 import com.straphanger.app.ui.CaptureAccessState
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.init
-import java.io.FileOutputStream
 import kotlinx.io.files.Path
 
 class MainActivity : ComponentActivity() {
@@ -39,19 +38,16 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     FileKit.init(this)
     handleIncomingShareIntent(intent)
-    val geofenceRegistrar = AndroidGeofenceRegistrar(applicationContext)
-    val pendingGeofenceEvents = PassiveCaptureStorage.pendingEvents(applicationContext)
+    val captureRuntime = CaptureRuntimeHolder.get(applicationContext)
     val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
     val favoriteStations = FileFavoriteStationsStore(Path(filesDir.path, "favorite-stations.json"))
     setContent {
       val requestPassiveCapture =
         rememberPassiveCapturePermissionRequest(onResult = ::refreshCaptureAccess)
       App(
-        backend =
-          FileRidePersistenceBackend(Path(filesDir.path, "rides.json"), syncFile = ::syncToStorage),
-        geofenceRegistrar = geofenceRegistrar,
-        pendingGeofenceEvents = pendingGeofenceEvents,
-        notificationSessions = PassiveCaptureStorage.notificationSessions(applicationContext),
+        // The process-wide runtime owns rides.json, capture and navigation sessions.
+        backend = null,
+        captureRuntime = captureRuntime,
         captureAccess = captureAccess.value,
         onRequestPassiveCapture = {
           PassiveCaptureStorage.setTurnedOn(this, true)
@@ -122,11 +118,6 @@ class MainActivity : ComponentActivity() {
     }
   }
 
-  /** Forces a written file to storage; fsync on any descriptor of the file flushes its data. */
-  private fun syncToStorage(path: Path) {
-    FileOutputStream(path.toString(), true).use { it.fd.sync() }
-  }
-
   private fun handleIncomingShareIntent(intent: Intent?) {
     if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
       val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
@@ -134,5 +125,10 @@ class MainActivity : ComponentActivity() {
         SharedRouteInbox.enqueueSharedRouteText(sharedText)
       }
     }
+  }
+
+  companion object {
+    /** The ride a "ride recorded" notification opens. */
+    const val EXTRA_RIDE_ID = "com.straphanger.app.RIDE_ID"
   }
 }

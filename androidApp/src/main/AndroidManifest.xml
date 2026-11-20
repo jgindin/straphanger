@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".StraphangerApplication"
@@ -38,6 +39,11 @@
         <!-- Station geofence transitions from Google Play services -->
         <receiver
             android:name=".capture.GeofenceBroadcastReceiver"
+            android:exported="false" />
+
+        <!-- The idle-close alarm: closes a ride chain that went idle while no app was running -->
+        <receiver
+            android:name=".capture.IdleCloseReceiver"
             android:exported="false" />
 
         <!-- Registers station geofences again after a reboot; only the system sends BOOT_COMPLETED -->

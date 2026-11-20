@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -35,19 +36,36 @@ object BackgroundGeofenceRefresher {
     reason: String,
     location: suspend () -> Pair<Double, Double>?,
   ) {
-    val appContext = context.applicationContext
     val pending = receiver.goAsync()
     scope.launch {
       try {
-        val done = withTimeoutOrNull(TIMEOUT_MS) { registerAround(appContext, reason, location()) }
-        if (done == null) Log.w(TAG, "$reason: timed out registering geofences")
-      } catch (e: GeofenceRegistrationException) {
-        Log.w(TAG, "$reason: geofences not registered", e)
-      } catch (e: SecurityException) {
-        Log.w(TAG, "$reason: location access refused; geofences not registered", e)
+        refreshNow(context, reason, location)
       } finally {
         pending.finish()
       }
+    }
+  }
+
+  /**
+   * [refresh] for a caller that already holds the receiver's [BroadcastReceiver.goAsync] result;
+   * bounded, and logs instead of throwing.
+   */
+  suspend fun refreshNow(
+    context: Context,
+    reason: String,
+    location: suspend () -> Pair<Double, Double>?,
+  ) {
+    val appContext = context.applicationContext
+    try {
+      val done =
+        withTimeoutOrNull(TIMEOUT_MS) {
+          withContext(Dispatchers.Default) { registerAround(appContext, reason, location()) }
+        }
+      if (done == null) Log.w(TAG, "$reason: timed out registering geofences")
+    } catch (e: GeofenceRegistrationException) {
+      Log.w(TAG, "$reason: geofences not registered", e)
+    } catch (e: SecurityException) {
+      Log.w(TAG, "$reason: location access refused; geofences not registered", e)
     }
   }
 

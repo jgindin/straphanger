@@ -92,12 +92,15 @@ class RideCaptureRuntime(
   /**
    * Turns what the platform recorded while nothing ran into rides: stored station entries, an idle
    * chain, and ended navigation sessions. Safe to call any number of times.
+   *
+   * @param passiveCapture false skips the station entries and the idle chain, e.g. when the user
+   *   turned passive capture off or revoked location access; navigation sessions need neither.
    */
-  suspend fun catchUp() {
+  suspend fun catchUp(passiveCapture: Boolean = true) {
     start()
     if (network().isFailure) return
     withContext(dispatcher) {
-      coordinator?.catchUp()
+      if (passiveCapture) coordinator?.catchUp()
       navigation.drain()
     }
   }
