@@ -13,7 +13,7 @@ interface StraphangerScreenState {
 interface ScreenNavigation : StraphangerScreenState {
   fun selectTab(tab: AppTab)
 
-  /** Shows the Rides tab with [rideId] highlighted and scrolled into view. */
+  /** Shows the Rides tab, unfiltered, with [rideId] highlighted and scrolled into view. */
   fun showRide(rideId: String)
 
   fun setMapColorMode(mode: MapColorMode)
@@ -57,7 +57,9 @@ internal class ScreenNavigationController(private val session: StraphangerSessio
   }
 
   override fun showRide(rideId: String) {
-    session.update { it.copy(activeTab = AppTab.RIDES, highlightedRideId = rideId) }
+    session.update {
+      it.copy(activeTab = AppTab.RIDES, highlightedRideId = rideId, ridesRouteFilter = null)
+    }
   }
 
   override fun setMapColorMode(mode: MapColorMode) {

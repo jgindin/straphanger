@@ -66,6 +66,7 @@ fun DataSourcesAndSyncScreen(
   onRequestNotificationAccess: () -> Unit = {},
   onRequestRideNotifications: () -> Unit = {},
   onDisableRideNotifications: () -> Unit = {},
+  onOpenNotificationSettings: () -> Unit = {},
   onOpenAbout: () -> Unit = {},
 ) {
   val backup =
@@ -106,6 +107,7 @@ fun DataSourcesAndSyncScreen(
       onRequestNotificationAccess = onRequestNotificationAccess,
       onRequestRideNotifications = onRequestRideNotifications,
       onDisableRideNotifications = onDisableRideNotifications,
+      onOpenNotificationSettings = onOpenNotificationSettings,
     )
     BackupCard(backup, onBackupMessage)
     Button(
@@ -198,6 +200,7 @@ private fun PassiveCaptureCard(
   onRequestNotificationAccess: () -> Unit,
   onRequestRideNotifications: () -> Unit,
   onDisableRideNotifications: () -> Unit,
+  onOpenNotificationSettings: () -> Unit,
 ) {
   SectionCard(spacing = 6.dp) {
     CardTitle("2. Passive Capture")
@@ -225,7 +228,12 @@ private fun PassiveCaptureCard(
       detail = rideNotificationsDetail(uiState),
       checked = uiState.rideNotificationsTurnedOn && uiState.postNotificationsGranted,
       onCheckedChange = { on ->
-        if (on) onRequestRideNotifications() else onDisableRideNotifications()
+        when {
+          uiState.rideNotificationsTurnedOn && !uiState.postNotificationsGranted ->
+            onOpenNotificationSettings()
+          on -> onRequestRideNotifications()
+          else -> onDisableRideNotifications()
+        }
       },
       testTag = "ride_notifications_toggle",
     )
@@ -308,7 +316,7 @@ private fun rideNotificationsDetail(uiState: StraphangerUiState): String =
   when {
     !uiState.rideNotificationsTurnedOn -> "Off."
     !uiState.postNotificationsGranted ->
-      "Notifications are blocked for Straphanger in system settings."
+      "Notifications are blocked for Straphanger. Tap to allow them in system settings."
     else -> "A notification appears when passive capture or Google Maps records a ride."
   }
 
