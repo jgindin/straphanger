@@ -43,6 +43,8 @@ class PassiveCaptureCoordinator(
   private val scope: CoroutineScope,
   private val clock: Clock = Clock.System,
   private val pendingEvents: PendingGeofenceEventStore = InMemoryPendingGeofenceEventStore(),
+  /** Called for every ride recorded, once it has been saved. */
+  private val onRecorded: (CompleteRideRecord) -> Unit = {},
 ) {
   private val _status = MutableStateFlow(PassiveCaptureStatus())
   val status: StateFlow<PassiveCaptureStatus> = _status.asStateFlow()
@@ -70,9 +72,35 @@ class PassiveCaptureCoordinator(
     job = scope.launch {
       drainPending()
       closeIfIdle()
-      launch(start = CoroutineStart.UNDISPATCHED) { events.collect { handle(it) } }
+      launch(start = CoroutineStart.UNDISPATCHED) {
+        events.collect { event ->
+          // Leaving the macro anchor moves the window; any other transition is a station's.
+          if (
+            event is GeofenceEvent.Exited &&
+              event.geofenceId == DynamicGeofenceWindowManager.MACRO_ANCHOR_ID
+          ) {
+            register(event.lat, event.lng)
+          } else {
+            handleStationEvent(event)
+            drainPending()
+          }
+        }
+      }
       register(initialLat, initialLng)
     }
+  }
+
+  /**
+   * Handles the stored entries and closes an idle chain, without registering geofences or
+   * collecting [events]; e.g. when the platform woke the app with nothing else running. Entries
+   * kept for a ride that could not be saved are offered again, so the ride is recorded once storage
+   * works.
+   */
+  fun catchUp() {
+    // Offering the open chain's entries again is harmless: they are not newer than the chain.
+    if (reconstructor.unsavedChainOriginTimeMs != null) handled.clear()
+    drainPending()
+    closeIfIdle()
   }
 
   /**
@@ -113,22 +141,6 @@ class PassiveCaptureCoordinator(
     } catch (e: GeofenceRegistrationException) {
       _status.update {
         it.copy(registeredCount = 0, error = e.message ?: "Geofences could not be registered")
-      }
-    }
-  }
-
-  private suspend fun handle(event: GeofenceEvent) {
-    when (event) {
-      is GeofenceEvent.Exited ->
-        if (event.geofenceId == DynamicGeofenceWindowManager.MACRO_ANCHOR_ID) {
-          register(event.lat, event.lng)
-        } else {
-          handleStationEvent(event)
-          drainPending()
-        }
-      is GeofenceEvent.Entered -> {
-        handleStationEvent(event)
-        drainPending()
       }
     }
   }
@@ -194,6 +206,7 @@ class PassiveCaptureCoordinator(
   private fun recorded(record: CompleteRideRecord?) {
     if (record == null) return
     _status.update { it.copy(ridesRecorded = it.ridesRecorded + 1, lastRecordedRide = record) }
+    onRecorded(record)
   }
 }
 
