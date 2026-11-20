@@ -17,23 +17,24 @@ private const val GRID_STEP_PX = 120f
 private const val GRID_LINE_ARGB = 0xFF121722
 private const val SEGMENT_CULL_MARGIN_PX = 50f
 private const val STATION_CULL_MARGIN_PX = 20f
-private const val UNRIDDEN_TRACK_WIDTH = 4.5f
-private const val RIDDEN_GLOW_WIDTH = 13f
-private const val RIDDEN_TRACK_WIDTH = 6.5f
-private const val RIDDEN_GLOW_ALPHA = 0.35f
-private const val HIGHWAY_WIDTH = 1.8f
-private const val ARTERIAL_WIDTH = 1.1f
+private const val UNRIDDEN_TRACK_WIDTH = 2.6f
+private const val RIDDEN_GLOW_WIDTH = 9f
+private const val RIDDEN_TRACK_WIDTH = 4.2f
+private const val RIDDEN_GLOW_ALPHA = 0.45f
+private const val HIGHWAY_WIDTH = 1.3f
+private const val ARTERIAL_WIDTH = 0.7f
 private val TRACK_ZOOM_SCALE = 0.9f..1.8f
 private val STATION_ZOOM_SCALE = 0.85f..1.45f
 
 /** Below this zoom only visited stations and transfer hubs are drawn. */
 private const val STATION_DETAIL_ZOOM = 1.25f
-private const val SELECTED_RADIUS = 9.5f
-private const val BOARDED_OR_EXITED_RADIUS = 6.5f
-private const val VISITED_RADIUS = 5.2f
-private const val TRANSFER_HUB_RADIUS = 4.2f
-private const val STATION_RADIUS = 3.0f
-private const val STATION_HALO_PX = 2.5f
+/** Track widths and station radii are in dp, scaled by the screen density when drawn. */
+private const val SELECTED_RADIUS = 5f
+private const val BOARDED_OR_EXITED_RADIUS = 3.6f
+private const val VISITED_RADIUS = 3f
+private const val TRANSFER_HUB_RADIUS = 2.6f
+private const val STATION_RADIUS = 1.9f
+private const val STATION_HALO_PX = 1.2f
 
 /** What the map shows: the ride statistics, the route filter and the selected station. */
 internal class MapLayers(
@@ -56,7 +57,7 @@ internal fun DrawScope.drawSubwayMap(
   if (basemap != null) drawBasemap(basemap, viewport) else drawGrid(viewport.pan)
   val segments =
     geometry.segments.filter { layers.selectedRoute == null || layers.selectedRoute in it.routes }
-  segments.forEach { drawUnriddenSegment(it, viewport) }
+  segments.forEach { drawUnriddenSegment(it, viewport, layers) }
   segments.forEach { drawRiddenSegment(it, viewport, layers) }
   geometry.stations
     .filter { layers.selectedRoute == null || layers.selectedRoute in it.station.daytimeRoutes }
@@ -76,8 +77,20 @@ private fun DrawScope.drawBasemap(basemap: BasemapPaths, viewport: MapViewport) 
     drawPath(basemap.parks, MtaColors.BasemapPark)
   }
   val scale = viewport.zoom.coerceIn(TRACK_ZOOM_SCALE)
-  drawRoads(basemap, basemap.arterials, viewport, MtaColors.BasemapArterial, ARTERIAL_WIDTH * scale)
-  drawRoads(basemap, basemap.highways, viewport, MtaColors.BasemapHighway, HIGHWAY_WIDTH * scale)
+  drawRoads(
+    basemap,
+    basemap.arterials,
+    viewport,
+    MtaColors.BasemapArterial,
+    ARTERIAL_WIDTH * density * scale,
+  )
+  drawRoads(
+    basemap,
+    basemap.highways,
+    viewport,
+    MtaColors.BasemapHighway,
+    HIGHWAY_WIDTH * density * scale,
+  )
 }
 
 private fun DrawScope.drawRoads(
@@ -109,16 +122,20 @@ private fun DrawScope.drawGrid(pan: Offset) {
   }
 }
 
-/** Every segment in muted slate grey, whether ridden or not. */
-private fun DrawScope.drawUnriddenSegment(seg: ProjectedSegment, viewport: MapViewport) {
+/** Every segment in its line colour, a little thinner than the ridden ones drawn over it. */
+private fun DrawScope.drawUnriddenSegment(
+  seg: ProjectedSegment,
+  viewport: MapViewport,
+  layers: MapLayers,
+) {
   val start = viewport.toScreen(seg.startX, seg.startY)
   val end = viewport.toScreen(seg.endX, seg.endY)
   if (viewport.isSegmentOffscreen(start, end, SEGMENT_CULL_MARGIN_PX)) return
   drawLine(
-    color = MtaColors.UnriddenTrack,
+    color = unriddenSegmentColor(seg.routes, layers.selectedRoute, layers.colorMode),
     start = start,
     end = end,
-    strokeWidth = UNRIDDEN_TRACK_WIDTH * viewport.zoom.coerceIn(TRACK_ZOOM_SCALE),
+    strokeWidth = UNRIDDEN_TRACK_WIDTH * density * viewport.zoom.coerceIn(TRACK_ZOOM_SCALE),
     cap = StrokeCap.Round,
   )
 }
@@ -145,14 +162,14 @@ private fun DrawScope.drawRiddenSegment(
     color = color.copy(alpha = RIDDEN_GLOW_ALPHA),
     start = start,
     end = end,
-    strokeWidth = RIDDEN_GLOW_WIDTH * scale,
+    strokeWidth = RIDDEN_GLOW_WIDTH * density * scale,
     cap = StrokeCap.Round,
   )
   drawLine(
     color = color,
     start = start,
     end = end,
-    strokeWidth = RIDDEN_TRACK_WIDTH * scale,
+    strokeWidth = RIDDEN_TRACK_WIDTH * density * scale,
     cap = StrokeCap.Round,
   )
 }
@@ -177,8 +194,8 @@ private fun DrawScope.drawStation(ps: ProjectedStation, viewport: MapViewport, l
     viewport.isPointOffscreen(center, STATION_CULL_MARGIN_PX) ||
       (viewport.zoom < STATION_DETAIL_ZOOM && !visit.isVisited && !st.isTransferHub)
   if (hidden) return
-  val radius = visit.radius(st) * viewport.zoom.coerceIn(STATION_ZOOM_SCALE)
-  drawCircle(color = MtaColors.DarkBg, radius = radius + STATION_HALO_PX, center = center)
+  val radius = visit.radius(st) * density * viewport.zoom.coerceIn(STATION_ZOOM_SCALE)
+  drawCircle(color = MtaColors.DarkBg, radius = radius + STATION_HALO_PX * density, center = center)
   drawCircle(color = visit.fillColor(st), radius = radius, center = center)
 }
 
@@ -213,3 +230,19 @@ private data class StationVisit(
       )
   }
 }
+
+/**
+ * The colour of a segment nobody has ridden: its own line's colour (the filtered line when there is
+ * a filter), so the whole network is readable at a glance. The heatmap keeps unridden track neutral
+ * because there colour means ride count.
+ */
+internal fun unriddenSegmentColor(
+  routes: List<String>,
+  selectedRoute: String?,
+  mode: MapColorMode,
+): Color =
+  when (mode) {
+    MapColorMode.OFFICIAL_MTA_COLORS ->
+      MtaColors.mapLineColor(MtaColors.routeColor(selectedRoute ?: routes.firstOrNull().orEmpty()))
+    MapColorMode.FREQUENCY_HEATMAP -> MtaColors.UnriddenTrack
+  }

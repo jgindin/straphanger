@@ -24,22 +24,21 @@ object MtaColors {
   val DarkBg = Color(0xFF0B0E14)
   val CardBg = Color(0xFF141A24)
   val CardBorder = Color(0xFF232C3D)
-  val UnriddenTrack = Color(0xFF4F5B75)
-  val UnriddenStation = Color(0xFF8995AE)
+  val UnriddenTrack = Color(0xFF7A869F)
+  val UnriddenStation = Color(0xFFC3CCDD)
   val TextPrimary = Color(0xFFF3F6FA)
   val TextSecondary = Color(0xFF9BA7B8)
   val AccentGold = Color(0xFFFCCC0A)
   val AccentGreen = Color(0xFF00E676)
 
-  // The basemap under the map, darkest first. Land sits at about the old background's lightness,
-  // so the track and line colours keep the contrast they had; water is darker and bluer, parks
-  // a dark green, and roads stay below the unridden track so they never read as subway lines.
-  // MapColorsTest checks the contrast ratios.
-  val BasemapWater = Color(0xFF010307)
-  val BasemapLand = Color(0xFF12161F)
-  val BasemapPark = Color(0xFF0A1D12)
-  val BasemapArterial = Color(0xFF212838)
-  val BasemapHighway = Color(0xFF2B3448)
+  // The basemap under the map: water a visible dark blue, land a lighter charcoal than the app
+  // background, parks a muted green, and roads between land and the unridden track so they never
+  // read as subway lines. MapColorsTest checks the contrast ratios.
+  val BasemapWater = Color(0xFF123456)
+  val BasemapLand = Color(0xFF2A2F3A)
+  val BasemapPark = Color(0xFF2B4A38)
+  val BasemapArterial = Color(0xFF383F4E)
+  val BasemapHighway = Color(0xFF465068)
 
   /** Filled-button green; white text on it is 5.5:1 (the line green 0xFF00933C gives 4.0:1). */
   val ActionGreen = Color(0xFF007A33)
