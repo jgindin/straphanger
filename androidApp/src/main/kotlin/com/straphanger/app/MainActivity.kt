@@ -31,7 +31,9 @@ import io.github.vinceglb.filekit.dialogs.init
 import kotlinx.io.files.Path
 
 class MainActivity : ComponentActivity() {
-  private val captureAccess = mutableStateOf(CaptureAccessState())
+  // Null until onResume reads it: a placeholder state would stop capture that is already running
+  // when the app is reopened in a live process.
+  private val captureAccess = mutableStateOf<CaptureAccessState?>(null)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     // The app is always dark, so the system bar icons are always light.
@@ -41,9 +43,12 @@ class MainActivity : ComponentActivity() {
     )
     super.onCreate(savedInstanceState)
     FileKit.init(this)
-    handleIncomingShareIntent(intent)
-    // A recreation (rotation) must not reopen the ride and force the Rides tab again.
-    if (savedInstanceState == null) handleRideTapIntent(intent)
+    // A recreation (rotation) must not record the shared route again, nor reopen the ride and force
+    // the Rides tab. Reopening from recents redelivers the launching intent, so skip it then too.
+    if (savedInstanceState == null && !launchedFromHistory(intent)) {
+      handleIncomingShareIntent(intent)
+      handleRideTapIntent(intent)
+    }
     val captureRuntime = CaptureRuntimeHolder.get(applicationContext)
     val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
     val favoriteStations = FileFavoriteStationsStore(Path(filesDir.path, "favorite-stations.json"))
@@ -123,8 +128,8 @@ class MainActivity : ComponentActivity() {
         rideNotificationsTurnedOn = PassiveCaptureStorage.rideNotificationsTurnedOn(this),
         postNotificationsGranted = NotificationManagerCompat.from(this).areNotificationsEnabled(),
         geofencesDroppedCount = PassiveCaptureStorage.geofencesDroppedCount(this),
-        lastKnownLat = captureAccess.value.lastKnownLat,
-        lastKnownLng = captureAccess.value.lastKnownLng,
+        lastKnownLat = captureAccess.value?.lastKnownLat,
+        lastKnownLng = captureAccess.value?.lastKnownLng,
       )
     if (!current.locationGranted) {
       captureAccess.value = current
@@ -155,6 +160,9 @@ class MainActivity : ComponentActivity() {
       }
     }
   }
+
+  private fun launchedFromHistory(intent: Intent?): Boolean =
+    intent != null && intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
 
   /** A tapped "ride recorded" notification carries the ride to open. */
   private fun handleRideTapIntent(intent: Intent?) {

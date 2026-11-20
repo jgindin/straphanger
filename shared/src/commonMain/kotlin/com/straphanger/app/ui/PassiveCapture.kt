@@ -28,7 +28,9 @@ private const val DEFAULT_WINDOW_LNG = -73.9899
 internal class PassiveCaptureController(private val session: StraphangerSession) :
   CaptureAccessControl {
   private var coordinator: PassiveCaptureCoordinator? = null
-  private var captureAccess = CaptureAccessState()
+  // Null until the platform first reports access. A view model built while the process (and so the
+  // runtime's coordinator) is still alive must not stop running capture on a default state.
+  private var captureAccess: CaptureAccessState? = null
   private var handledGeofencesDroppedCount = 0
 
   /** Starts showing [created]'s state; null where the platform has no passive capture. */
@@ -62,25 +64,27 @@ internal class PassiveCaptureController(private val session: StraphangerSession)
   }
 
   /** Why passive capture cannot run with the current access state, or null. */
-  private fun captureBlockedReason(): String? =
-    when {
-      !captureAccess.passiveCaptureTurnedOn -> null
-      !captureAccess.locationGranted -> "Location permission is needed"
-      !captureAccess.locationServicesEnabled -> "Device location is off"
+  private fun captureBlockedReason(): String? {
+    val access = captureAccess ?: return null
+    return when {
+      !access.passiveCaptureTurnedOn -> null
+      !access.locationGranted -> "Location permission is needed"
+      !access.locationServicesEnabled -> "Device location is off"
       else -> null
     }
+  }
 
+  /** Starts or stops capture for the reported access; does nothing until access is reported. */
   private fun applyCaptureAccess() {
     val coordinator = coordinator ?: return
+    val access = captureAccess ?: return
     session.update {
       it.copy(passiveCaptureError = coordinator.status.value.error ?: captureBlockedReason())
     }
     val canRun =
-      captureAccess.passiveCaptureTurnedOn &&
-        captureAccess.locationGranted &&
-        captureAccess.locationServicesEnabled
+      access.passiveCaptureTurnedOn && access.locationGranted && access.locationServicesEnabled
     if (canRun) {
-      run(coordinator)
+      run(coordinator, access)
     } else if (coordinator.status.value.running) {
       // With device location off, Play services has already dropped the geofences.
       coordinator.stop()
@@ -88,14 +92,14 @@ internal class PassiveCaptureController(private val session: StraphangerSession)
   }
 
   /** Starts capture, and registers again when the platform reported dropped geofences. */
-  private fun run(coordinator: PassiveCaptureCoordinator) {
+  private fun run(coordinator: PassiveCaptureCoordinator, access: CaptureAccessState) {
     val wasRunning = coordinator.status.value.running
     coordinator.start(
-      captureAccess.lastKnownLat ?: DEFAULT_WINDOW_LAT,
-      captureAccess.lastKnownLng ?: DEFAULT_WINDOW_LNG,
+      access.lastKnownLat ?: DEFAULT_WINDOW_LAT,
+      access.lastKnownLng ?: DEFAULT_WINDOW_LNG,
     )
-    if (captureAccess.geofencesDroppedCount != handledGeofencesDroppedCount) {
-      handledGeofencesDroppedCount = captureAccess.geofencesDroppedCount
+    if (access.geofencesDroppedCount != handledGeofencesDroppedCount) {
+      handledGeofencesDroppedCount = access.geofencesDroppedCount
       if (wasRunning) coordinator.reregister()
     }
   }
