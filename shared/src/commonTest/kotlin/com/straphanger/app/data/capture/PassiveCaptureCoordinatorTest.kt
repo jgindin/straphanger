@@ -36,6 +36,25 @@ class FakeGeofenceRegistrar(var failure: Exception? = null) : GeofenceRegistrar 
   }
 }
 
+/** Records what the coordinator asked the platform alarm to do. */
+class RecordingIdleCloseScheduler : IdleCloseScheduler {
+  val scheduled = mutableListOf<Long>()
+  var cancels = 0
+
+  /** The alarm time currently set, or null when none is. */
+  var current: Long? = null
+
+  override fun schedule(atEpochMs: Long) {
+    scheduled += atEpochMs
+    current = atEpochMs
+  }
+
+  override fun cancel() {
+    cancels++
+    current = null
+  }
+}
+
 /** A clock that reads the test scheduler's virtual time, starting at [baseMs]. */
 class SchedulerClock(private val scheduler: TestCoroutineScheduler, private val baseMs: Long) :
   Clock {
@@ -63,6 +82,7 @@ class PassiveCaptureCoordinatorTest {
     val reconstructor = PassiveRideReconstructor(engine, dao)
     val registrar = FakeGeofenceRegistrar()
     val events = MutableSharedFlow<GeofenceEvent>()
+    val idleCloseScheduler = RecordingIdleCloseScheduler()
     val coordinator =
       PassiveCaptureCoordinator(
         windowManager,
@@ -72,6 +92,7 @@ class PassiveCaptureCoordinatorTest {
         scope,
         clock = clock,
         pendingEvents = store,
+        idleCloseScheduler = idleCloseScheduler,
       )
   }
 
@@ -396,5 +417,40 @@ class PassiveCaptureCoordinatorTest {
     runCurrent()
     assertEquals(1, h.registrar.clearCalls)
     assertEquals(0, h.coordinator.status.value.registeredCount)
+  }
+
+  @Test
+  fun openChainSchedulesTheIdleCloseAtLastEntryPlusIdlePeriod() = runTest {
+    val h = startedHarness()
+    deliver(h, entered("602", 0.0))
+    assertEquals(t0 + PassiveRideReconstructor.DEFAULT_IDLE_CLOSE_MS, h.idleCloseScheduler.current)
+
+    // A second hop moves the alarm to the new last entry.
+    deliver(h, entered("397", 12.0))
+    assertEquals(
+      t0 + 12 * minute + PassiveRideReconstructor.DEFAULT_IDLE_CLOSE_MS,
+      h.idleCloseScheduler.current,
+    )
+    assertEquals(
+      listOf(
+        t0 + PassiveRideReconstructor.DEFAULT_IDLE_CLOSE_MS,
+        t0 + 12 * minute + PassiveRideReconstructor.DEFAULT_IDLE_CLOSE_MS,
+      ),
+      h.idleCloseScheduler.scheduled.distinct(),
+    )
+  }
+
+  @Test
+  fun closingTheChainCancelsTheIdleClose() = runTest {
+    val h = startedHarness()
+    deliver(h, entered("602", 0.0))
+    deliver(h, entered("397", 12.0))
+    val cancelsWhileOpen = h.idleCloseScheduler.cancels
+
+    silence(15)
+
+    assertEquals(1, h.dao.getAllRides().size)
+    assertNull(h.idleCloseScheduler.current)
+    assertTrue(h.idleCloseScheduler.cancels > cancelsWhileOpen)
   }
 }
