@@ -3,6 +3,11 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.24 (not yet released)
+
+- Notifications: turn on "Notify me when a ride is recorded" on the Data sources screen (off by default; Android 13 and later asks for permission, and when notifications are blocked the switch opens the system settings). When passive capture or Google Maps navigation records a ride, "Rides recorded" shows it, such as "A · 14 St → 168 St" and "32 min", even with the app closed. A ride that needs review says "Express or local? Tap to confirm". It arrives about 6 to 15 minutes after the ride, because that is how long it takes to detect that the ride has ended. Tapping it opens the Rides tab with that ride highlighted.
+- An idle ride now closes on a system alarm when the app is not running.
+
 ## 0.23 (not yet released)
 
 - Rides to review: "Looks right" (was "Keep as is") marks a ride as correct, and the review buttons also appear on the ride in the list.

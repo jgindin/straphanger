@@ -115,7 +115,13 @@ flowchart LR
   G -->|ride| H[SubwayDao]
 ```
 
-### 5d. Live train times
+### 5d. One runtime, and the notification
+
+- [RideCaptureRuntime.kt](../shared/src/commonMain/kotlin/com/straphanger/app/data/capture/RideCaptureRuntime.kt) is the single owner, per process, of the rides DAO, passive capture and the Google Maps sessions. Whatever ends a ride (the app, a receiver or the listener) goes through it, and it tells a `RideNotifier` about each recorded ride. `catchUp()` processes pending geofence entries and closes idle rides.
+- On Android, `CaptureRuntimeHolder` holds the runtime. The geofence, boot and listener receivers call `catchUp()`. When no process is running, `AlarmIdleCloseScheduler` sets a platform alarm and `IdleCloseReceiver` closes the idle ride when it fires; this is why a notification comes 6 to 15 minutes after the ride.
+- `AndroidRideNotifier` ([notify/](../shared/src/androidMain/kotlin/com/straphanger/app/notify/AndroidRideNotifier.kt)) posts "Rides recorded" (or "Express or local? Tap to confirm"). Tapping it opens the Rides tab with the ride highlighted. The switch is on the Data sources screen and is off by default.
+
+### 5e. Live train times
 
 [data/realtime/](../shared/src/commonMain/kotlin/com/straphanger/app/data/realtime/) reads the MTA's GTFS-Realtime feeds. `GtfsRealtime.kt` holds the few protobuf fields the app reads (decoded with `kotlinx-serialization-protobuf`), `RealtimeFeed.kt` maps lines to the feed that carries them, `RealtimeFeedClient` fetches the needed feeds and the alerts together (one feed failing marks the snapshot `partial`; all failing throws), `ArrivalBoard` turns trip updates into per-station arrivals (stop ids are station ids plus `N` or `S`), and `ServiceAlerts.kt` keeps the alerts in effect now. The Status tab is `ui/status/StatusScreen.kt`, with its refresh and search logic in `StatusState.kt`. Starred stations are saved by a `FavoriteStationsStore` (`data/local/FavoriteStations.kt`), a JSON list of station complex ids in `favorite-stations.json` that the platform passes to `App`. Tests use real feed bytes saved under `androidHostTest/resources/realtime`. The design, including what is not built (departure alerts), is in [REALTIME-DESIGN.md](REALTIME-DESIGN.md) on the `realtime-design` branch and the spec in `docs/superpowers/specs/`.
 
@@ -164,7 +170,8 @@ Everything here is in [androidApp/src/main/kotlin/com/straphanger/app](../androi
 - [capture/](../androidApp/src/main/kotlin/com/straphanger/app/capture/):
   - `AndroidGeofenceRegistrar`: registers the geofence window with Play services.
   - `GeofenceBroadcastReceiver`: appends station entries to the pending file, forwards events, and (if the app isn't running and you left the anchor) asks `BackgroundGeofenceRefresher` to register a new window using `goAsync()` and a 20-second timeout.
-  - `BootCompletedReceiver`: re-registers geofences after a reboot if capture is on and the permissions are still granted.
+  - `BootCompletedReceiver`: re-registers geofences after a reboot if capture is on and the permissions are still granted, and calls `catchUp()`.
+  - `CaptureRuntimeHolder`, `AlarmIdleCloseScheduler` and `IdleCloseReceiver`: the per-process runtime, and the alarm that closes an idle ride after the process has died (section 5d).
   - `GoogleMapsTransitNotificationListener`: reads only Google Maps navigation notifications and feeds the session tracker.
   - `NotificationAccess`, `PassiveCaptureStorage`, and [permissions/CapturePermissions.kt](../androidApp/src/main/kotlin/com/straphanger/app/permissions/CapturePermissions.kt): access checks and the persisted on/off choice (off by default).
 - [AndroidManifest.xml](../androidApp/src/main/AndroidManifest.xml) declares the components. Auto Backup rules are in `res/xml`.
