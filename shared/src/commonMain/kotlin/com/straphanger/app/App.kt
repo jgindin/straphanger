@@ -55,7 +55,6 @@ import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
 import com.straphanger.app.ui.status.StatusScreen
 import com.straphanger.app.ui.theme.MtaColors
-import io.ktor.client.HttpClient
 import kotlin.time.Clock
 import kotlinx.coroutines.launch
 
@@ -106,9 +105,7 @@ fun App(
   favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
   captureRuntime: RideCaptureRuntime? = null,
 ) {
-  val realtime = remember {
-    RealtimeFeedClient(HttpClient(), nowEpochSeconds = { Clock.System.now().epochSeconds })
-  }
+  val realtime = remember { RealtimeFeedClient.mta() }
   require(backend != null || captureRuntime != null) { "App needs a backend or a captureRuntime" }
   val viewModel: StraphangerViewModel = viewModel {
     StraphangerViewModel(

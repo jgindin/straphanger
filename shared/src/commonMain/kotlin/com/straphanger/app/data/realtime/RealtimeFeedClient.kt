@@ -6,6 +6,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.isSuccess
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Clock
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -60,4 +61,10 @@ class RealtimeFeedClient(
     } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
       Result.failure(e)
     }
+
+  companion object {
+    /** A client of the MTA's feeds over the platform's default HTTP engine. */
+    fun mta(): RealtimeFeedClient =
+      RealtimeFeedClient(HttpClient(), nowEpochSeconds = { Clock.System.now().epochSeconds })
+  }
 }
