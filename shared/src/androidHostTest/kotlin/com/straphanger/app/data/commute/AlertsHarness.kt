@@ -38,6 +38,7 @@ internal class AlertsHarness(
   commutes: List<Commute>,
   nowMs: Long = nyMs(2027, 3, 8, 7, 45),
   complexes: List<StationComplex>? = listOf(COMPLEX),
+  loadComplexes: suspend () -> List<StationComplex>? = { complexes },
   fetch: (suspend (Collection<String>) -> RealtimeSnapshot)? = null,
 ) {
   val fetched = mutableListOf<String>()
@@ -63,7 +64,7 @@ internal class AlertsHarness(
   val alerts =
     CommuteAlerts(
       store = store,
-      complexes = { complexes },
+      complexes = loadComplexes,
       fetch = { fetchOrDefault(it) },
       notifier = { id, text, tap ->
         posted += id to text

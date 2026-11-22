@@ -54,7 +54,7 @@ fun commuteAlertText(
   val alertLine =
     snapshot.alerts
       .filter { alert -> alert.routes.any(commute::matchesLine) }
-      .minByOrNull { ALERT_PREFERENCE.indexOf(it.kind) }
+      .minByOrNull { ALERT_PREFERENCE.indexOf(it.kind).takeIf { i -> i >= 0 } ?: Int.MAX_VALUE }
       ?.header
   return CommuteAlertText(title, text, alertLine)
 }

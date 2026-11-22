@@ -65,11 +65,12 @@ class CommuteAlertsTest {
     val h = AlertsHarness(listOf(AlertsHarness.commute(complexId = "999")))
     h.alerts.fire("c1")
     assertEquals(emptyList(), h.posted)
-    assertEquals(1, h.scheduler.scheduled.size)
+    // Like rescheduleAll, a commute whose station is gone keeps no alarm.
+    assertEquals(listOf("c1"), h.scheduler.cancelled)
   }
 
   @Test
-  fun rescheduleAllSchedulesEnabledAndCancelsOthers() {
+  fun rescheduleAllSchedulesEnabledAndCancelsOthers() = runTest {
     val commutes =
       listOf(
         AlertsHarness.commute("on"),
@@ -89,7 +90,7 @@ class CommuteAlertsTest {
   }
 
   @Test
-  fun saveCancelsRemovedCommutes() {
+  fun saveCancelsRemovedCommutes() = runTest {
     val h = AlertsHarness(listOf(AlertsHarness.commute("keep"), AlertsHarness.commute("drop")))
     val added = AlertsHarness.commute("new")
     h.alerts.save(listOf(AlertsHarness.commute("keep"), added))
