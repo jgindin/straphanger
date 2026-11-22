@@ -10,6 +10,9 @@ import kotlinx.io.files.SystemFileSystem
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
+/** The tag for everything the commute code logs. */
+internal const val COMMUTE_LOG_TAG = "StraphangerCommutes"
+
 /** The rider's commutes. Calls are synchronous; a store never throws for a storage failure. */
 interface CommuteStore {
   fun read(): List<Commute>
@@ -34,7 +37,7 @@ class FileCommuteStore(
   fileSystem: FileSystem = SystemFileSystem,
   clock: Clock = Clock.System,
 ) : CommuteStore {
-  private val stateFile = JsonStateFile(file, fileSystem, clock, LOG_TAG)
+  private val stateFile = JsonStateFile(file, fileSystem, clock, COMMUTE_LOG_TAG)
   private val serializer = ListSerializer(Commute.serializer())
 
   override fun read(): List<Commute> =
@@ -44,11 +47,7 @@ class FileCommuteStore(
     try {
       stateFile.write(if (commutes.isEmpty()) null else Json.encodeToString(serializer, commutes))
     } catch (e: IOException) {
-      DiagnosticsLog.warn(LOG_TAG, "The commutes could not be saved", e)
+      DiagnosticsLog.warn(COMMUTE_LOG_TAG, "The commutes could not be saved", e)
     }
-  }
-
-  private companion object {
-    const val LOG_TAG = "StraphangerCommutes"
   }
 }

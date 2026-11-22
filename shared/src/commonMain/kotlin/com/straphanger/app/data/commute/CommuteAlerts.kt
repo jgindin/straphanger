@@ -16,12 +16,12 @@ const val LATE_SKIP_MS = 15 * 60_000L
 private const val MS_PER_SECOND = 1_000L
 
 /**
- * Keeps each commute's alarm set and, when one fires, posts its live departures. [complexes] is
- * null while the network has not loaded yet.
+ * Keeps each commute's alarm set and, when one fires, posts its live departures. [complexes] loads
+ * the station complexes, waiting for the network if it has to; null means it could not be loaded.
  */
 class CommuteAlerts(
   private val store: CommuteStore,
-  private val complexes: () -> List<StationComplex>?,
+  private val complexes: suspend () -> List<StationComplex>?,
   private val fetch: suspend (Collection<String>) -> RealtimeSnapshot,
   private val notifier: CommuteNotifier,
   private val scheduler: CommuteAlarmScheduler,
@@ -42,8 +42,25 @@ class CommuteAlerts(
     // Scheduled first so a crash during the fetch never leaves the commute without an alarm.
     scheduleNext(commute, now, tz)
     val lateMs = commute.occurrenceAtOrBeforeMs(now, tz)?.let { now - it } ?: 0L
-    val complex = complexes()?.firstOrNull { it.complexId == commute.complexId }
-    if (lateMs > LATE_SKIP_MS || complex == null) return
+    if (lateMs <= LATE_SKIP_MS) post(commute)
+  }
+
+  /**
+   * Posts [commute]'s departures. Posts nothing when the network could not be loaded, and cancels
+   * the alarm of a commute whose station is no longer listed.
+   */
+  private suspend fun post(commute: Commute) {
+    val all = complexes()
+    val complex = all?.firstOrNull { it.complexId == commute.complexId }
+    when {
+      all == null ->
+        DiagnosticsLog.warn(COMMUTE_LOG_TAG, "A commute fired before the network loaded")
+      complex == null -> scheduler.cancel(commute.id)
+      else -> postFor(commute, complex)
+    }
+  }
+
+  private suspend fun postFor(commute: Commute, complex: StationComplex) {
     val snapshot = withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) { fetchOrNull(commute) }
     val nowSeconds = clock.now().toEpochMilliseconds() / MS_PER_SECOND
     notifier.post(
@@ -53,8 +70,11 @@ class CommuteAlerts(
     )
   }
 
-  /** Sets the alarm of every commute that can fire, and cancels the rest. */
-  fun rescheduleAll() {
+  /**
+   * Sets the alarm of every commute that can fire, and cancels the rest. Suspends while [complexes]
+   * loads; if it gives null, every station is assumed to still exist.
+   */
+  suspend fun rescheduleAll() {
     val known = complexes()?.mapTo(HashSet()) { it.complexId }
     val now = clock.now().toEpochMilliseconds()
     val tz = zone()
@@ -68,8 +88,10 @@ class CommuteAlerts(
     }
   }
 
-  /** Saves [commutes], dropping the alarms of any that were removed. */
-  fun save(commutes: List<Commute>) {
+  /**
+   * Saves [commutes], dropping the alarms of any that were removed; suspends like [rescheduleAll].
+   */
+  suspend fun save(commutes: List<Commute>) {
     val kept = commutes.mapTo(HashSet()) { it.id }
     val removed = store.read().map { it.id }.filter { it !in kept }
     store.write(commutes)
@@ -89,11 +111,7 @@ class CommuteAlerts(
       throw e
     } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
       // Told to the rider as "Couldn't get train times"; logged for the diagnostics.
-      DiagnosticsLog.warn(LOG_TAG, "Train times could not be fetched for a commute", e)
+      DiagnosticsLog.warn(COMMUTE_LOG_TAG, "Train times could not be fetched for a commute", e)
       null
     }
-
-  private companion object {
-    const val LOG_TAG = "StraphangerCommutes"
-  }
 }
