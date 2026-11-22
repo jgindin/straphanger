@@ -10,6 +10,7 @@ import com.straphanger.app.MainActivity
 import com.straphanger.app.R
 import com.straphanger.app.capture.CaptureRuntimeHolder
 import com.straphanger.app.data.commute.CommuteAlerts
+import com.straphanger.app.data.commute.CommuteStore
 import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.commute.FileCommuteStore
 import com.straphanger.app.data.commute.stationComplexes
@@ -19,6 +20,8 @@ import com.straphanger.app.notify.AlarmCommuteScheduler
 import com.straphanger.app.notify.AndroidCommuteNotifier
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
 
@@ -35,9 +38,38 @@ object CommuteAlertsHolder {
 
   @Volatile private var alerts: CommuteAlerts? = null
 
+  @Volatile private var store: CommuteStore? = null
+
+  /** One reschedule at a time, so the pass for the rider's last change is the one that sticks. */
+  private val rescheduleLock = Mutex()
+
   fun get(context: Context): CommuteAlerts =
     alerts
       ?: synchronized(this) { alerts ?: build(context.applicationContext).also { alerts = it } }
+
+  /** The process's one `commutes.json`, shared by the UI and [get]'s alerts. */
+  fun store(context: Context): CommuteStore =
+    store
+      ?: synchronized(this) {
+        store
+          ?: FileCommuteStore(Path(context.applicationContext.filesDir.path, "commutes.json"))
+            .also { store = it }
+      }
+
+  /**
+   * Sets the alarms again after the UI has written the commutes to [store]. The UI's write already
+   * dropped [removedIds] from the file, so their alarms are cancelled here; the rest are set by
+   * [CommuteAlerts.rescheduleAll], which may wait for the network to load.
+   */
+  fun commutesChanged(context: Context, removedIds: Collection<String>) {
+    val appContext = context.applicationContext
+    val scheduler = scheduler(appContext)
+    removedIds.forEach(scheduler::cancel)
+    val alerts = get(appContext)
+    CaptureRuntimeHolder.get(appContext).scope.launch {
+      rescheduleLock.withLock { runSafely(alerts, "Rescheduling commutes") { it.rescheduleAll() } }
+    }
+  }
 
   /**
    * Runs [work] on the runtime's scope from a receiver's [BroadcastReceiver.onReceive], holding the
@@ -84,7 +116,7 @@ object CommuteAlertsHolder {
   private fun build(context: Context): CommuteAlerts {
     val feed = RealtimeFeedClient.mta()
     return CommuteAlerts(
-      store = FileCommuteStore(Path(context.filesDir.path, "commutes.json")),
+      store = store(context),
       complexes = {
         CaptureRuntimeHolder.get(context).network().map(::stationComplexes).getOrNull()
       },
