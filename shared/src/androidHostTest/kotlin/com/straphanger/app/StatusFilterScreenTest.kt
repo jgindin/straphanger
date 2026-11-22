@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.commute.stationComplexes
@@ -98,5 +99,22 @@ class StatusFilterScreenTest : AppScreenTest() {
     composeRule.waitForIdle()
 
     assertEquals(0, count("status_filter_clear"))
+  }
+
+  @Test
+  fun seeTrainsClosesTheAboutScreen() {
+    launchApp()
+    openTab("SOURCES")
+    composeRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
+    composeRule.onNodeWithTag("about_screen").assertExists()
+
+    composeRule.runOnUiThread {
+      CommuteTapInbox.open(CommuteTap(unionSq.complexId, "N", Direction.SOUTH))
+    }
+    composeRule.waitUntil(5_000) {
+      composeRule.onAllNodesWithTag("status_arrival_N").fetchSemanticsNodes().isNotEmpty()
+    }
+
+    assertEquals(0, count("about_screen"))
   }
 }

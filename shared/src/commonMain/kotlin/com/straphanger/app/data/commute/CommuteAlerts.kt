@@ -4,16 +4,24 @@ import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.diagnostics.DiagnosticsLog
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.datetime.TimeZone
 
-/** How long a fired alarm waits for the MTA before saying it couldn't get train times. */
+/**
+ * How long a fired alarm waits, from when it starts its work, for the network and the MTA before
+ * saying it couldn't get train times; it must stay under the receiver's own limit.
+ */
 const val COMMUTE_FETCH_TIMEOUT_MS = 8_000L
 
 /** An alarm that fires later than this after its time posts nothing. */
 const val LATE_SKIP_MS = 15 * 60_000L
 
 private const val MS_PER_SECOND = 1_000L
+
+private const val MS_PER_MINUTE = 60_000L
 
 /**
  * Keeps each commute's alarm set and, when one fires, posts its live departures. [complexes] loads
@@ -42,33 +50,48 @@ class CommuteAlerts(
     // Scheduled first so a crash during the fetch never leaves the commute without an alarm.
     scheduleNext(commute, now, tz)
     val lateMs = commute.occurrenceAtOrBeforeMs(now, tz)?.let { now - it } ?: 0L
-    if (lateMs <= LATE_SKIP_MS) post(commute)
+    if (lateMs <= LATE_SKIP_MS) {
+      post(commute)
+    } else {
+      DiagnosticsLog.warn(
+        COMMUTE_LOG_TAG,
+        "A commute alarm fired ${lateMs / MS_PER_MINUTE} min late; skipped",
+      )
+    }
   }
 
   /**
    * Posts [commute]'s departures. Posts nothing when the network could not be loaded, and cancels
-   * the alarm of a commute whose station is no longer listed.
+   * the alarm of a commute whose station is no longer listed. The fetch runs while the network
+   * loads, and both share one [COMMUTE_FETCH_TIMEOUT_MS] limit from the start.
    */
-  private suspend fun post(commute: Commute) {
-    val all = complexes()
+  private suspend fun post(commute: Commute) = coroutineScope {
+    val snapshot = async { withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) { fetchOrNull(commute) } }
+    val all = withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) { complexes() }
     val complex = all?.firstOrNull { it.complexId == commute.complexId }
+    if (complex == null) snapshot.cancel()
     when {
       all == null ->
         DiagnosticsLog.warn(COMMUTE_LOG_TAG, "A commute fired before the network loaded")
       complex == null -> scheduler.cancel(commute.id)
-      else -> postFor(commute, complex)
+      else -> postFor(commute, complex, snapshot)
     }
   }
 
-  private suspend fun postFor(commute: Commute, complex: StationComplex) {
-    val snapshot = withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) { fetchOrNull(commute) }
-    val nowSeconds = clock.now().toEpochMilliseconds() / MS_PER_SECOND
+  private suspend fun postFor(
+    commute: Commute,
+    complex: StationComplex,
+    snapshot: Deferred<RealtimeSnapshot?>,
+  ) {
+    val text = commuteAlertText(commute, complex, snapshot.await(), nowSeconds())
     notifier.post(
       commute.id,
-      commuteAlertText(commute, complex, snapshot, nowSeconds),
+      text,
       CommuteTap(commute.complexId, commute.routeId, commute.direction),
     )
   }
+
+  private fun nowSeconds(): Long = clock.now().toEpochMilliseconds() / MS_PER_SECOND
 
   /**
    * Sets the alarm of every commute that can fire, and cancels the rest. Suspends while [complexes]

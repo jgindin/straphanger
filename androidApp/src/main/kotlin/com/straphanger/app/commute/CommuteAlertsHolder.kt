@@ -142,6 +142,7 @@ object CommuteAlertsHolder {
         .putExtra(MainActivity.EXTRA_COMMUTE_COMPLEX, tap.complexId)
         .putExtra(MainActivity.EXTRA_COMMUTE_ROUTE, tap.routeId)
         .putExtra(MainActivity.EXTRA_COMMUTE_DIRECTION, tap.direction.name)
+        .putExtra(MainActivity.EXTRA_COMMUTE_NOTIFICATION, commuteId)
         .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       intent.setIdentifier("commute:$commuteId")

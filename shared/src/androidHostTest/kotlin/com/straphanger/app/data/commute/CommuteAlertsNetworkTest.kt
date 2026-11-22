@@ -4,6 +4,7 @@ import com.straphanger.app.diagnostics.DiagnosticsLog
 import com.straphanger.app.diagnostics.DiagnosticsSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 
@@ -43,7 +44,34 @@ class CommuteAlertsNetworkTest {
     assertEquals(LOAD_MS, testScheduler.currentTime)
   }
 
+  @Test
+  fun aSlowLoadAndAHangingFetchShareOneLimit() = runTest {
+    val h =
+      AlertsHarness(
+        listOf(commute),
+        loadComplexes = {
+          delay(SLOW_LOAD_MS)
+          listOf(AlertsHarness.COMPLEX)
+        },
+        fetch = { awaitCancellation() },
+      )
+    h.alerts.fire("c1")
+    assertEquals(listOf("Couldn't get train times"), h.posted.map { it.second.text })
+    // The fetch ran while the network loaded, so the post comes by the limit, not load + limit.
+    assertEquals(COMMUTE_FETCH_TIMEOUT_MS, testScheduler.currentTime)
+  }
+
+  @Test
+  fun aHangingLoadGivesUpAtTheLimit() = runTest {
+    val h = AlertsHarness(listOf(commute), loadComplexes = { awaitCancellation() })
+    h.alerts.fire("c1")
+    assertEquals(emptyList(), h.posted)
+    assertEquals(COMMUTE_FETCH_TIMEOUT_MS, testScheduler.currentTime)
+  }
+
   private companion object {
+    const val SLOW_LOAD_MS = 3_000L
+
     const val LOAD_MS = 2_000L
   }
 }

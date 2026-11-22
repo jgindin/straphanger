@@ -62,6 +62,19 @@ class CommuteAlertTextTest {
   }
 
   @Test
+  fun partialSnapshotWithoutDeparturesIsAFailedFetch() {
+    val alerts = listOf(ServiceAlert("a1", setOf("A"), AlertKind.DELAY, "Signal problems", ""))
+    val failed =
+      text(RealtimeSnapshot(ArrivalBoard(emptyList()), alerts, now, partial = true))
+    assertEquals("Couldn't get train times", failed.text)
+    assertEquals("Signal problems", failed.alertLine)
+    // Partial but with the line's trains: they are shown.
+    val shown =
+      text(RealtimeSnapshot(ArrivalBoard(listOf(south("A", "A09", 3))), alerts, now, partial = true))
+    assertEquals("3 min", shown.text)
+  }
+
+  @Test
   fun fetchFailedText() {
     val alert = text(null)
     assertEquals("Couldn't get train times", alert.text)

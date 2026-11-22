@@ -12,6 +12,8 @@ data class CommuteAlertText(val title: String, val text: String, val alertLine: 
 
 private const val MAX_DEPARTURES = 3
 
+private const val FETCH_FAILED_TEXT = "Couldn't get train times"
+
 /** Alerts that matter most to someone about to leave come first. */
 private val ALERT_PREFERENCE = listOf(AlertKind.DELAY, AlertKind.OTHER, AlertKind.PLANNED)
 
@@ -24,7 +26,7 @@ private fun Commute.matchesLine(routeId: String): Boolean =
 
 /**
  * The notification for [commute] at [complex]. A null [snapshot] means the fetch failed or timed
- * out.
+ * out; a partial one with no departures for the line is taken as a failed train feed.
  */
 fun commuteAlertText(
   commute: Commute,
@@ -34,7 +36,7 @@ fun commuteAlertText(
 ): CommuteAlertText {
   val directionName = if (commute.direction == Direction.NORTH) "Northbound" else "Southbound"
   val title = "${commute.routeId} $directionName · ${complex.name}"
-  if (snapshot == null) return CommuteAlertText(title, "Couldn't get train times", null)
+  if (snapshot == null) return CommuteAlertText(title, FETCH_FAILED_TEXT, null)
   val departures =
     complex.stationIds
       .flatMap { snapshot.arrivals.arrivalsAt(it, nowEpochSeconds, perLine = MAX_DEPARTURES) }
@@ -42,7 +44,9 @@ fun commuteAlertText(
       .sortedBy { it.epochSeconds }
       .take(MAX_DEPARTURES)
   val text =
-    if (departures.isEmpty()) {
+    if (departures.isEmpty() && snapshot.partial) {
+      FETCH_FAILED_TEXT
+    } else if (departures.isEmpty()) {
       "No ${commute.routeId} trains listed ${directionName.lowercase()} right now"
     } else {
       // "3, 9, 14 min": the unit once, on the last; "now" wherever a train is arriving.

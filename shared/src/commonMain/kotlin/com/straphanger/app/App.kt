@@ -173,11 +173,14 @@ internal fun App(
       RideTapInbox.consume()?.let { rideId -> viewModel.showRide(rideId) }
     }
   }
+  val overlays = rememberAppOverlays()
   var commuteTap by remember { mutableStateOf<CommuteTap?>(null) }
   LaunchedEffect(Unit) {
     CommuteTapInbox.pendingTap.collect {
       CommuteTapInbox.consume()?.let { tap ->
         commuteTap = tap
+        // Like a tab tap: the Status tab shows at once, not behind About or a disclosure.
+        overlays.closeAll()
         viewModel.selectTab(AppTab.STATUS)
       }
     }
@@ -185,7 +188,6 @@ internal fun App(
   val uiState by viewModel.uiState.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
-  val overlays = rememberAppOverlays()
   OverlayBackHandlers(overlays)
 
   StraphangerTheme {

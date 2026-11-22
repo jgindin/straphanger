@@ -26,6 +26,7 @@ import com.straphanger.app.capture.NotificationAccess
 import com.straphanger.app.capture.PassiveCaptureStorage
 import com.straphanger.app.commute.CommuteAlertsHolder
 import com.straphanger.app.commute.commuteTapFrom
+import com.straphanger.app.commute.dismissCommuteNotification
 import com.straphanger.app.commute.readCommuteAccess
 import com.straphanger.app.data.capture.RideCaptureRuntime
 import com.straphanger.app.data.commute.Commute
@@ -141,6 +142,9 @@ class MainActivity : ComponentActivity() {
     super.onResume()
     refreshCaptureAccess()
     commuteAccess.value = readCommuteAccess(this)
+    // Android drops exact alarms without a broadcast when that permission is revoked, as do a
+    // force-stop and a restore; setting them all again here is cheap and idempotent.
+    CommuteAlertsHolder.commutesChanged(this, emptySet())
   }
 
   override fun onNewIntent(intent: Intent) {
@@ -228,9 +232,14 @@ class MainActivity : ComponentActivity() {
     intent?.getStringExtra(EXTRA_RIDE_ID)?.let { RideTapInbox.open(it) }
   }
 
-  /** A tapped commute notification opens the Status tab on its station, line and direction. */
+  /**
+   * A tapped commute notification opens the Status tab on its station, line and direction, and is
+   * dismissed: its "See trains" action does not dismiss it on its own.
+   */
   private fun handleCommuteTapIntent(intent: Intent?) {
-    commuteTapFrom(intent)?.let(CommuteTapInbox::open)
+    val tap = commuteTapFrom(intent) ?: return
+    CommuteTapInbox.open(tap)
+    dismissCommuteNotification(this, intent)
   }
 
   companion object {
@@ -247,5 +256,8 @@ class MainActivity : ComponentActivity() {
 
     /** The direction a commute notification opens, as a `Direction` name. */
     const val EXTRA_COMMUTE_DIRECTION = "com.straphanger.app.COMMUTE_DIRECTION"
+
+    /** The commute whose notification was tapped, so it can be dismissed. */
+    const val EXTRA_COMMUTE_NOTIFICATION = "com.straphanger.app.COMMUTE_NOTIFICATION"
   }
 }

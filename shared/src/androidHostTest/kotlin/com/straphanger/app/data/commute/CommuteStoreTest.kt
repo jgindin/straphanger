@@ -44,4 +44,23 @@ class CommuteStoreTest {
     store.write(emptyList())
     assertFalse(SystemFileSystem.exists(file))
   }
+
+  @Test
+  fun dropsEntriesWithAnImpossibleTime() {
+    val file = newFile()
+    val bad =
+      listOf(commute.copy(id = "h", hour = 24), commute.copy(id = "m", minute = -1), commute)
+    FileCommuteStore(file).write(bad)
+    assertEquals(listOf(commute), FileCommuteStore(file).read())
+  }
+
+  @Test
+  fun ignoresUnknownFields() {
+    val file = newFile()
+    val json =
+      """[{"id":"c_1","routeId":"6","complexId":"635","direction":"NORTH","days":["MONDAY"],""" +
+        """"hour":7,"minute":45,"enabled":false,"addedLater":"x"}]"""
+    SystemFileSystem.sink(file).buffered().use { it.writeString(json) }
+    assertEquals(listOf(commute), FileCommuteStore(file).read())
+  }
 }
