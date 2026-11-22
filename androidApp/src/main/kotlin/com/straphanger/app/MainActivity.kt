@@ -172,5 +172,14 @@ class MainActivity : ComponentActivity() {
   companion object {
     /** The ride a "ride recorded" notification opens. */
     const val EXTRA_RIDE_ID = "com.straphanger.app.RIDE_ID"
+
+    /** The station complex a commute notification opens on the Status tab. */
+    const val EXTRA_COMMUTE_COMPLEX = "com.straphanger.app.COMMUTE_COMPLEX"
+
+    /** The line a commute notification opens on the Status tab. */
+    const val EXTRA_COMMUTE_ROUTE = "com.straphanger.app.COMMUTE_ROUTE"
+
+    /** The direction a commute notification opens, as a `Direction` name. */
+    const val EXTRA_COMMUTE_DIRECTION = "com.straphanger.app.COMMUTE_DIRECTION"
   }
 }
