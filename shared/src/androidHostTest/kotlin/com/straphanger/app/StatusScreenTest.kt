@@ -6,6 +6,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import com.straphanger.app.data.commute.minutesText
+import com.straphanger.app.data.commute.stationComplexes
 import com.straphanger.app.data.realtime.AlertKind
 import com.straphanger.app.data.realtime.Arrival
 import com.straphanger.app.data.realtime.ArrivalBoard
@@ -15,10 +17,8 @@ import com.straphanger.app.data.realtime.ServiceAlert
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.ui.status.StatusState
-import com.straphanger.app.ui.status.minutesText
 import com.straphanger.app.ui.status.refreshStatus
 import com.straphanger.app.ui.status.searchComplexes
-import com.straphanger.app.ui.status.stationComplexes
 import com.straphanger.app.ui.status.toggleFavorite
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
