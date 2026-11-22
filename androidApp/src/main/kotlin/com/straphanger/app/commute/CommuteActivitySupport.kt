@@ -6,6 +6,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.straphanger.app.MainActivity
 import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.realtime.Direction
+import com.straphanger.app.notify.AndroidCommuteNotifier
 import com.straphanger.app.ui.status.CommuteAccess
 
 /** What the platform lets the commute alerts do right now. */
@@ -29,4 +30,10 @@ fun commuteTapFrom(intent: Intent?): CommuteTap? {
   } else {
     null
   }
+}
+
+/** Takes down the commute notification [intent] came from, if it names one. */
+fun dismissCommuteNotification(context: Context, intent: Intent?) {
+  val commuteId = intent?.getStringExtra(MainActivity.EXTRA_COMMUTE_NOTIFICATION) ?: return
+  NotificationManagerCompat.from(context).cancel(commuteId, AndroidCommuteNotifier.NOTIFICATION_ID)
 }

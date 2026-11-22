@@ -65,7 +65,8 @@ class AlarmCommuteScheduler(
     val existing = requestCodes.getInt(commuteId, NO_CODE)
     if (existing != NO_CODE) return existing
     val next = requestCodes.all.values.filterIsInstance<Int>().maxOrNull()?.plus(1) ?: 0
-    requestCodes.edit().putInt(commuteId, next).apply()
+    // Written at once: a process killed right after the alarm is set must not reuse the code.
+    requestCodes.edit().putInt(commuteId, next).commit()
     return next
   }
 

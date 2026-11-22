@@ -1,6 +1,10 @@
 package com.straphanger.app.data.commute
 
+import com.straphanger.app.data.realtime.ArrivalBoard
 import com.straphanger.app.data.realtime.Direction
+import com.straphanger.app.data.realtime.RealtimeSnapshot
+import com.straphanger.app.diagnostics.DiagnosticsLog
+import com.straphanger.app.diagnostics.DiagnosticsSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.awaitCancellation
@@ -32,6 +36,31 @@ class CommuteAlertsTest {
     val onTime = AlertsHarness(listOf(commute), nowMs = nyMs(2027, 3, 8, 8, 0))
     onTime.alerts.fire("c1")
     assertEquals(1, onTime.posted.size)
+  }
+
+  @Test
+  fun aLateFireIsLogged() = runTest {
+    val warnings = mutableListOf<String>()
+    val previous = DiagnosticsLog.sink
+    DiagnosticsLog.sink = DiagnosticsSink { _, message, _ -> warnings += message }
+    try {
+      AlertsHarness(listOf(commute), nowMs = nyMs(2027, 3, 8, 8, 1)).alerts.fire("c1")
+      assertEquals(listOf("A commute alarm fired 16 min late; skipped"), warnings)
+    } finally {
+      DiagnosticsLog.sink = previous
+    }
+  }
+
+  @Test
+  fun aFailedTrainFeedPostsCouldNotGetTrainTimes() = runTest {
+    // The alerts feed was read but the train feed was not: no arrivals, and partial.
+    val h =
+      AlertsHarness(
+        listOf(commute),
+        fetch = { RealtimeSnapshot(ArrivalBoard(emptyList()), emptyList(), 0L, partial = true) },
+      )
+    h.alerts.fire("c1")
+    assertEquals(listOf("Couldn't get train times"), h.posted.map { it.second.text })
   }
 
   @Test
