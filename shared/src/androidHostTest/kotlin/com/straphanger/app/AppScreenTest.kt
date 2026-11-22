@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.straphanger.app.data.commute.Commute
+import com.straphanger.app.data.commute.InMemoryCommuteStore
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RidePersistenceBackend
@@ -24,6 +26,8 @@ import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.ui.StraphangerViewModel
+import com.straphanger.app.ui.status.CommuteAccess
+import com.straphanger.app.ui.status.CommuteControls
 import kotlin.time.Instant
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.emptyFlow
@@ -96,6 +100,13 @@ abstract class AppScreenTest {
   /** Where the Status tab keeps starred stations; a test can seed it or read it back. */
   protected var favorites = InMemoryFavoriteStationsStore()
 
+  /** The commutes the Status tab keeps, and what it reports to the platform. */
+  protected var commuteStore = InMemoryCommuteStore()
+  protected val commuteChanges = mutableListOf<List<Commute>>()
+  protected var firstCommuteCreations = 0
+  protected var exactAlarmSettingsOpens = 0
+  protected var commuteAccess = CommuteAccess()
+
   protected fun launchApp(
     viewModel: StraphangerViewModel = newViewModel(),
     withLicenses: Boolean = true,
@@ -118,6 +129,15 @@ abstract class AppScreenTest {
             fetchRealtime = { realtime(it) },
             nowEpochSeconds = { realtimeNow },
             favoriteStations = favorites,
+            commutes =
+              CommuteControls(
+                commuteStore,
+                { commuteChanges += it },
+                commuteAccess,
+                { firstCommuteCreations++ },
+                { exactAlarmSettingsOpens++ },
+                { notificationSettingsOpens++ },
+              ),
           ),
       )
     }

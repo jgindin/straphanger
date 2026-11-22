@@ -34,7 +34,10 @@ import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
 import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.capture.RideCaptureRuntime
+import com.straphanger.app.data.commute.Commute
+import com.straphanger.app.data.commute.CommuteStore
 import com.straphanger.app.data.commute.CommuteTap
+import com.straphanger.app.data.commute.InMemoryCommuteStore
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.FavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
@@ -55,6 +58,8 @@ import com.straphanger.app.ui.permissions.NotificationAccessDisclosure
 import com.straphanger.app.ui.rides.DataSourcesAndSyncScreen
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
+import com.straphanger.app.ui.status.CommuteAccess
+import com.straphanger.app.ui.status.CommuteControls
 import com.straphanger.app.ui.status.StatusScreen
 import com.straphanger.app.ui.theme.MtaColors
 import kotlin.time.Clock
@@ -83,6 +88,11 @@ import kotlinx.coroutines.launch
  * @param licensesContent the open-source license list for the About screen; null where the platform
  *   has none.
  * @param favoriteStations where the stations starred on the Status tab are kept.
+ * @param commutes where the rider's commutes are kept.
+ * @param onCommutesChanged called with the full list after every save, toggle or delete.
+ * @param commuteAccess whether notifications and exact alarms are allowed right now.
+ * @param onFirstCommuteCreated called when the first commute is saved, to ask for permissions.
+ * @param onOpenExactAlarmSettings opens the system screen for allowing exact alarms.
  * @param captureRuntime the process-wide ride capture runtime the background receivers share; when
  *   given, [backend], [geofenceRegistrar], [pendingGeofenceEvents] and [notificationSessions] are
  *   ignored, and when null the view model builds its own runtime from them.
@@ -106,6 +116,11 @@ fun App(
   licensesContent: (@Composable () -> Unit)? = null,
   favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
   captureRuntime: RideCaptureRuntime? = null,
+  commutes: CommuteStore = InMemoryCommuteStore(),
+  onCommutesChanged: (List<Commute>) -> Unit = {},
+  commuteAccess: CommuteAccess = CommuteAccess(),
+  onFirstCommuteCreated: () -> Unit = {},
+  onOpenExactAlarmSettings: () -> Unit = {},
 ) {
   val realtime = remember { RealtimeFeedClient.mta() }
   require(backend != null || captureRuntime != null) { "App needs a backend or a captureRuntime" }
@@ -133,6 +148,14 @@ fun App(
       realtime::fetch,
       { Clock.System.now().epochSeconds },
       favoriteStations,
+      CommuteControls(
+        commutes,
+        onCommutesChanged,
+        commuteAccess,
+        onFirstCommuteCreated,
+        onOpenExactAlarmSettings,
+        onOpenNotificationSettings,
+      ),
     ),
   )
 }
@@ -204,6 +227,7 @@ internal class PlatformHooks(
   val nowEpochSeconds: () -> Long,
   /** Where the Status tab keeps the stations the rider starred. */
   val favoriteStations: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
+  val commutes: CommuteControls = CommuteControls(),
 )
 
 /** The disclosures and the About screen, shown over the tabs; each survives recreation. */
@@ -368,6 +392,7 @@ private fun TabContent(
         platform.favoriteStations,
         commuteTap,
         onCommuteTapConsumed,
+        platform.commutes,
       )
     AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
     AppTab.SOURCES -> SourcesTab(viewModel, uiState, overlays, platform, onBackupMessage)

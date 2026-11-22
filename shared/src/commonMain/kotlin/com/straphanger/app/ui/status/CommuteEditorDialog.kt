@@ -1,0 +1,174 @@
+package com.straphanger.app.ui.status
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.straphanger.app.data.commute.Commute
+import com.straphanger.app.data.realtime.Direction
+import com.straphanger.app.ui.theme.MtaColors
+import kotlinx.datetime.DayOfWeek
+
+private const val WORK_WEEK_DAYS = 5
+private const val MAX_HOUR = 23
+private const val MAX_MINUTE = 59
+private const val DEFAULT_HOUR = 8
+private const val TIME_FIELD_WIDTH_DP = 80
+
+/** What the editor's fields hold right now. */
+private class CommuteForm(draft: CommuteDraft) {
+  val existing = draft.existing
+  var line by mutableStateOf(draft.routeId)
+  var direction by mutableStateOf(draft.direction)
+  var days by mutableStateOf(existing?.days ?: DayOfWeek.entries.take(WORK_WEEK_DAYS).toSet())
+  var hour by mutableStateOf((existing?.hour ?: DEFAULT_HOUR).toString())
+  var minute by mutableStateOf((existing?.minute ?: 0).toString().padStart(2, '0'))
+  val parsedHour: Int?
+    get() = hour.toIntOrNull()?.takeIf { it in 0..MAX_HOUR }
+
+  val parsedMinute: Int?
+    get() = minute.toIntOrNull()?.takeIf { it in 0..MAX_MINUTE }
+
+  val valid: Boolean
+    get() = days.isNotEmpty() && parsedHour != null && parsedMinute != null && line.isNotEmpty()
+
+  fun toggleDay(day: DayOfWeek) {
+    days = if (day in days) days - day else days + day
+  }
+
+  fun build(draft: CommuteDraft, id: String) =
+    Commute(
+      id = existing?.id ?: id,
+      routeId = line,
+      complexId = draft.complexId,
+      direction = direction,
+      days = days,
+      hour = parsedHour ?: 0,
+      minute = parsedMinute ?: 0,
+      enabled = existing?.enabled ?: true,
+    )
+}
+
+/** The add / edit dialog for one commute; Save is off until the days and time are valid. */
+@Composable
+internal fun CommuteEditorDialog(draft: CommuteDraft, ui: CommuteUi) {
+  val form = remember { CommuteForm(draft) }
+  AlertDialog(
+    onDismissRequest = ui::closeEditor,
+    containerColor = MtaColors.CardBg,
+    modifier = Modifier.testTag("commute_editor"),
+    title = {
+      Text(
+        if (form.existing == null) "Add commute alert" else "Edit commute alert",
+        color = Color.White,
+      )
+    },
+    text = { CommuteFields(form, draft.routes) },
+    confirmButton = {
+      Row {
+        form.existing?.let {
+          TextButton(onClick = { ui.delete(it) }, modifier = Modifier.testTag("commute_delete")) {
+            Text("Delete")
+          }
+        }
+        TextButton(
+          enabled = form.valid,
+          modifier = Modifier.testTag("commute_save"),
+          onClick = { ui.save(form.build(draft, ui.newId())) },
+        ) {
+          Text("Save")
+        }
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = ui::closeEditor, modifier = Modifier.testTag("commute_cancel")) {
+        Text("Cancel")
+      }
+    },
+  )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CommuteFields(form: CommuteForm, routes: List<String>) {
+  Column(
+    modifier = Modifier.verticalScroll(rememberScrollState()),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      routes.forEach { ChoiceChip(it, form.line == it, "commute_line_$it") { form.line = it } }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      Direction.entries.forEach {
+        ChoiceChip(directionText(it), form.direction == it, "commute_direction_${it.name}") {
+          form.direction = it
+        }
+      }
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      DayOfWeek.entries.forEach { day ->
+        val label = day.name.take(3).lowercase().replaceFirstChar(Char::uppercase)
+        ChoiceChip(label, day in form.days, "commute_day_${day.name}") { form.toggleDay(day) }
+      }
+    }
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      modifier = Modifier.testTag("commute_time"),
+    ) {
+      TimeField("Hour", form.hour, form.parsedHour == null, "commute_hour") { form.hour = it }
+      TimeField("Minute", form.minute, form.parsedMinute == null, "commute_minute") {
+        form.minute = it
+      }
+    }
+  }
+}
+
+@Composable
+private fun ChoiceChip(label: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+  FilterChip(
+    selected = selected,
+    onClick = onClick,
+    label = { Text(label, fontSize = 12.sp) },
+    modifier = Modifier.testTag(tag),
+  )
+}
+
+@Composable
+private fun TimeField(
+  label: String,
+  value: String,
+  invalid: Boolean,
+  tag: String,
+  onChange: (String) -> Unit,
+) {
+  OutlinedTextField(
+    value = value,
+    onValueChange = { onChange(it.filter(Char::isDigit).take(2)) },
+    label = { Text(label, fontSize = 12.sp) },
+    isError = invalid,
+    singleLine = true,
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    modifier = Modifier.width(TIME_FIELD_WIDTH_DP.dp).testTag(tag),
+  )
+}
