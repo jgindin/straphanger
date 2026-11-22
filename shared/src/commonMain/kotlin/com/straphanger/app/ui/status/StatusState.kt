@@ -1,7 +1,6 @@
 package com.straphanger.app.ui.status
 
-import com.straphanger.app.data.gtfs.SubwayNetworkData
-import com.straphanger.app.data.gtfs.SubwayStation
+import com.straphanger.app.data.commute.StationComplex
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -28,27 +27,6 @@ internal suspend fun refreshStatus(
     previous.copy(failedAtEpochSeconds = nowEpochSeconds)
   }
 
-/** A station complex as the rider sees it: one name, possibly several platforms' stations. */
-internal data class StationComplex(
-  val complexId: String,
-  val name: String,
-  val stationIds: List<String>,
-  val routes: List<String>,
-)
-
-internal fun stationComplexes(network: SubwayNetworkData): List<StationComplex> =
-  network.stations
-    .groupBy(SubwayStation::complexId)
-    .map { (id, stations) ->
-      StationComplex(
-        complexId = id,
-        name = stations.first().complexName,
-        stationIds = stations.map { it.id },
-        routes = stations.flatMap { it.daytimeRoutes + it.lateNightRoutes }.distinct().sorted(),
-      )
-    }
-    .sortedBy { it.name }
-
 private const val MAX_RESULTS = 25
 
 /**
@@ -67,8 +45,6 @@ internal fun searchComplexes(all: List<StationComplex>, query: String): List<Sta
 /** [favorites] with [complexId] added at the end, or removed when it is already there. */
 internal fun toggleFavorite(favorites: List<String>, complexId: String): List<String> =
   if (complexId in favorites) favorites - complexId else favorites + complexId
-
-internal fun minutesText(minutes: Int): String = if (minutes == 0) "now" else "$minutes min"
 
 private const val SECONDS_PER_MINUTE = 60
 private const val SHOW_SECONDS_BELOW = 90
