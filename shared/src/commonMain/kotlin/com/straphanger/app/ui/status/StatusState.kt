@@ -1,8 +1,15 @@
 package com.straphanger.app.ui.status
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import com.straphanger.app.data.commute.StationComplex
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.delay
+
+private const val CLOCK_TICK_MS = 10_000L
 
 /** What the Status screen last learned from the MTA, and whether the last try worked. */
 internal data class StatusState(
@@ -52,3 +59,16 @@ private const val SHOW_SECONDS_BELOW = 90
 internal fun ageText(seconds: Long): String =
   if (seconds < SHOW_SECONDS_BELOW) "${seconds.coerceAtLeast(0)} s"
   else "${seconds / SECONDS_PER_MINUTE} min"
+
+/** The clock in epoch seconds, refreshed every few seconds so "minutes away" stays current. */
+@Composable
+internal fun rememberClock(nowEpochSeconds: () -> Long): Long {
+  val now = remember { mutableLongStateOf(nowEpochSeconds()) }
+  LaunchedEffect(Unit) {
+    while (true) {
+      now.longValue = nowEpochSeconds()
+      delay(CLOCK_TICK_MS)
+    }
+  }
+  return now.longValue
+}

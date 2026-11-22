@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +31,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.commute.StationComplex
 import com.straphanger.app.data.commute.minutesText
 import com.straphanger.app.data.commute.stationComplexes
@@ -47,13 +49,13 @@ import com.straphanger.app.ui.theme.MtaRouteBullet
 import kotlinx.coroutines.delay
 
 private const val REFRESH_MS = 30_000L
-private const val CLOCK_TICK_MS = 10_000L
 private const val STALE_AFTER_SECONDS = 90L
 
 /**
  * Live arrivals at a station and the MTA's current service alerts. [fetch] reads the feeds; it is
  * called when the screen opens, when a station is picked, every 30 seconds while the screen is
- * showing, and on "Refresh". [nowEpochSeconds] is the clock.
+ * showing, and on "Refresh". A [tap] ("See trains") is applied once, then reported through
+ * [onTapConsumed], so a rider's "Show all" sticks. [nowEpochSeconds] is the clock.
  */
 @Composable
 internal fun StatusScreen(
@@ -61,52 +63,53 @@ internal fun StatusScreen(
   fetch: suspend (Collection<String>) -> RealtimeSnapshot,
   nowEpochSeconds: () -> Long,
   favorites: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
+  tap: CommuteTap? = null,
+  onTapConsumed: () -> Unit = {},
 ) {
   val complexes = remember(network) { stationComplexes(network) }
   var query by rememberSaveable { mutableStateOf("") }
   var favoriteIds by remember { mutableStateOf(favorites.read()) }
   var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+  var filter by rememberSaveable(stateSaver = StatusFilter.Saver) { mutableStateOf(null) }
   val selected = complexes.firstOrNull { it.complexId == selectedId }
   var refreshRequests by remember { mutableLongStateOf(0) }
   var state by remember { mutableStateOf(StatusState()) }
-  var now by remember { mutableLongStateOf(nowEpochSeconds()) }
-
+  val now = rememberClock(nowEpochSeconds)
+  LaunchedEffect(tap) {
+    if (tap != null) {
+      selectedId = tap.complexId
+      filter = StatusFilter(tap.routeId.removeSuffix("X"), tap.direction)
+      query = ""
+      onTapConsumed()
+    }
+  }
   LaunchedEffect(selected, refreshRequests) {
     while (true) {
       state = refreshStatus(state, selected?.routes.orEmpty(), fetch, nowEpochSeconds())
       delay(REFRESH_MS)
     }
   }
-  LaunchedEffect(Unit) {
-    while (true) {
-      now = nowEpochSeconds()
-      delay(CLOCK_TICK_MS)
-    }
-  }
-
   LazyColumn(
     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp).testTag("status_screen"),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     item { Spacer(Modifier.height(6.dp)) }
     item { StationSearch(query, { query = it }) }
-    if (query.isBlank()) {
-      items(favoriteIds.mapNotNull { id -> complexes.firstOrNull { it.complexId == id } }) { complex
-        ->
-        if (complex.complexId != selectedId) {
-          StationRow(complex, favorite = true) { selectedId = complex.complexId }
-        }
-      }
-    }
-    items(searchComplexes(complexes, query).filter { it.complexId != selectedId }) { complex ->
-      StationRow(complex) {
-        selectedId = complex.complexId
-        query = ""
-      }
+    stationRows(complexes, favoriteIds, selectedId, query) { id ->
+      selectedId = id
+      filter = null
+      query = ""
     }
     if (selected != null) {
       item {
-        ArrivalsCard(selected, state, now, selected.complexId in favoriteIds) {
+        ArrivalsCard(
+          selected,
+          state,
+          now,
+          selected.complexId in favoriteIds,
+          filter,
+          { filter = null },
+        ) {
           favoriteIds = toggleFavorite(favoriteIds, selected.complexId)
           favorites.write(favoriteIds)
         }
@@ -115,6 +118,26 @@ internal fun StatusScreen(
     item { FreshnessLine(state, now) { refreshRequests++ } }
     item { AlertsSection(state.snapshot?.alerts.orEmpty(), selected?.routes.orEmpty()) }
     item { Spacer(Modifier.height(6.dp)) }
+  }
+}
+
+private fun LazyListScope.stationRows(
+  complexes: List<StationComplex>,
+  favoriteIds: List<String>,
+  selectedId: String?,
+  query: String,
+  onPick: (String) -> Unit,
+) {
+  if (query.isBlank()) {
+    items(favoriteIds.mapNotNull { id -> complexes.firstOrNull { it.complexId == id } }) { complex
+      ->
+      if (complex.complexId != selectedId) {
+        StationRow(complex, favorite = true) { onPick(complex.complexId) }
+      }
+    }
+  }
+  items(searchComplexes(complexes, query).filter { it.complexId != selectedId }) { complex ->
+    StationRow(complex) { onPick(complex.complexId) }
   }
 }
 
@@ -164,6 +187,8 @@ private fun ArrivalsCard(
   state: StatusState,
   now: Long,
   isFavorite: Boolean,
+  filter: StatusFilter?,
+  onClearFilter: () -> Unit,
   onToggleFavorite: () -> Unit,
 ) {
   SectionCard(spacing = 8.dp, modifier = Modifier.testTag("status_arrivals")) {
@@ -189,10 +214,12 @@ private fun ArrivalsCard(
             .testTag("status_favorite_toggle"),
       )
     }
+    if (filter != null) FilterChip(filter, onClearFilter)
     val board = state.snapshot?.arrivals
     val arrivals =
       complex.stationIds
         .flatMap { board?.arrivalsAt(it, now).orEmpty() }
+        .filter { filter == null || filter.matches(it) }
         .sortedBy { it.epochSeconds }
     if (board == null) {
       Text("Loading arrivals…", color = MtaColors.TextSecondary, fontSize = 12.sp)
@@ -204,6 +231,17 @@ private fun ArrivalsCard(
       if (here.isNotEmpty()) DirectionBlock(direction, here, now)
     }
   }
+}
+
+@Composable
+private fun FilterChip(filter: StatusFilter, onClear: () -> Unit) {
+  Text(
+    "${filter.label} · Show all",
+    color = MtaColors.AccentGold,
+    fontSize = 12.sp,
+    fontWeight = FontWeight.Bold,
+    modifier = Modifier.clickable(onClick = onClear).padding(4.dp).testTag("status_filter_clear"),
+  )
 }
 
 @Composable
