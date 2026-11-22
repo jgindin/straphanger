@@ -1,8 +1,11 @@
 package com.straphanger.app.data.realtime
 
+import kotlinx.serialization.Serializable
+
 /**
  * Which way a train is heading: the MTA's `N` (uptown / north) or `S` (downtown / south) suffix.
  */
+@Serializable
 enum class Direction(val suffix: Char) {
   NORTH('N'),
   SOUTH('S'),
