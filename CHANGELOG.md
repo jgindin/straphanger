@@ -3,6 +3,11 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.25 (not yet released)
+
+- Commute alerts: on a station's arrivals card on the Status tab, "Add commute alert" sets one line, one direction, the days (Monday to Friday by default) and a time (8:00 by default). At that time on those days the phone shows one notification with the next live departures, such as "A Southbound · 168 St" and "3, 9, 14 min", with the first service alert for that line if there is one. "See trains", or tapping the notification, opens the Status tab on that station showing only that line and direction; "Show all" clears it. A Commutes section at the top of the Status tab lists every commute with an on/off switch; tap one to edit or delete it. Alerts are posted on the new "Commute alerts" channel, even with the app closed, and are set again after a reboot, an app update or a clock or time zone change.
+- Saving the first commute asks for notifications (Android 13 and later), then opens "Alarms & reminders" so alerts come on the minute. Without it they may be a few minutes late, and the Commutes section says so. An alert more than 15 minutes late (phone off) is skipped.
+
 ## 0.24 (not yet released)
 
 - Notifications: turn on "Notify me when a ride is recorded" on the Data sources screen (off by default; Android 13 and later asks for permission, and when notifications are blocked the switch opens the system settings). When passive capture or Google Maps navigation records a ride, a notification on the "Rides recorded" channel shows it, such as "A · 14 St → 168 St" and "32 min", even with the app closed. A ride that needs review says "Express or local? Tap to confirm". A passive capture ride is notified about 6 to 15 minutes after it ends, because that is how long it takes to detect that the ride has ended; a Google Maps navigation ride is notified when navigation ends. Tapping it opens the Rides tab with that ride highlighted. If notifications are blocked in system settings while the switch is on, allowing them there later brings ride notifications back.
