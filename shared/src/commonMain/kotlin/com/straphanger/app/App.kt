@@ -34,6 +34,7 @@ import com.straphanger.app.data.capture.InMemoryPendingGeofenceEventStore
 import com.straphanger.app.data.capture.NotificationSessionStore
 import com.straphanger.app.data.capture.PendingGeofenceEventStore
 import com.straphanger.app.data.capture.RideCaptureRuntime
+import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.FavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
@@ -43,6 +44,7 @@ import com.straphanger.app.data.realtime.RealtimeFeedClient
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.CaptureAccessState
+import com.straphanger.app.ui.CommuteTapInbox
 import com.straphanger.app.ui.RideTapInbox
 import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.StraphangerViewModel
@@ -148,6 +150,15 @@ internal fun App(
       RideTapInbox.consume()?.let { rideId -> viewModel.showRide(rideId) }
     }
   }
+  var commuteTap by remember { mutableStateOf<CommuteTap?>(null) }
+  LaunchedEffect(Unit) {
+    CommuteTapInbox.pendingTap.collect {
+      CommuteTapInbox.consume()?.let { tap ->
+        commuteTap = tap
+        viewModel.selectTab(AppTab.STATUS)
+      }
+    }
+  }
   val uiState by viewModel.uiState.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -161,7 +172,8 @@ internal fun App(
       AppHeader(uiState.stats)
       uiState.loadError?.let { StorageErrorBanner(it) }
       Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-        AppContent(viewModel, uiState, overlays, platform) { message ->
+        AppContent(viewModel, uiState, overlays, platform, commuteTap, { commuteTap = null }) {
+          message ->
           scope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message)
@@ -251,6 +263,8 @@ private fun AppContent(
   uiState: StraphangerUiState,
   overlays: AppOverlays,
   platform: PlatformHooks,
+  commuteTap: CommuteTap?,
+  onCommuteTapConsumed: () -> Unit,
   onBackupMessage: (String) -> Unit,
 ) {
   val graphEngine = viewModel.graphEngine
@@ -280,7 +294,17 @@ private fun AppContent(
         onBack = { overlays.showAbout = false },
         licensesContent = platform.licensesContent,
       )
-    else -> TabContent(viewModel, uiState, graphEngine, overlays, platform, onBackupMessage)
+    else ->
+      TabContent(
+        viewModel,
+        uiState,
+        graphEngine,
+        overlays,
+        platform,
+        commuteTap,
+        onCommuteTapConsumed,
+        onBackupMessage,
+      )
   }
 }
 
@@ -308,6 +332,8 @@ private fun TabContent(
   graphEngine: SubwayGraphEngine,
   overlays: AppOverlays,
   platform: PlatformHooks,
+  commuteTap: CommuteTap?,
+  onCommuteTapConsumed: () -> Unit,
   onBackupMessage: (String) -> Unit,
 ) {
   when (uiState.activeTab) {
@@ -340,6 +366,8 @@ private fun TabContent(
         platform.fetchRealtime,
         platform.nowEpochSeconds,
         platform.favoriteStations,
+        commuteTap,
+        onCommuteTapConsumed,
       )
     AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
     AppTab.SOURCES -> SourcesTab(viewModel, uiState, overlays, platform, onBackupMessage)
