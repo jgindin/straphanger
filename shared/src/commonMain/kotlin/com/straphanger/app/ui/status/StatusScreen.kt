@@ -65,6 +65,7 @@ internal fun StatusScreen(
   favorites: FavoriteStationsStore = InMemoryFavoriteStationsStore(),
   tap: CommuteTap? = null,
   onTapConsumed: () -> Unit = {},
+  commutes: CommuteControls = CommuteControls(),
 ) {
   val complexes = remember(network) { stationComplexes(network) }
   var query by rememberSaveable { mutableStateOf("") }
@@ -74,6 +75,7 @@ internal fun StatusScreen(
   val selected = complexes.firstOrNull { it.complexId == selectedId }
   var refreshRequests by remember { mutableLongStateOf(0) }
   var state by remember { mutableStateOf(StatusState()) }
+  val commuteUi = rememberCommuteUi(commutes, complexes)
   val now = rememberClock(nowEpochSeconds)
   LaunchedEffect(tap) {
     if (tap != null) {
@@ -94,6 +96,7 @@ internal fun StatusScreen(
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     item { Spacer(Modifier.height(6.dp)) }
+    commutesSection(commuteUi)
     item { StationSearch(query, { query = it }) }
     stationRows(complexes, favoriteIds, selectedId, query) { id ->
       selectedId = id
@@ -109,6 +112,7 @@ internal fun StatusScreen(
           selected.complexId in favoriteIds,
           filter,
           { filter = null },
+          { commuteUi.add(selected, filter) },
         ) {
           favoriteIds = toggleFavorite(favoriteIds, selected.complexId)
           favorites.write(favoriteIds)
@@ -119,6 +123,7 @@ internal fun StatusScreen(
     item { AlertsSection(state.snapshot?.alerts.orEmpty(), selected?.routes.orEmpty()) }
     item { Spacer(Modifier.height(6.dp)) }
   }
+  commuteUi.editor?.let { CommuteEditorDialog(it, commuteUi) }
 }
 
 private fun LazyListScope.stationRows(
@@ -189,6 +194,7 @@ private fun ArrivalsCard(
   isFavorite: Boolean,
   filter: StatusFilter?,
   onClearFilter: () -> Unit,
+  onAddCommute: () -> Unit,
   onToggleFavorite: () -> Unit,
 ) {
   SectionCard(spacing = 8.dp, modifier = Modifier.testTag("status_arrivals")) {
@@ -215,6 +221,7 @@ private fun ArrivalsCard(
       )
     }
     if (filter != null) FilterChip(filter, onClearFilter)
+    AddCommuteButton(onAddCommute)
     val board = state.snapshot?.arrivals
     val arrivals =
       complex.stationIds
@@ -247,7 +254,7 @@ private fun FilterChip(filter: StatusFilter, onClear: () -> Unit) {
 @Composable
 private fun DirectionBlock(direction: Direction, arrivals: List<Arrival>, now: Long) {
   Text(
-    if (direction == Direction.NORTH) "Northbound" else "Southbound",
+    directionText(direction),
     color = MtaColors.AccentGold,
     fontSize = 12.sp,
     fontWeight = FontWeight.Bold,
