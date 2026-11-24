@@ -3,9 +3,7 @@ package com.straphanger.app.commute
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import android.os.Build
-import android.util.Log
 import com.straphanger.app.MainActivity
 import com.straphanger.app.R
 import com.straphanger.app.capture.CaptureRuntimeHolder
@@ -15,14 +13,11 @@ import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.commute.FileCommuteStore
 import com.straphanger.app.data.commute.stationComplexes
 import com.straphanger.app.data.realtime.RealtimeFeedClient
-import com.straphanger.app.diagnostics.DiagnosticsLog
 import com.straphanger.app.notify.AlarmCommuteScheduler
 import com.straphanger.app.notify.AndroidCommuteNotifier
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
 
 /**
@@ -32,9 +27,6 @@ import kotlinx.io.files.Path
  */
 object CommuteAlertsHolder {
   private const val TAG = "StraphangerCommutes"
-
-  /** A broadcast has about 10 s; the fetch inside [CommuteAlerts.fire] gives up after 8 s. */
-  private const val RECEIVER_TIMEOUT_MS = 9_500L
 
   @Volatile private var alerts: CommuteAlerts? = null
 
@@ -67,7 +59,7 @@ object CommuteAlertsHolder {
     removedIds.forEach(scheduler::cancel)
     val alerts = get(appContext)
     CaptureRuntimeHolder.get(appContext).scope.launch {
-      rescheduleLock.withLock { runSafely(alerts, "Rescheduling commutes") { it.rescheduleAll() } }
+      rescheduleLock.withLock { runLogged(TAG, "Rescheduling commutes") { alerts.rescheduleAll() } }
     }
   }
 
@@ -81,32 +73,8 @@ object CommuteAlertsHolder {
     reason: String,
     work: suspend (CommuteAlerts) -> Unit,
   ) {
-    val appContext = context.applicationContext
-    val alerts = get(appContext)
-    val pending = receiver.goAsync()
-    CaptureRuntimeHolder.get(appContext).scope.launch {
-      try {
-        val done = withTimeoutOrNull(RECEIVER_TIMEOUT_MS) { runSafely(alerts, reason, work) }
-        if (done == null) Log.w(TAG, "$reason: timed out")
-      } finally {
-        pending.finish()
-      }
-    }
-  }
-
-  @Suppress("TooGenericExceptionCaught") // Any failure must not take the receiver's process down.
-  private suspend fun runSafely(
-    alerts: CommuteAlerts,
-    reason: String,
-    work: suspend (CommuteAlerts) -> Unit,
-  ) {
-    try {
-      work(alerts)
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      DiagnosticsLog.warn(TAG, "$reason failed", e)
-    }
+    val alerts = get(context)
+    runReceiverWork(receiver, context, TAG, reason) { work(alerts) }
   }
 
   /** The scheduler the app's commutes use; the UI asks it whether alarms will be exact. */
@@ -138,12 +106,8 @@ object CommuteAlertsHolder {
     commuteId: String,
   ): PendingIntent {
     val intent =
-      Intent(context, MainActivity::class.java)
-        .putExtra(MainActivity.EXTRA_COMMUTE_COMPLEX, tap.complexId)
-        .putExtra(MainActivity.EXTRA_COMMUTE_ROUTE, tap.routeId)
-        .putExtra(MainActivity.EXTRA_COMMUTE_DIRECTION, tap.direction.name)
+      commuteTapActivityIntent(context, tap)
         .putExtra(MainActivity.EXTRA_COMMUTE_NOTIFICATION, commuteId)
-        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       intent.setIdentifier("commute:$commuteId")
     }

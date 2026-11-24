@@ -41,6 +41,7 @@ kotlin {
     androidMain.dependencies {
       implementation(compose.preview)
       implementation(libs.ktor.client.okhttp)
+      implementation(libs.glance.appwidget)
     }
     commonMain.dependencies {
       implementation(compose.runtime)
@@ -73,6 +74,7 @@ kotlin {
       implementation(libs.androidx.test.ext.junit)
       implementation(libs.androidx.compose.ui.test.junit4)
       implementation(libs.androidx.compose.ui.test.manifest)
+      implementation(libs.glance.appwidget.testing)
     }
   }
 }
