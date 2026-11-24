@@ -12,13 +12,23 @@ data class CommuteAlertText(val title: String, val text: String, val alertLine: 
 
 private const val MAX_DEPARTURES = 3
 
-private const val FETCH_FAILED_TEXT = "Couldn't get train times"
+/** What a notification or widget says when train times could not be fetched. */
+internal const val FETCH_FAILED_TEXT = "Couldn't get train times"
 
 /** Alerts that matter most to someone about to leave come first. */
 private val ALERT_PREFERENCE = listOf(AlertKind.DELAY, AlertKind.OTHER, AlertKind.PLANNED)
 
 /** "now" for 0, else "7 min". */
 fun minutesText(minutes: Int): String = if (minutes == 0) "now" else "$minutes min"
+
+private fun Direction.displayName(): String =
+  if (this == Direction.NORTH) "Northbound" else "Southbound"
+
+/** "A Southbound · 168 St", or "A Southbound" when the station is not known. */
+fun commuteTitle(commute: Commute, stationName: String?): String {
+  val train = "${commute.routeId} ${commute.direction.displayName()}"
+  return if (stationName == null) train else "$train · $stationName"
+}
 
 /** True when [routeId] is the commute's line or that line's express variant. */
 private fun Commute.matchesLine(routeId: String): Boolean =
@@ -34,8 +44,8 @@ fun commuteAlertText(
   snapshot: RealtimeSnapshot?,
   nowEpochSeconds: Long,
 ): CommuteAlertText {
-  val directionName = if (commute.direction == Direction.NORTH) "Northbound" else "Southbound"
-  val title = "${commute.routeId} $directionName · ${complex.name}"
+  val directionName = commute.direction.displayName()
+  val title = commuteTitle(commute, complex.name)
   if (snapshot == null) return CommuteAlertText(title, FETCH_FAILED_TEXT, null)
   val departures =
     complex.stationIds
