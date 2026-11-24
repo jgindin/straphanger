@@ -49,6 +49,7 @@ class WidgetCommutePickerTest {
         initiallySelected = selected,
         onDone = { done = it },
         onOpenApp = { openedApp = true },
+        use24Hour = true,
       )
     }
 

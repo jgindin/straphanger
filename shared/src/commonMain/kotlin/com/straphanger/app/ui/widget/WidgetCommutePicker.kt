@@ -41,7 +41,7 @@ import com.straphanger.app.ui.theme.MtaColors
  * [initiallySelected]. Only commutes with an end time can be ticked. Done passes the ticked ids, in
  * the order of [commutes], to [onDone]. Without any commutes it offers [onOpenApp] instead, and
  * also when none of them has an end time. [complexName] names a commute's station, or is null for
- * one no longer listed.
+ * one no longer listed. [use24Hour] picks "7:45" or "7:45 AM" for the commutes' times.
  */
 @Composable
 fun WidgetCommutePicker(
@@ -50,6 +50,7 @@ fun WidgetCommutePicker(
   initiallySelected: Set<String>,
   onDone: (List<String>) -> Unit,
   onOpenApp: () -> Unit,
+  use24Hour: Boolean,
 ) {
   var selected by remember(initiallySelected) { mutableStateOf(initiallySelected) }
   StraphangerTheme {
@@ -69,7 +70,7 @@ fun WidgetCommutePicker(
       } else {
         SectionCard(spacing = 4.dp) {
           commutes.forEach { commute ->
-            PickerRow(commute, complexName(commute), commute.id in selected) { ticked ->
+            PickerRow(commute, complexName(commute), use24Hour, commute.id in selected) { ticked ->
               selected = if (ticked) selected + commute.id else selected - commute.id
             }
           }
@@ -99,6 +100,7 @@ private fun OpenAppButton(onOpenApp: () -> Unit) {
 private fun PickerRow(
   commute: Commute,
   stationName: String?,
+  use24Hour: Boolean,
   ticked: Boolean,
   onTicked: (Boolean) -> Unit,
 ) {
@@ -119,7 +121,7 @@ private fun PickerRow(
     Checkbox(checked = ticked && usable, onCheckedChange = null, enabled = usable)
     Column(modifier = Modifier.padding(start = 8.dp)) {
       Text(
-        commuteRowText(commute, stationName),
+        commuteRowText(commute, stationName, use24Hour),
         color = if (usable) Color.White else MtaColors.TextSecondary,
         fontSize = 14.sp,
       )

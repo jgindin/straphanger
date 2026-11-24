@@ -10,7 +10,10 @@ data class CommuteAccess(
   val exactAlarmsAllowed: Boolean = true,
 )
 
-/** What the Status tab's commutes need from the platform; see the public `App`. */
+/**
+ * What the Status tab's commutes need from the platform; see the public `App`. [use24Hour] is the
+ * phone's 12/24-hour setting, for every commute time shown.
+ */
 internal class CommuteControls(
   val store: CommuteStore = InMemoryCommuteStore(),
   val onCommutesChanged: (List<Commute>) -> Unit = {},
@@ -18,4 +21,5 @@ internal class CommuteControls(
   val onFirstCommuteCreated: () -> Unit = {},
   val onOpenExactAlarmSettings: () -> Unit = {},
   val onOpenNotificationSettings: () -> Unit = {},
+  val use24Hour: Boolean = false,
 )

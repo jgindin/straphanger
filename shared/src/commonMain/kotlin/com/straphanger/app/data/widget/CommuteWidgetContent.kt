@@ -60,6 +60,7 @@ data class CommuteWidgetContent(val rows: List<WidgetRow>)
  * What a widget showing [commuteIds] says at [nowMs]: its commutes in an active window, ordered by
  * window start and at most [MAX_ROWS], or else the one whose window starts next. Unknown ids and
  * commutes without an end time are ignored. [complexes] is null when the network is not loaded.
+ * [use24Hour] picks "7:52" or "7:52 AM" for the time the departures were fetched.
  */
 fun commuteWidgetContent(
   commuteIds: List<String>,
@@ -68,9 +69,12 @@ fun commuteWidgetContent(
   times: Map<String, CommuteTimes>,
   nowMs: Long,
   zone: TimeZone,
+  use24Hour: Boolean,
 ): CommuteWidgetContent {
   val shown = shownCommutes(widgetCommutes(commuteIds, commutes), nowMs, zone)
-  return CommuteWidgetContent(shown.map { row(it, complexes, times[it.id], nowMs, zone) })
+  return CommuteWidgetContent(
+    shown.map { row(it, complexes, times[it.id], nowMs, zone, use24Hour) },
+  )
 }
 
 /** The commutes behind [commuteIds] that can show on a widget, in the widget's order. */
@@ -104,6 +108,7 @@ private fun row(
   times: CommuteTimes?,
   nowMs: Long,
   zone: TimeZone,
+  use24Hour: Boolean,
 ): WidgetRow {
   val complex = complexes?.firstOrNull { it.complexId == commute.complexId }
   val title = commuteTitle(commute, complex?.name)
@@ -114,7 +119,14 @@ private fun row(
   return when {
     complexes != null && complex == null -> WidgetRow.StationGone(commute.id, title, tap)
     text != null && fetchedAt != null && nowMs - fetchedAt <= WIDGET_STALE_MS ->
-      WidgetRow.Times(commute.id, title, tap, text, times.alertLine, updatedText(fetchedAt, zone))
+      WidgetRow.Times(
+        commute.id,
+        title,
+        tap,
+        text,
+        times.alertLine,
+        updatedText(fetchedAt, zone, use24Hour),
+      )
     failedAt != null &&
       nowMs - failedAt <= WIDGET_STALE_MS &&
       failedAt > (fetchedAt ?: Long.MIN_VALUE) -> WidgetRow.Failed(commute.id, title, tap)
@@ -122,8 +134,8 @@ private fun row(
   }
 }
 
-/** "Updated 7:52", in [zone]. */
-private fun updatedText(fetchedAtMs: Long, zone: TimeZone): String {
+/** "Updated 7:52", or "Updated 7:52 AM" in 12-hour time, in [zone]. */
+private fun updatedText(fetchedAtMs: Long, zone: TimeZone, use24Hour: Boolean): String {
   val local = Instant.fromEpochMilliseconds(fetchedAtMs).toLocalDateTime(zone)
-  return "Updated " + commuteTimeText(local.hour, local.minute)
+  return "Updated " + commuteTimeText(local.hour, local.minute, use24Hour)
 }

@@ -61,6 +61,14 @@ class CommuteWidgetContentTest {
   }
 
   @Test
+  fun updatedTimeIsTwelveHourWhenAsked() {
+    val times = mapOf("c1" to fresh(nyMs(2027, 3, 8, 7, 52)))
+    val content =
+      content(listOf("c1"), times = times, nowMs = nyMs(2027, 3, 8, 7, 55), use24Hour = false)
+    assertEquals(listOf("Updated 7:52 AM"), content.rows.map { (it as WidgetRow.Times).updatedText })
+  }
+
+  @Test
   fun aFailureKeepsFreshTimes() {
     val times =
       mapOf("c1" to fresh(nyMs(2027, 3, 8, 7, 52)).copy(failedAtMs = nyMs(2027, 3, 8, 7, 54)))

@@ -35,7 +35,9 @@ internal fun content(
   complexes: List<StationComplex>? = listOf(AlertsHarness.COMPLEX),
   times: Map<String, CommuteTimes> = emptyMap(),
   nowMs: Long,
-): CommuteWidgetContent = commuteWidgetContent(commuteIds, commutes, complexes, times, nowMs, NY)
+  use24Hour: Boolean = true,
+): CommuteWidgetContent =
+  commuteWidgetContent(commuteIds, commutes, complexes, times, nowMs, NY, use24Hour)
 
 /** Records every alarm the widgets set or cancel. */
 internal class RecordingWidgetScheduler : WidgetRefreshScheduler {
@@ -83,6 +85,7 @@ internal class WidgetsHarness(
       screenOn = { screenOn },
       clock = clock,
       zone = { NY },
+      use24Hour = { true },
     )
 
   companion object {

@@ -25,7 +25,8 @@ const val WIDGET_FETCH_REUSE_MS = 60_000L
 /**
  * Keeps every placed widget's commutes, times and alarms. During a commute's window its widgets
  * fetch every [WIDGET_REFRESH_MS] while [screenOn]; outside every window they fetch only when
- * tapped. [complexes] loads the station complexes; null means it could not be loaded.
+ * tapped. [complexes] loads the station complexes; null means it could not be loaded. [use24Hour]
+ * reads the phone's 12/24-hour setting each time a widget's content is built.
  */
 class CommuteWidgets(
   private val store: CommuteWidgetStore,
@@ -37,6 +38,7 @@ class CommuteWidgets(
   private val screenOn: () -> Boolean,
   private val clock: Clock = Clock.System,
   private val zone: () -> TimeZone = TimeZone::currentSystemDefault,
+  private val use24Hour: () -> Boolean,
 ) {
   private val fetcher = CommuteTimesFetcher(store, complexes, fetch, scheduler, clock)
 
@@ -53,6 +55,7 @@ class CommuteWidgets(
       store.times(),
       nowMs,
       zone(),
+      use24Hour(),
     )
   }
 

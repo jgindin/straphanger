@@ -93,6 +93,8 @@ import kotlinx.coroutines.launch
  * @param commuteAccess whether notifications and exact alarms are allowed right now.
  * @param onFirstCommuteCreated called when the first commute is saved, to ask for permissions.
  * @param onOpenExactAlarmSettings opens the system screen for allowing exact alarms.
+ * @param use24HourTime whether commute times show as "17:30" rather than "5:30 PM", following the
+ *   phone's setting.
  * @param captureRuntime the process-wide ride capture runtime the background receivers share; when
  *   given, [backend], [geofenceRegistrar], [pendingGeofenceEvents] and [notificationSessions] are
  *   ignored, and when null the view model builds its own runtime from them.
@@ -121,6 +123,7 @@ fun App(
   commuteAccess: CommuteAccess = CommuteAccess(),
   onFirstCommuteCreated: () -> Unit = {},
   onOpenExactAlarmSettings: () -> Unit = {},
+  use24HourTime: Boolean = false,
 ) {
   val realtime = remember { RealtimeFeedClient.mta() }
   require(backend != null || captureRuntime != null) { "App needs a backend or a captureRuntime" }
@@ -155,6 +158,7 @@ fun App(
         onFirstCommuteCreated,
         onOpenExactAlarmSettings,
         onOpenNotificationSettings,
+        use24HourTime,
       ),
     ),
   )

@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -61,6 +62,7 @@ class CommuteWidgetConfigActivity : ComponentActivity() {
           initiallySelected = selected,
           onDone = { done(widgetId, it) },
           onOpenApp = ::openApp,
+          use24Hour = DateFormat.is24HourFormat(this),
         )
       }
     }

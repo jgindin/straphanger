@@ -30,7 +30,16 @@ fun Commute.windowAt(epochMs: Long, zone: TimeZone): LongRange? {
 fun Commute.nextWindowStartMs(afterEpochMs: Long, zone: TimeZone): Long? =
   if (hasWindow) nextOccurrenceMs(afterEpochMs, zone) else null
 
-/** The 24-hour time as "7:45" or "18:10". */
-fun commuteTimeText(hour: Int, minute: Int): String = "$hour:${minute.toString().padStart(2, '0')}"
+/**
+ * The time as "7:45" or "17:30" when [use24Hour], else as "7:45 AM" or "5:30 PM", with noon "12:00
+ * PM" and midnight "12:00 AM".
+ */
+fun commuteTimeText(hour: Int, minute: Int, use24Hour: Boolean): String {
+  val minutes = minute.toString().padStart(2, '0')
+  if (use24Hour) return "$hour:$minutes"
+  val twelveHour = (hour + HOURS_PER_HALF_DAY - 1) % HOURS_PER_HALF_DAY + 1
+  return "$twelveHour:$minutes ${if (hour < HOURS_PER_HALF_DAY) "AM" else "PM"}"
+}
 
 private const val MINUTES_PER_HOUR = 60
+private const val HOURS_PER_HALF_DAY = 12

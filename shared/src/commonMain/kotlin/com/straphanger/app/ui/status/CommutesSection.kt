@@ -27,17 +27,20 @@ import com.straphanger.app.ui.theme.MtaColors
 internal fun directionText(direction: Direction): String =
   if (direction == Direction.NORTH) "Northbound" else "Southbound"
 
-/** "A Southbound · 168 St · Weekdays 7:45"; [stationName] is null for a station that is gone. */
-internal fun commuteRowText(commute: Commute, stationName: String?): String =
+/**
+ * "A Southbound · 168 St · Weekdays 7:45", or "Weekdays 7:45 AM" unless [use24Hour]; [stationName]
+ * is null for a station that is gone.
+ */
+internal fun commuteRowText(commute: Commute, stationName: String?, use24Hour: Boolean): String =
   "${commute.routeId} ${directionText(commute.direction)} · " +
     "${stationName ?: "Station no longer listed"} · " +
-    "${daysText(commute.days)} ${commuteTimeText(commute.hour, commute.minute)}" +
-    endTimeSuffix(commute)
+    "${daysText(commute.days)} ${commuteTimeText(commute.hour, commute.minute, use24Hour)}" +
+    endTimeSuffix(commute, use24Hour)
 
-private fun endTimeSuffix(commute: Commute): String {
+private fun endTimeSuffix(commute: Commute, use24Hour: Boolean): String {
   val hour = commute.endHour
   val minute = commute.endMinute
-  return if (hour != null && minute != null) "–${commuteTimeText(hour, minute)}" else ""
+  return if (hour != null && minute != null) "–${commuteTimeText(hour, minute, use24Hour)}" else ""
 }
 
 /** The Commutes card at the top of the Status tab; nothing until there is a commute. */
@@ -74,7 +77,7 @@ private fun CommuteRow(commute: Commute, ui: CommuteUi) {
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(
-      commuteRowText(commute, ui.complexName(commute)),
+      commuteRowText(commute, ui.complexName(commute), ui.controls.use24Hour),
       color = Color.White,
       fontSize = 14.sp,
       modifier =

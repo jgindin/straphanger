@@ -3,6 +3,7 @@ package com.straphanger.app.widget
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.os.PowerManager
+import android.text.format.DateFormat
 import com.straphanger.app.capture.CaptureRuntimeHolder
 import com.straphanger.app.commute.CommuteAlertsHolder
 import com.straphanger.app.commute.runCapped
@@ -86,6 +87,7 @@ object CommuteWidgetsHolder {
           launch(context, "Forgetting widget $gone") { it.removed(listOf(gone)) }
         },
       screenOn = { power?.isInteractive == true },
+      use24Hour = { DateFormat.is24HourFormat(context) },
     )
   }
 }
