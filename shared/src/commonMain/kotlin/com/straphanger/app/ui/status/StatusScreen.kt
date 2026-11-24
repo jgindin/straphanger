@@ -1,6 +1,5 @@
 package com.straphanger.app.ui.status
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,10 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -97,26 +91,27 @@ internal fun StatusScreen(
   ) {
     item { Spacer(Modifier.height(6.dp)) }
     commutesSection(commuteUi)
-    item { StationSearch(query, { query = it }) }
-    stationRows(complexes, favoriteIds, selectedId, query) { id ->
-      selectedId = id
-      filter = null
-      query = ""
-    }
-    if (selected != null) {
-      item {
-        ArrivalsCard(
-          selected,
-          state,
-          now,
-          selected.complexId in favoriteIds,
-          filter,
-          { filter = null },
-          { commuteUi.add(selected, filter) },
-        ) {
-          favoriteIds = toggleFavorite(favoriteIds, selected.complexId)
-          favorites.write(favoriteIds)
-        }
+    stationList(
+      complexes,
+      favoriteIds,
+      selected,
+      query,
+      onQueryChange = { query = it },
+      onPick = { id ->
+        selectedId = id
+        filter = null
+      },
+    ) { complex ->
+      ArrivalsCard(
+        complex,
+        state,
+        now,
+        complex.complexId in favoriteIds,
+        filter,
+        { filter = null },
+        { commuteUi.add(complex, filter) },
+      ) {
+        favoriteIds = toggleFavorite(favoriteIds, complex.complexId).also(favorites::write)
       }
     }
     item { FreshnessLine(state, now) { refreshRequests++ } }
@@ -126,61 +121,8 @@ internal fun StatusScreen(
   commuteUi.editor?.let { CommuteEditorDialog(it, commuteUi) }
 }
 
-private fun LazyListScope.stationRows(
-  complexes: List<StationComplex>,
-  favoriteIds: List<String>,
-  selectedId: String?,
-  query: String,
-  onPick: (String) -> Unit,
-) {
-  if (query.isBlank()) {
-    items(favoriteIds.mapNotNull { id -> complexes.firstOrNull { it.complexId == id } }) { complex
-      ->
-      if (complex.complexId != selectedId) {
-        StationRow(complex, favorite = true) { onPick(complex.complexId) }
-      }
-    }
-  }
-  items(searchComplexes(complexes, query).filter { it.complexId != selectedId }) { complex ->
-    StationRow(complex) { onPick(complex.complexId) }
-  }
-}
-
 @Composable
-private fun StationSearch(query: String, onQueryChange: (String) -> Unit) {
-  OutlinedTextField(
-    value = query,
-    onValueChange = onQueryChange,
-    label = { Text("Find a station", fontSize = 12.sp) },
-    singleLine = true,
-    modifier = Modifier.fillMaxWidth().testTag("status_search"),
-  )
-}
-
-@Composable
-private fun StationRow(
-  complex: StationComplex,
-  favorite: Boolean = false,
-  onClick: () -> Unit,
-) {
-  Row(
-    modifier =
-      Modifier.fillMaxWidth()
-        .clip(RoundedCornerShape(10.dp))
-        .background(MtaColors.CardBg)
-        .clickable(onClick = onClick)
-        .padding(12.dp)
-        .testTag("status_station_${complex.complexId}"),
-    horizontalArrangement = Arrangement.SpaceBetween,
-  ) {
-    if (favorite) Text("★ ", color = MtaColors.AccentGold, fontSize = 14.sp)
-    Text(complex.name, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
-    Bullets(complex.routes)
-  }
-}
-
-@Composable
-private fun Bullets(routes: List<String>) {
+internal fun Bullets(routes: List<String>) {
   Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
     routes.forEach { MtaRouteBullet(routeId = it, size = 20.dp, fontSize = 10.sp) }
   }

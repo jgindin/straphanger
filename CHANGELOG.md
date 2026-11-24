@@ -3,6 +3,10 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.27 (not yet released)
+
+- Status tab: tapping a favorite station opens its arrivals in that favorite's place in the list, instead of moving it below the other favorites.
+
 ## 0.25 (not yet released)
 
 - Commute alerts: on a station's arrivals card on the Status tab, "Add commute alert" sets one line, one direction, the days (Monday to Friday by default) and a time (8:00 by default). At that time on those days the phone shows one notification with the next live departures, such as "A Southbound · 168 St" and "3, 9, 14 min", with the first service alert for that line if there is one. "See trains", or tapping the notification, opens the Status tab on that station showing only that line and direction; "Show all" clears it. A Commutes section at the top of the Status tab lists every commute with an on/off switch; tap one to edit or delete it. Alerts are posted on the new "Commute alerts" channel, even with the app closed, and are set again after a reboot, an app update or a clock or time zone change.
