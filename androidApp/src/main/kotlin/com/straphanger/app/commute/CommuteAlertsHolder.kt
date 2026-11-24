@@ -15,6 +15,7 @@ import com.straphanger.app.data.commute.stationComplexes
 import com.straphanger.app.data.realtime.RealtimeFeedClient
 import com.straphanger.app.notify.AlarmCommuteScheduler
 import com.straphanger.app.notify.AndroidCommuteNotifier
+import com.straphanger.app.widget.CommuteWidgetsHolder
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -59,7 +60,10 @@ object CommuteAlertsHolder {
     removedIds.forEach(scheduler::cancel)
     val alerts = get(appContext)
     CaptureRuntimeHolder.get(appContext).scope.launch {
-      rescheduleLock.withLock { runLogged(TAG, "Rescheduling commutes") { alerts.rescheduleAll() } }
+      rescheduleLock.withLock {
+        runLogged(TAG, "Rescheduling commutes") { alerts.rescheduleAll() }
+        CommuteWidgetsHolder.run(appContext, "Rescheduling widgets") { it.rescheduleAll() }
+      }
     }
   }
 

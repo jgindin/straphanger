@@ -12,7 +12,6 @@ import com.straphanger.app.data.commute.stationComplexes
 import com.straphanger.app.data.realtime.RealtimeFeedClient
 import com.straphanger.app.data.widget.CommuteWidgets
 import com.straphanger.app.data.widget.FileCommuteWidgetStore
-import com.straphanger.app.data.widget.WidgetRefreshScheduler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -80,14 +79,13 @@ object CommuteWidgetsHolder {
         CaptureRuntimeHolder.get(context).network().map(::stationComplexes).getOrNull()
       },
       fetch = feed::fetch,
-      // The refresh alarms come with the next change; until then the widget fetches when tapped.
-      scheduler = WidgetRefreshScheduler.None,
+      scheduler = AlarmWidgetRefreshScheduler(context, WidgetRefreshReceiver::class.java),
       // A stale id is dropped once the current call has released the lock.
       renderer =
         GlanceWidgetRenderer(context, CommuteGlanceWidget()) { gone ->
           launch(context, "Forgetting widget $gone") { it.removed(listOf(gone)) }
         },
-      screenOn = { power.isInteractive },
+      screenOn = { power?.isInteractive == true },
     )
   }
 }

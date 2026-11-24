@@ -75,6 +75,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- A commute widget's refresh and stale-redraw alarms -->
+        <receiver
+            android:name=".widget.WidgetRefreshReceiver"
+            android:exported="false" />
+
         <!-- The commute widget; only the system sends APPWIDGET_UPDATE -->
         <receiver
             android:name=".widget.CommuteWidgetReceiver"
