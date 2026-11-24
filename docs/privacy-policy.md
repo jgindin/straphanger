@@ -10,7 +10,7 @@ Straphanger is an app that records the subway rides you take in New York City. I
 - **Google Maps notifications.** If you turn on notification access, the app reads Google Maps transit navigation notifications to record the ride you are taking. It ignores notifications from every other app.
 - **Files you choose.** The app reads a Google Maps Timeline file or a Straphanger backup file only when you pick one. It writes a backup file only where you tell it to.
 - **Links you share.** If you share a Google Maps route to the app, it reads the text of the share.
-- **Alarms & reminders.** If you create a commute alert, the app asks for the "Alarms & reminders" permission (`SCHEDULE_EXACT_ALARM`) so the alert arrives on the minute. It uses the permission only for alerts at your commute times and, if you place a commute widget, to refresh the widget on time every 2 minutes during a commute's window (these refreshes do not wake the phone). Without it, alerts may be a few minutes late and the widget refreshes within about 30 seconds of its time.
+- **Alarms & reminders.** If you create a commute alert, the app asks for the "Alarms & reminders" permission (`SCHEDULE_EXACT_ALARM`) so the alert arrives on the minute. It uses the permission only for alerts at your commute times and, if you place a commute widget, to refresh the widget on time every 2 minutes during a commute's window (these refreshes do not wake the phone). Without it, alerts may be a few minutes late and widget refreshes, and the start of a commute's window on the widget, may be up to about 10 minutes late.
 
 ## What the app stores
 

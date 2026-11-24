@@ -92,6 +92,15 @@ class WidgetCommutePickerTest {
   }
 
   @Test
+  fun commutesWithoutEndTimesStillOfferOpenStraphanger() {
+    show(listOf(commute("c1", endHour = null, endMinute = null)))
+
+    rule.onNodeWithText("Open Straphanger").performClick()
+
+    assertTrue(openedApp)
+  }
+
+  @Test
   fun startsWithTheCurrentSelection() {
     show(listOf(commute("c1"), commute("c2")), selected = setOf("c2"))
 

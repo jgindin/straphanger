@@ -73,9 +73,11 @@ class CommuteWidgets(
   }
 
   /**
-   * The refresh alarm: during a window with the screen on, fetches the shown commutes not fetched
-   * in the last [WIDGET_FETCH_REUSE_MS] and sets the next refresh; with the screen off, only checks
-   * again in [WIDGET_SCREEN_OFF_CHECK_MS]; outside every window, waits for the next one.
+   * The refresh alarm: during a window with the screen on, sets the next refresh and then fetches
+   * the shown commutes not fetched in the last [WIDGET_FETCH_REUSE_MS]; with the screen off, only
+   * checks again in [WIDGET_SCREEN_OFF_CHECK_MS]; outside every window, waits for the next one. The
+   * next refresh is set first because this alarm has already fired: a call cancelled mid-fetch, as
+   * by the caller's time cap, must not end the chain.
    */
   suspend fun onRefreshAlarm(widgetId: Int) {
     val usable = usableCommutes(widgetId)
@@ -86,6 +88,7 @@ class CommuteWidgets(
       active.isEmpty() -> scheduleIdle(widgetId, usable, now, tz)
       !screenOn() -> scheduler.scheduleRefresh(widgetId, now + WIDGET_SCREEN_OFF_CHECK_MS)
       else -> {
+        scheduler.scheduleRefresh(widgetId, now + WIDGET_REFRESH_MS)
         val times = store.times()
         fetcher.fetch(
           active.filter { commute ->
@@ -93,31 +96,32 @@ class CommuteWidgets(
             fetchedAt == null || now - fetchedAt >= WIDGET_FETCH_REUSE_MS
           },
         )
-        scheduler.scheduleRefresh(widgetId, nowMs + WIDGET_REFRESH_MS)
         fetcher.scheduleStaleRedraw(widgetId, active)
       }
     }
     renderer.update(widgetId)
   }
 
-  /** The stale redraw: times that have grown old redraw as "Tap to refresh". */
+  /** The stale redraw: redraws old times as "Tap to refresh", then waits for the next to age. */
   suspend fun onStaleAlarm(widgetId: Int) {
     renderer.update(widgetId)
+    fetcher.scheduleStaleRedraw(widgetId, shownCommutes(usableCommutes(widgetId), nowMs, zone()))
   }
 
-  /** ⟳ or "Tap to refresh": fetches the shown commutes even if they are recent, and redraws. */
+  /**
+   * ⟳ or "Tap to refresh": fetches the shown commutes even if they are recent, and redraws. During
+   * a window it first sets the next refresh, so a call cancelled mid-fetch still keeps the chain.
+   */
   suspend fun tapRefresh(widgetId: Int) {
     val usable = usableCommutes(widgetId)
+    val now = nowMs
     val tz = zone()
-    val shown =
-      activeCommutes(usable, nowMs, tz).ifEmpty { listOfNotNull(nextCommute(usable, nowMs, tz)) }
+    val active = activeCommutes(usable, now, tz)
+    if (active.isNotEmpty()) scheduler.scheduleRefresh(widgetId, now + WIDGET_REFRESH_MS)
+    val shown = active.ifEmpty { listOfNotNull(nextCommute(usable, now, tz)) }
     fetcher.fetch(shown)
     fetcher.scheduleStaleRedraw(widgetId, shown)
     renderer.update(widgetId)
-    val now = nowMs
-    if (activeCommutes(usable, now, tz).isNotEmpty()) {
-      scheduler.scheduleRefresh(widgetId, now + WIDGET_REFRESH_MS)
-    }
   }
 
   /**
@@ -134,7 +138,10 @@ class CommuteWidgets(
     }
   }
 
-  /** Refreshes [widgetId] now if one of its windows is active, else waits for the next one. */
+  /**
+   * Refreshes [widgetId] now if one of its windows is active, else waits for the next one; and sets
+   * the stale redraw for the times it shows.
+   */
   private fun reschedule(widgetId: Int) {
     val usable = usableCommutes(widgetId)
     val now = nowMs
@@ -144,6 +151,7 @@ class CommuteWidgets(
     } else {
       scheduleIdle(widgetId, usable, now, tz)
     }
+    fetcher.scheduleStaleRedraw(widgetId, shownCommutes(usable, now, tz))
   }
 
   /** Sets the refresh for the earliest next window start of [usable], or cancels without one. */

@@ -73,6 +73,18 @@ class CommuteWidgetsLifecycleTest {
   }
 
   @Test
+  fun rescheduleAllRestoresTheStaleRedraw() = runTest {
+    // After a reboot, times from a tap outside the window must still be cleared once old.
+    val noon = nyMs(2027, 3, 8, 12, 0)
+    val h = WidgetsHarness(nowMs = noon)
+    h.store.setWidget(1, listOf("c1"))
+    h.store.setTimes("c1", fresh(noon - 5 * 60_000))
+    h.widgets.rescheduleAll()
+    assertEquals(listOf(1 to noon - 5 * 60_000 + WIDGET_STALE_MS), h.scheduler.staleRedraws)
+    assertEquals(listOf(1 to nyMs(2027, 3, 9, 7, 45)), h.scheduler.refreshes)
+  }
+
+  @Test
   fun removedWidgetsAreForgottenAndCancelled() = runTest {
     val h = WidgetsHarness()
     h.store.setWidget(1, listOf("c1"))

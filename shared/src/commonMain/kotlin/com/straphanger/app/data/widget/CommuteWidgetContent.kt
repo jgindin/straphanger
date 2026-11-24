@@ -69,9 +69,7 @@ fun commuteWidgetContent(
   nowMs: Long,
   zone: TimeZone,
 ): CommuteWidgetContent {
-  val usable = widgetCommutes(commuteIds, commutes)
-  val shown =
-    activeCommutes(usable, nowMs, zone).ifEmpty { listOfNotNull(nextCommute(usable, nowMs, zone)) }
+  val shown = shownCommutes(widgetCommutes(commuteIds, commutes), nowMs, zone)
   return CommuteWidgetContent(shown.map { row(it, complexes, times[it.id], nowMs, zone) })
 }
 
@@ -88,6 +86,10 @@ internal fun activeCommutes(commutes: List<Commute>, nowMs: Long, zone: TimeZone
     .sortedBy { it.second }
     .take(MAX_ROWS)
     .map { it.first }
+
+/** Those of [usable] a widget shows at [nowMs]: the active ones, else the next one. */
+internal fun shownCommutes(usable: List<Commute>, nowMs: Long, zone: TimeZone): List<Commute> =
+  activeCommutes(usable, nowMs, zone).ifEmpty { listOfNotNull(nextCommute(usable, nowMs, zone)) }
 
 /** The one of [commutes] whose window starts soonest after [nowMs], if any. */
 internal fun nextCommute(commutes: List<Commute>, nowMs: Long, zone: TimeZone): Commute? =

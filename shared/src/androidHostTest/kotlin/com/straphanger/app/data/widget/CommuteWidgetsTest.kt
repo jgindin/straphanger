@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** How a widget's refresh alarm and its ⟳ fetch; the window is weekdays 7:45–8:30. */
 class CommuteWidgetsTest {
@@ -111,6 +112,43 @@ class CommuteWidgetsTest {
     assertEquals(CommuteTimes(failedAtMs = now), h.store.times()["c1"])
     assertIs<WidgetRow.Failed>(h.widgets.content(1).rows.single())
     assertEquals(listOf(1), h.updated)
+  }
+
+  @Test
+  fun aRefreshCancelledMidFetchStillSchedulesTheNext() = runTest {
+    // The holder's cap cancels a call that waited for the lock; the chain must survive it.
+    val h = WidgetsHarness(fetch = { awaitCancellation() })
+    h.store.setWidget(1, listOf("c1"))
+    withTimeoutOrNull(1_000) { h.widgets.onRefreshAlarm(1) }
+    assertEquals(listOf(1 to now + WIDGET_REFRESH_MS), h.scheduler.refreshes)
+    withTimeoutOrNull(1_000) { h.widgets.tapRefresh(1) }
+    assertEquals(listOf(1 to now + WIDGET_REFRESH_MS), h.scheduler.refreshes.drop(1))
+  }
+
+  @Test
+  fun theStaleRedrawFollowsTheOldestShownTimes() = runTest {
+    val h =
+      WidgetsHarness(
+        commutes = listOf(windowed("c1", 7, 45, 8, 30), windowed("c2", 7, 50, 8, 30)),
+        fetch = { error("MTA down") },
+      )
+    h.store.setWidget(1, listOf("c1", "c2"))
+    h.store.setTimes("c1", fresh(now - 10 * 60_000))
+    h.store.setTimes("c2", fresh(now - 30_000))
+    // c1's fetch fails, keeping its old times; c2 was fetched too recently to fetch again.
+    h.widgets.onRefreshAlarm(1)
+    assertEquals(listOf(1 to now + 5 * 60_000), h.scheduler.staleRedraws)
+    // Each redraw sets the next for times still on screen: c2's times, then c1's failure.
+    h.clock.nowMs = now + 5 * 60_000
+    h.widgets.onStaleAlarm(1)
+    assertEquals(1 to now - 30_000 + WIDGET_STALE_MS, h.scheduler.staleRedraws.last())
+    h.clock.nowMs = now - 30_000 + WIDGET_STALE_MS
+    h.widgets.onStaleAlarm(1)
+    assertEquals(1 to now + WIDGET_STALE_MS, h.scheduler.staleRedraws.last())
+    h.clock.nowMs = now + WIDGET_STALE_MS + 1
+    h.widgets.onStaleAlarm(1)
+    assertEquals(3, h.scheduler.staleRedraws.size)
+    assertEquals(4, h.updated.size)
   }
 
   private fun WidgetRow.updatedText(): String? = (this as? WidgetRow.Times)?.updatedText

@@ -12,8 +12,9 @@ import com.straphanger.app.diagnostics.DiagnosticsLog
 /**
  * Wakes the app through [receiver] for each widget's two alarms, one [PendingIntent] per widget and
  * kind so a new alarm replaces only its own. The refresh alarm never wakes the device: it is exact
- * while the app may schedule exact alarms, else a 30 s window. The stale redraw is inexact but
- * wakes the device and runs in Doze, so a widget on an idle screen is not left with old times.
+ * while the app may schedule exact alarms, else a 30 s window (Android 12 and later stretch it to
+ * up to 10 minutes). The stale redraw is inexact but wakes the device and runs in Doze, so a
+ * widget on an idle screen is not left with old times.
  *
  * @param receiver the app's refresh receiver; it reads the widget from [EXTRA_WIDGET_ID] and the
  *   kind of alarm from [EXTRA_WIDGET_ALARM].

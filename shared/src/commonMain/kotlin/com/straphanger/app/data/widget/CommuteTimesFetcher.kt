@@ -71,13 +71,18 @@ internal class CommuteTimesFetcher(
   }
 
   /**
-   * Sets [widgetId]'s stale redraw for when the newest times of [shown] grow old, unless they
-   * already have.
+   * Sets [widgetId]'s stale redraw for the first time a row of [shown] will change on its own: its
+   * times, or its failure, growing older than [WIDGET_STALE_MS]. Sets nothing once all have.
    */
   fun scheduleStaleRedraw(widgetId: Int, shown: List<Commute>) {
     val times = store.times()
-    val newest = shown.mapNotNull { times[it.id]?.fetchedAtMs }.maxOrNull() ?: return
-    val at = newest + WIDGET_STALE_MS
-    if (at > nowMs) scheduler.scheduleStaleRedraw(widgetId, at)
+    val now = nowMs
+    val at =
+      shown
+        .flatMap { listOfNotNull(times[it.id]?.fetchedAtMs, times[it.id]?.failedAtMs) }
+        .map { it + WIDGET_STALE_MS }
+        .filter { it > now }
+        .minOrNull() ?: return
+    scheduler.scheduleStaleRedraw(widgetId, at)
   }
 }

@@ -39,8 +39,9 @@ import com.straphanger.app.ui.theme.MtaColors
 /**
  * A widget's configuration screen: every one of [commutes] with a checkbox, starting from
  * [initiallySelected]. Only commutes with an end time can be ticked. Done passes the ticked ids, in
- * the order of [commutes], to [onDone]. Without any commutes it offers [onOpenApp] instead.
- * [complexName] names a commute's station, or is null for one no longer listed.
+ * the order of [commutes], to [onDone]. Without any commutes it offers [onOpenApp] instead, and
+ * also when none of them has an end time. [complexName] names a commute's station, or is null for
+ * one no longer listed.
  */
 @Composable
 fun WidgetCommutePicker(
@@ -64,9 +65,7 @@ fun WidgetCommutePicker(
       Text("Choose commutes", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
       if (commutes.isEmpty()) {
         Text("No commutes yet. Open Straphanger to add one.", color = MtaColors.TextSecondary)
-        Button(onClick = onOpenApp, modifier = Modifier.testTag("widget_open_app")) {
-          Text("Open Straphanger")
-        }
+        OpenAppButton(onOpenApp)
       } else {
         SectionCard(spacing = 4.dp) {
           commutes.forEach { commute ->
@@ -81,8 +80,17 @@ fun WidgetCommutePicker(
         ) {
           Text("Done")
         }
+        // With no commute that can be ticked, the way to set an end time is in the app.
+        if (commutes.none { it.hasWindow }) OpenAppButton(onOpenApp)
       }
     }
+  }
+}
+
+@Composable
+private fun OpenAppButton(onOpenApp: () -> Unit) {
+  Button(onClick = onOpenApp, modifier = Modifier.testTag("widget_open_app")) {
+    Text("Open Straphanger")
   }
 }
 
