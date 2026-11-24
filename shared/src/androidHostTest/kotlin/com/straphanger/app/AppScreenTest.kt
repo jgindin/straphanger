@@ -106,6 +106,8 @@ abstract class AppScreenTest {
   protected var firstCommuteCreations = 0
   protected var exactAlarmSettingsOpens = 0
   protected var commuteAccess = CommuteAccess()
+  /** The phone's 12/24-hour setting as the commutes see it; 24-hour unless a test says not. */
+  protected var use24Hour = true
 
   protected fun launchApp(
     viewModel: StraphangerViewModel = newViewModel(),
@@ -137,6 +139,7 @@ abstract class AppScreenTest {
                 { firstCommuteCreations++ },
                 { exactAlarmSettingsOpens++ },
                 { notificationSettingsOpens++ },
+                use24Hour = use24Hour,
               ),
           ),
       )

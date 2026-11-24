@@ -3,6 +3,7 @@ package com.straphanger.app.commute
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.straphanger.app.widget.CommuteWidgetsHolder
 
 /**
  * Sets every commute's alarm again when the platform may have dropped or misplaced them: after a
@@ -13,7 +14,11 @@ class CommuteRescheduleReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action !in ACTIONS) return
     CommuteAlertsHolder.runInBackground(this, context, "Commute reschedule (${intent.action})") {
+      // One broadcast budget for both: neither fetches, and they share the one network load.
       it.rescheduleAll()
+      CommuteWidgetsHolder.run(context, "Widget reschedule (${intent.action})") { widgets ->
+        widgets.rescheduleAll()
+      }
     }
   }
 
