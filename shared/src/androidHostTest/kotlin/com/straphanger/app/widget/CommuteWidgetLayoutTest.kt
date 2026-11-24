@@ -27,8 +27,8 @@ class CommuteWidgetLayoutTest {
   private val kind = ActionParameters.Key<String>("kind")
   private val tap = CommuteTap("611", "A", Direction.SOUTH)
   private val title = "A Southbound · 168 St"
-  private val small = DpSize(250.dp, 110.dp)
-  private val tall = DpSize(250.dp, 180.dp)
+  private val small = DpSize(250.dp, 139.dp)
+  private val tall = DpSize(250.dp, 140.dp)
 
   private fun times(id: String = "c1", title: String = this.title) =
     WidgetRow.Times(

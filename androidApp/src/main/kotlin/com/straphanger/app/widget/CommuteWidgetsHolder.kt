@@ -82,7 +82,11 @@ object CommuteWidgetsHolder {
       fetch = feed::fetch,
       // The refresh alarms come with the next change; until then the widget fetches when tapped.
       scheduler = WidgetRefreshScheduler.None,
-      renderer = GlanceWidgetRenderer(context),
+      // A stale id is dropped once the current call has released the lock.
+      renderer =
+        GlanceWidgetRenderer(context, CommuteGlanceWidget()) { gone ->
+          launch(context, "Forgetting widget $gone") { it.removed(listOf(gone)) }
+        },
       screenOn = { power.isInteractive },
     )
   }

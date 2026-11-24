@@ -71,7 +71,7 @@ fun CommuteWidgetLayout(
       GlanceModifier.fillMaxSize()
         .background(MtaColors.CardBg)
         .cornerRadius(16.dp)
-        .padding(horizontal = 12.dp, vertical = 8.dp),
+        .padding(horizontal = 12.dp, vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     if (rows.isEmpty()) {
@@ -82,7 +82,7 @@ fun CommuteWidgetLayout(
       )
     }
     rows.forEachIndexed { index, row ->
-      if (index > 0) Spacer(GlanceModifier.height(8.dp))
+      if (index > 0) Spacer(GlanceModifier.height(6.dp))
       CommuteRow(row, refresh, open(row.tap))
     }
   }
@@ -91,16 +91,23 @@ fun CommuteWidgetLayout(
 @Composable
 private fun CommuteRow(row: WidgetRow, refresh: Action, open: Action) {
   Column(modifier = GlanceModifier.fillMaxWidth().clickable(open)) {
-    Text(row.title, style = titleStyle, maxLines = 1)
+    // A row with times is three lines, "Updated" and ⟳ beside the title, so one row fits the
+    // default 3×2 cell with room to spare and two fit from COMMUTE_WIDGET_TALL.
+    if (row is WidgetRow.Times) {
+      Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(row.title, style = titleStyle, maxLines = 1, modifier = GlanceModifier.defaultWeight())
+        Spacer(GlanceModifier.width(6.dp))
+        Text(row.updatedText, style = noteStyle, maxLines = 1)
+        Spacer(GlanceModifier.width(4.dp))
+        RefreshIcon(refresh)
+      }
+    } else {
+      Text(row.title, style = titleStyle, maxLines = 1)
+    }
     when (row) {
       is WidgetRow.Times -> {
         Text(row.text, style = timesStyle, maxLines = 1)
         row.alertLine?.let { Text(it, style = noteStyle, maxLines = 1) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(row.updatedText, style = noteStyle)
-          Spacer(GlanceModifier.width(6.dp))
-          RefreshIcon(refresh)
-        }
       }
       is WidgetRow.TapToRefresh ->
         Text("Tap to refresh", style = actionStyle, modifier = GlanceModifier.clickable(refresh))
@@ -125,6 +132,6 @@ private fun RefreshIcon(refresh: Action) {
   Image(
     provider = ImageProvider(R.drawable.ic_widget_refresh),
     contentDescription = "Refresh",
-    modifier = GlanceModifier.size(20.dp).clickable(refresh),
+    modifier = GlanceModifier.size(18.dp).clickable(refresh),
   )
 }
