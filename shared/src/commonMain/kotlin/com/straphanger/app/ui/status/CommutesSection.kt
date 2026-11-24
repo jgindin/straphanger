@@ -31,7 +31,14 @@ internal fun directionText(direction: Direction): String =
 internal fun commuteRowText(commute: Commute, stationName: String?): String =
   "${commute.routeId} ${directionText(commute.direction)} · " +
     "${stationName ?: "Station no longer listed"} · " +
-    "${daysText(commute.days)} ${commuteTimeText(commute.hour, commute.minute)}"
+    "${daysText(commute.days)} ${commuteTimeText(commute.hour, commute.minute)}" +
+    endTimeSuffix(commute)
+
+private fun endTimeSuffix(commute: Commute): String {
+  val hour = commute.endHour
+  val minute = commute.endMinute
+  return if (hour != null && minute != null) "–${commuteTimeText(hour, minute)}" else ""
+}
 
 /** The Commutes card at the top of the Status tab; nothing until there is a commute. */
 internal fun LazyListScope.commutesSection(ui: CommuteUi) {

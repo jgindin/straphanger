@@ -44,14 +44,33 @@ private class CommuteForm(draft: CommuteDraft) {
   var days by mutableStateOf(existing?.days ?: DayOfWeek.entries.take(WORK_WEEK_DAYS).toSet())
   var hour by mutableStateOf((existing?.hour ?: DEFAULT_HOUR).toString())
   var minute by mutableStateOf((existing?.minute ?: 0).toString().padStart(2, '0'))
+  var endHour by mutableStateOf(existing?.endHour?.toString() ?: "")
+  var endMinute by mutableStateOf(existing?.endMinute?.let { it.toString().padStart(2, '0') } ?: "")
   val parsedHour: Int?
     get() = hour.toIntOrNull()?.takeIf { it in 0..MAX_HOUR }
 
   val parsedMinute: Int?
     get() = minute.toIntOrNull()?.takeIf { it in 0..MAX_MINUTE }
 
+  val parsedEndHour: Int?
+    get() = endHour.toIntOrNull()?.takeIf { it in 0..MAX_HOUR }
+
+  val parsedEndMinute: Int?
+    get() = endMinute.toIntOrNull()?.takeIf { it in 0..MAX_MINUTE }
+
+  /** Both end fields empty means no end time; one empty or out of range is invalid. */
+  val endValid: Boolean
+    get() =
+      (endHour.isEmpty() && endMinute.isEmpty()) ||
+        (parsedEndHour != null && parsedEndMinute != null)
+
   val valid: Boolean
-    get() = days.isNotEmpty() && parsedHour != null && parsedMinute != null && line.isNotEmpty()
+    get() =
+      days.isNotEmpty() &&
+        parsedHour != null &&
+        parsedMinute != null &&
+        endValid &&
+        line.isNotEmpty()
 
   fun toggleDay(day: DayOfWeek) {
     days = if (day in days) days - day else days + day
@@ -66,6 +85,8 @@ private class CommuteForm(draft: CommuteDraft) {
       days = days,
       hour = parsedHour ?: 0,
       minute = parsedMinute ?: 0,
+      endHour = parsedEndHour,
+      endMinute = parsedEndMinute,
       enabled = existing?.enabled ?: true,
     )
 }
@@ -139,6 +160,16 @@ private fun CommuteFields(form: CommuteForm, routes: List<String>) {
       TimeField("Hour", form.hour, form.parsedHour == null, "commute_hour") { form.hour = it }
       TimeField("Minute", form.minute, form.parsedMinute == null, "commute_minute") {
         form.minute = it
+      }
+    }
+    Text("Show on widget until", color = Color.White, fontSize = 12.sp)
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      modifier = Modifier.testTag("commute_end_time"),
+    ) {
+      TimeField("Hour", form.endHour, !form.endValid, "commute_end_hour") { form.endHour = it }
+      TimeField("Minute", form.endMinute, !form.endValid, "commute_end_minute") {
+        form.endMinute = it
       }
     }
   }
