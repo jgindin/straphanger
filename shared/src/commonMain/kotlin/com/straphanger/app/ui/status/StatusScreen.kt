@@ -1,6 +1,5 @@
 package com.straphanger.app.ui.status
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,10 +22,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.commute.CommuteTap
@@ -37,10 +39,16 @@ import com.straphanger.app.data.realtime.Arrival
 import com.straphanger.app.data.realtime.Direction
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.data.realtime.ServiceAlert
+import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
+import com.straphanger.app.ui.theme.tabular
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.painterResource
+import straphanger.shared.generated.resources.Res
+import straphanger.shared.generated.resources.ic_star
+import straphanger.shared.generated.resources.ic_star_filled
 
 private const val REFRESH_MS = 30_000L
 private const val STALE_AFTER_SECONDS = 90L
@@ -146,21 +154,11 @@ private fun ArrivalsCard(
     ) {
       Text(
         complex.name,
-        color = Color.White,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.weight(1f),
       )
-      Text(
-        if (isFavorite) "★ Favorite" else "☆ Favorite",
-        color = MtaColors.AccentGold,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Bold,
-        modifier =
-          Modifier.clickable(onClick = onToggleFavorite)
-            .padding(4.dp)
-            .testTag("status_favorite_toggle"),
-      )
+      FavoriteToggle(isFavorite, onToggleFavorite)
     }
     if (filter != null) FilterChip(filter, onClearFilter)
     AddCommuteButton(onAddCommute)
@@ -171,9 +169,9 @@ private fun ArrivalsCard(
         .filter { filter == null || filter.matches(it) }
         .sortedBy { it.epochSeconds }
     if (board == null) {
-      Text("Loading arrivals…", color = MtaColors.TextSecondary, fontSize = 12.sp)
+      SecondaryText("Loading arrivals…")
     } else if (arrivals.isEmpty()) {
-      Text("No trains listed right now.", color = MtaColors.TextSecondary, fontSize = 12.sp)
+      SecondaryText("No trains listed right now.")
     }
     Direction.entries.forEach { direction ->
       val here = arrivals.filter { it.direction == direction }
@@ -183,13 +181,35 @@ private fun ArrivalsCard(
 }
 
 @Composable
+private fun FavoriteToggle(isFavorite: Boolean, onToggle: () -> Unit) {
+  IconToggleButton(
+    checked = isFavorite,
+    onCheckedChange = { onToggle() },
+    modifier = Modifier.testTag("status_favorite_toggle"),
+  ) {
+    Icon(
+      painterResource(if (isFavorite) Res.drawable.ic_star_filled else Res.drawable.ic_star),
+      contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+      tint =
+        if (isFavorite) MaterialTheme.colorScheme.tertiary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@Composable
 private fun FilterChip(filter: StatusFilter, onClear: () -> Unit) {
+  TextButton(onClick = onClear, modifier = Modifier.testTag("status_filter_clear")) {
+    Text("${filter.label} · Show all")
+  }
+}
+
+@Composable
+private fun SecondaryText(text: String) {
   Text(
-    "${filter.label} · Show all",
-    color = MtaColors.AccentGold,
-    fontSize = 12.sp,
-    fontWeight = FontWeight.Bold,
-    modifier = Modifier.clickable(onClick = onClear).padding(4.dp).testTag("status_filter_clear"),
+    text,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    style = MaterialTheme.typography.bodyMedium,
   )
 }
 
@@ -197,9 +217,8 @@ private fun FilterChip(filter: StatusFilter, onClear: () -> Unit) {
 private fun DirectionBlock(direction: Direction, arrivals: List<Arrival>, now: Long) {
   Text(
     directionText(direction),
-    color = MtaColors.AccentGold,
-    fontSize = 12.sp,
-    fontWeight = FontWeight.Bold,
+    color = MaterialTheme.colorScheme.tertiary,
+    style = MaterialTheme.typography.labelLarge,
   )
   arrivals.take(MAX_ROWS_PER_DIRECTION).forEach { arrival ->
     Row(
@@ -207,7 +226,11 @@ private fun DirectionBlock(direction: Direction, arrivals: List<Arrival>, now: L
       horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
       MtaRouteBullet(routeId = arrival.routeId, size = 22.dp, fontSize = 11.sp)
-      Text(minutesText(arrival.minutesFrom(now)), color = Color.White, fontSize = 14.sp)
+      Text(
+        minutesText(arrival.minutesFrom(now)),
+        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.bodyMedium.tabular(),
+      )
     }
   }
 }
@@ -233,20 +256,17 @@ private fun FreshnessLine(state: StatusState, now: Long, onRefresh: () -> Unit) 
   Row(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
   ) {
     Text(
       message,
-      color = if (failed != null) MtaColors.AccentGold else MtaColors.TextSecondary,
-      fontSize = 12.sp,
+      color = if (failed != null) MtaColors.Warning else MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall.tabular(),
       modifier = Modifier.weight(1f).testTag("status_freshness"),
     )
-    Text(
-      "Refresh",
-      color = Color.White,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Bold,
-      modifier = Modifier.clickable(onClick = onRefresh).padding(4.dp).testTag("status_refresh"),
-    )
+    TextButton(onClick = onRefresh, modifier = Modifier.testTag("status_refresh")) {
+      Text("Refresh")
+    }
   }
 }
 
@@ -257,20 +277,16 @@ private fun AlertsSection(alerts: List<ServiceAlert>, myRoutes: List<String>) {
   // Alerts for the lines at the chosen station come first.
   val current = now.sortedBy { alert -> if (alert.routes.any { it in myRoutes }) 0 else 1 }
   SectionCard(spacing = 8.dp, modifier = Modifier.testTag("status_alerts")) {
-    Text("Service alerts", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    if (current.isEmpty()) {
-      Text("No current delays or changes.", color = MtaColors.TextSecondary, fontSize = 12.sp)
-    }
+    CardTitle("Service alerts")
+    if (current.isEmpty()) SecondaryText("No current delays or changes.")
     current.forEach { AlertRow(it) }
     if (planned.isNotEmpty()) {
-      Text(
-        if (showPlanned) "Hide planned work" else "Show planned work (${planned.size})",
-        color = MtaColors.AccentGold,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        modifier =
-          Modifier.clickable { showPlanned = !showPlanned }.testTag("status_planned_toggle"),
-      )
+      TextButton(
+        onClick = { showPlanned = !showPlanned },
+        modifier = Modifier.testTag("status_planned_toggle"),
+      ) {
+        Text(if (showPlanned) "Hide planned work" else "Show planned work (${planned.size})")
+      }
       if (showPlanned) planned.forEach { AlertRow(it) }
     }
   }
@@ -283,6 +299,10 @@ private fun AlertRow(alert: ServiceAlert) {
     verticalArrangement = Arrangement.spacedBy(4.dp),
   ) {
     Bullets(alert.routes.sorted())
-    Text(alert.header, color = Color.White, fontSize = 12.sp)
+    Text(
+      alert.header,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyMedium,
+    )
   }
 }

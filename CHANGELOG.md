@@ -3,6 +3,13 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.28 (not yet released)
+
+- Larger, consistent text across the app: one type scale, with nothing smaller than 13 sp for body text.
+- Text buttons and links are a readable light blue, and tappable text is now a proper button with a larger touch target.
+- Icons for favourite (a star), back and clearing the line filter, in place of text symbols.
+- Gold is kept for highlights (header totals, the favourite star, direction headings); warnings such as a failed refresh or a ride that needs review are amber.
+
 ## 0.27 (not yet released)
 
 - Status tab: tapping a favorite station opens its arrivals in that favorite's place in the list, instead of moving it below the other favorites.

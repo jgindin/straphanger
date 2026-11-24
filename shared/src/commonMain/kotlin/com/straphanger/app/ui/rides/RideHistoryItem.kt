@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,15 +19,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
+import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.tabular
 
 /**
  * One recorded ride: when, which lines, where from and to. A ride that needs review offers its
@@ -47,22 +48,22 @@ internal fun RideHistoryItem(
   Column(
     modifier =
       Modifier.fillMaxWidth()
-        .clip(RoundedCornerShape(12.dp))
-        .background(MtaColors.CardBg)
+        .clip(MaterialTheme.shapes.medium)
+        .background(MaterialTheme.colorScheme.surfaceContainer)
         .border(
           width = 1.dp,
-          color = if (needsReview) MtaColors.AccentGold else MtaColors.CardBorder,
-          shape = RoundedCornerShape(12.dp),
+          color = if (needsReview) MtaColors.Warning else MaterialTheme.colorScheme.outlineVariant,
+          shape = MaterialTheme.shapes.medium,
         )
-        .clickable { expanded = !expanded }
-        .padding(12.dp)
+        .clickable(role = Role.Button) { expanded = !expanded }
+        .padding(Spacing.md)
         .testTag("ride_item_${rec.ride.rideId}"),
     verticalArrangement = Arrangement.spacedBy(6.dp),
   ) {
     Text(
       text = rideWhen(rec.ride.startTimeEpochMs, rec.ride.endTimeEpochMs),
-      color = MtaColors.TextSecondary,
-      fontSize = 12.sp,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall,
       modifier = Modifier.testTag("ride_when_${rec.ride.rideId}"),
     )
     RideLegsRow(rec)
@@ -70,9 +71,8 @@ internal fun RideHistoryItem(
       text =
         "${graphEngine.stationName(rec.ride.originStationId)} → " +
           graphEngine.stationName(rec.ride.destinationStationId),
-      color = Color.White,
-      fontSize = 14.sp,
-      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.titleSmall,
     )
     if (expanded) RideLegBreakdown(rec, graphEngine)
     if (needsReview || next != null) {
@@ -92,18 +92,19 @@ private fun RideDetailRow(rec: CompleteRideRecord, onEdit: () -> Unit, onDelete:
   ) {
     Text(
       text = rideDetail(rec),
-      color = if (rec.ride.needsReview) MtaColors.AccentGold else MtaColors.TextSecondary,
-      fontSize = 11.sp,
+      color =
+        if (rec.ride.needsReview) MtaColors.Warning else MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall,
       modifier = Modifier.weight(1f),
     )
     TextButton(onClick = onEdit, modifier = Modifier.testTag("edit_ride_btn_${rec.ride.rideId}")) {
-      Text("Edit", color = MtaColors.TextSecondary, fontSize = 12.sp)
+      Text("Edit")
     }
     TextButton(
       onClick = onDelete,
       modifier = Modifier.testTag("delete_ride_btn_${rec.ride.rideId}"),
     ) {
-      Text("Delete", color = MtaColors.TextSecondary, fontSize = 12.sp)
+      Text("Delete")
     }
   }
 }
@@ -121,7 +122,11 @@ private fun RideLegBreakdown(rec: CompleteRideRecord, graphEngine: SubwayGraphEn
         verticalAlignment = Alignment.CenterVertically,
       ) {
         MtaRouteBullet(routeId = leg.routeId, size = 20.dp, fontSize = 10.sp)
-        Text(legDetail(leg, graphEngine), color = Color.White, fontSize = 12.sp)
+        Text(
+          legDetail(leg, graphEngine),
+          color = MaterialTheme.colorScheme.onSurface,
+          style = MaterialTheme.typography.bodySmall,
+        )
       }
     }
   }
@@ -143,16 +148,15 @@ private fun RideLegsRow(rec: CompleteRideRecord) {
         MtaRouteBullet(routeId = leg.routeId, size = 24.dp, fontSize = 11.sp)
         Text(
           text = if (leg.isExpress) "Express" else "Local",
-          color = MtaColors.TextSecondary,
-          fontSize = 11.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.labelSmall,
         )
       }
     }
     Text(
       text = "${rec.ride.totalDistanceMiles} mi • ${rec.ride.durationMinutes} min",
-      color = MtaColors.AccentGreen,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge.tabular(),
     )
   }
 }

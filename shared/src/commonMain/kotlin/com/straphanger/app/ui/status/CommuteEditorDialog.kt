@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -18,14 +19,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.commute.Commute
 import com.straphanger.app.data.commute.commuteTimeText
 import com.straphanger.app.data.realtime.Direction
-import com.straphanger.app.ui.theme.MtaColors
 import kotlinx.datetime.DayOfWeek
 
 private const val WORK_WEEK_DAYS = 5
@@ -78,12 +76,12 @@ internal fun CommuteEditorDialog(draft: CommuteDraft, ui: CommuteUi) {
   val use24Hour = ui.controls.use24Hour
   AlertDialog(
     onDismissRequest = ui::closeEditor,
-    containerColor = MtaColors.CardBg,
+    containerColor = MaterialTheme.colorScheme.surfaceContainer,
     modifier = Modifier.testTag("commute_editor"),
     title = {
       Text(
         if (form.existing == null) "Add commute alert" else "Edit commute alert",
-        color = Color.White,
+        color = MaterialTheme.colorScheme.onSurface,
       )
     },
     text = { CommuteFields(form, draft.routes, use24Hour) },
@@ -192,7 +190,7 @@ private fun ChoiceChip(label: String, selected: Boolean, tag: String, onClick: (
   FilterChip(
     selected = selected,
     onClick = onClick,
-    label = { Text(label, fontSize = 12.sp) },
+    label = { Text(label) },
     modifier = Modifier.testTag(tag),
   )
 }
@@ -201,7 +199,11 @@ private fun ChoiceChip(label: String, selected: Boolean, tag: String, onClick: (
 @Composable
 private fun TimeButton(label: String, value: String, tag: String, onClick: () -> Unit) {
   Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-    Text(label, color = Color.White, fontSize = 12.sp)
+    Text(
+      label,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodySmall,
+    )
     OutlinedButton(onClick = onClick, modifier = Modifier.testTag(tag)) { Text(value) }
   }
 }

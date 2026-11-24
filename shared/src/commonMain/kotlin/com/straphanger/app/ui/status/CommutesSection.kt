@@ -4,24 +4,27 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.commute.Commute
 import com.straphanger.app.data.commute.commuteTimeText
 import com.straphanger.app.data.commute.daysText
 import com.straphanger.app.data.realtime.Direction
+import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
-import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.Spacing
 
 /** "Northbound" or "Southbound". */
 internal fun directionText(direction: Direction): String =
@@ -48,7 +51,7 @@ internal fun LazyListScope.commutesSection(ui: CommuteUi) {
   if (ui.commutes.isEmpty()) return
   item {
     SectionCard(spacing = 8.dp, modifier = Modifier.testTag("status_commutes")) {
-      Text("Commutes", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+      CardTitle("Commutes")
       ui.commutes.forEach { CommuteRow(it, ui) }
       val access = ui.controls.access
       if (!access.notificationsAllowed) {
@@ -78,12 +81,14 @@ private fun CommuteRow(commute: Commute, ui: CommuteUi) {
   ) {
     Text(
       commuteRowText(commute, ui.complexName(commute), ui.controls.use24Hour),
-      color = Color.White,
-      fontSize = 14.sp,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyMedium,
       modifier =
         Modifier.weight(1f)
-          .clickable { ui.edit(commute) }
-          .padding(vertical = 8.dp)
+          .heightIn(min = 48.dp)
+          .clickable(role = Role.Button) { ui.edit(commute) }
+          .wrapContentHeight(Alignment.CenterVertically)
+          .padding(vertical = Spacing.sm)
           .testTag("commute_row_${commute.id}"),
     )
     Switch(
@@ -96,22 +101,13 @@ private fun CommuteRow(commute: Commute, ui: CommuteUi) {
 
 @Composable
 private fun CommuteNote(text: String, tag: String, onClick: () -> Unit) {
-  Text(
-    text,
-    color = MtaColors.AccentGold,
-    fontSize = 12.sp,
-    modifier = Modifier.clickable(onClick = onClick).padding(vertical = 4.dp).testTag(tag),
-  )
+  TextButton(onClick = onClick, modifier = Modifier.testTag(tag)) { Text(text) }
 }
 
 /** The "Add commute alert" button on the station's arrivals card. */
 @Composable
 internal fun AddCommuteButton(onClick: () -> Unit) {
-  Text(
-    "Add commute alert",
-    color = MtaColors.AccentGold,
-    fontSize = 12.sp,
-    fontWeight = FontWeight.Bold,
-    modifier = Modifier.clickable(onClick = onClick).padding(4.dp).testTag("status_add_commute"),
-  )
+  TextButton(onClick = onClick, modifier = Modifier.testTag("status_add_commute")) {
+    Text("Add commute alert")
+  }
 }

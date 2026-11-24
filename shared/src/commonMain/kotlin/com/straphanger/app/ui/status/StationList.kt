@@ -5,21 +5,27 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.commute.StationComplex
-import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.Spacing
+import org.jetbrains.compose.resources.painterResource
+import straphanger.shared.generated.resources.Res
+import straphanger.shared.generated.resources.ic_star_filled
 
 /**
  * The station search, then the favorites (when not searching), then [selected]'s card when it is
@@ -68,7 +74,7 @@ private fun StationSearch(query: String, onQueryChange: (String) -> Unit) {
   OutlinedTextField(
     value = query,
     onValueChange = onQueryChange,
-    label = { Text("Find a station", fontSize = 12.sp) },
+    label = { Text("Find a station") },
     singleLine = true,
     modifier = Modifier.fillMaxWidth().testTag("status_search"),
   )
@@ -83,15 +89,29 @@ private fun StationRow(
   Row(
     modifier =
       Modifier.fillMaxWidth()
-        .clip(RoundedCornerShape(10.dp))
-        .background(MtaColors.CardBg)
-        .clickable(onClick = onClick)
-        .padding(12.dp)
+        .heightIn(min = 48.dp)
+        .clip(MaterialTheme.shapes.small)
+        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .clickable(role = Role.Button, onClick = onClick)
+        .padding(Spacing.md)
         .testTag("status_station_${complex.complexId}"),
     horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    if (favorite) Text("★ ", color = MtaColors.AccentGold, fontSize = 14.sp)
-    Text(complex.name, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+    if (favorite) {
+      Icon(
+        painterResource(Res.drawable.ic_star_filled),
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.tertiary,
+        modifier = Modifier.padding(end = Spacing.xs).size(18.dp),
+      )
+    }
+    Text(
+      complex.name,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyMedium,
+      modifier = Modifier.weight(1f),
+    )
     Bullets(complex.routes)
   }
 }

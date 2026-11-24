@@ -2,6 +2,7 @@ package com.straphanger.app.ui.status
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -9,9 +10,7 @@ import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import com.straphanger.app.ui.theme.MtaColors
 
 /**
  * Material's clock-face time picker for one of the editor's times, starting at [hour]:[minute]. OK
@@ -32,8 +31,8 @@ internal fun CommuteTimeDialog(
   val state = rememberTimePickerState(hour, minute, use24Hour)
   TimePickerDialog(
     onDismissRequest = onDismiss,
-    title = { Text(title, color = Color.White) },
-    containerColor = MtaColors.CardBg,
+    title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
+    containerColor = MaterialTheme.colorScheme.surfaceContainer,
     modifier = Modifier.testTag("commute_time_dialog"),
     confirmButton = {
       TextButton(

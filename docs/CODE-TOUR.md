@@ -149,7 +149,14 @@ flowchart LR
 
 Compose Multiplatform, in `:shared`.
 
-**Entry point.** [App.kt](../shared/src/commonMain/kotlin/com/straphanger/app/App.kt) is the one composable the platform calls. Its parameters are everything the platform supplies (see the KDoc): the geofence registrar, permission state, pending events, callbacks to open settings, and the version name. [AppChrome.kt](../shared/src/commonMain/kotlin/com/straphanger/app/AppChrome.kt) has the theme, header, bottom tabs and the storage-error banner. [MtaColors.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/MtaColors.kt) holds the colors and their contrast values.
+**Entry point.** [App.kt](../shared/src/commonMain/kotlin/com/straphanger/app/App.kt) is the one composable the platform calls. Its parameters are everything the platform supplies (see the KDoc): the geofence registrar, permission state, pending events, callbacks to open settings, and the version name. [AppChrome.kt](../shared/src/commonMain/kotlin/com/straphanger/app/AppChrome.kt) has the header, bottom tabs and the storage-error banner.
+
+**Theme.** Screens take their colours, text sizes and corner shapes from `MaterialTheme`, never from literals (`ThemeTest` scans for `Color(0x` and `fontSize =`):
+- [StraphangerTheme.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/StraphangerTheme.kt) is the dark colour scheme and the shared button colours: `primaryButtonColors()` (MTA blue `primaryContainer`, white text), `quietButtonColors()` (tonal) and `confirmButtonColors()` (`MtaColors.ActionGreen`). `primary` is a light blue for text buttons, links and selected states; gold `tertiary` is for highlights only (header totals, the favourite star, direction headings).
+- [Type.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/Type.kt) is the type scale (body text at least 13 sp, labels at least 11 sp) and `TextStyle.tabular()` for numbers that change in place.
+- [Dimens.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/Dimens.kt) has the corner `Shapes` (4/8/12/16/28 dp) and `Spacing`.
+- [MtaColors.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/theme/MtaColors.kt) holds what is not a scheme role: route colours, the basemap and heatmap, `Warning` (amber, not gold), `Success`, and the raw palette values that the Glance widget and the map's Canvas use outside a composition.
+- Icons are Material Symbols vector drawables in `composeResources/drawable` (`ic_*`), used through `Res.drawable` and `painterResource`.
 
 **State.** [StraphangerViewModel.kt](../shared/src/commonMain/kotlin/com/straphanger/app/ui/StraphangerViewModel.kt) is a thin front. Its actions live in controllers that share one [StraphangerSession](../shared/src/commonMain/kotlin/com/straphanger/app/ui/StraphangerSession.kt) (the scope DAO writes run in, the DAO, the state flow and, once loaded, the network services):
 

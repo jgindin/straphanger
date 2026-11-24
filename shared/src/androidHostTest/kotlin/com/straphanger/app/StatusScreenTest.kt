@@ -1,6 +1,9 @@
 package com.straphanger.app
 
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -71,11 +74,17 @@ class StatusScreenTest : AppScreenTest() {
     openTab("STATUS")
     composeRule.onNodeWithTag("status_search").performTextInput("Union Sq")
     composeRule.onNodeWithTag("status_station_${unionSq.complexId}").performClick()
-    composeRule.onNodeWithTag("status_favorite_toggle").assertTextContains("☆ Favorite")
+    composeRule
+      .onNodeWithTag("status_favorite_toggle")
+      .assertIsOff()
+      .assertContentDescriptionEquals("Add to favorites")
 
     composeRule.onNodeWithTag("status_favorite_toggle").performClick()
 
-    composeRule.onNodeWithTag("status_favorite_toggle").assertTextContains("★ Favorite")
+    composeRule
+      .onNodeWithTag("status_favorite_toggle")
+      .assertIsOn()
+      .assertContentDescriptionEquals("Remove from favorites")
     assertEquals(listOf(unionSq.complexId), favorites.read())
   }
 
@@ -88,7 +97,9 @@ class StatusScreenTest : AppScreenTest() {
     // A saved id the network no longer has is skipped instead of crashing the list.
     composeRule.onNodeWithTag("status_station_${unionSq.complexId}").performClick()
     composeRule.onNodeWithTag("status_arrivals").assertIsDisplayed()
-    composeRule.onNodeWithTag("status_favorite_toggle").assertTextContains("★ Favorite")
+    composeRule
+      .onNodeWithTag("status_favorite_toggle")
+      .assertContentDescriptionEquals("Remove from favorites")
 
     composeRule.onNodeWithTag("status_favorite_toggle").performClick()
 

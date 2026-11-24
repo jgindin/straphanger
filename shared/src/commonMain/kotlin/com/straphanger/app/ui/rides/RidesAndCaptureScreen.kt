@@ -1,8 +1,8 @@
 package com.straphanger.app.ui.rides
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,11 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,12 +29,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.RouteChoice
@@ -42,6 +40,7 @@ import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.primaryButtonColors
 
 @Composable
 fun RidesHistoryAndLoggerScreen(
@@ -83,7 +82,7 @@ fun RidesHistoryAndLoggerScreen(
   Column(
     modifier =
       Modifier.fillMaxSize()
-        .background(MtaColors.DarkBg)
+        .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
         .padding(16.dp)
         .testTag("rides_history_screen"),
@@ -127,7 +126,7 @@ private fun RecordedRides(
   val shownRides =
     if (routeFilter == null) uiState.rides
     else uiState.rides.filter { rec -> rec.legs.any { it.routeId == routeFilter } }
-  CardTitle("Recorded Subway Rides (${shownRides.size})", fontSize = 16.sp)
+  CardTitle("Recorded Subway Rides (${shownRides.size})")
   if (routeFilter != null) RouteFilterChip(routeFilter, onClear = onClearRouteFilter)
   shownRides.forEach { rec ->
     HighlightedWhenOpenedFromNotification(
@@ -159,7 +158,7 @@ private fun HighlightedWhenOpenedFromNotification(
   Box(
     modifier =
       Modifier.bringIntoViewRequester(requester)
-        .border(2.dp, MtaColors.AccentGreen, RoundedCornerShape(14.dp))
+        .border(2.dp, MtaColors.Success, MaterialTheme.shapes.medium)
         .padding(2.dp)
         .testTag("ride_row_highlighted"),
   ) {
@@ -253,7 +252,7 @@ private fun QuickTripLoggerCard(
   onSubmitQuickRide: () -> Unit,
 ) {
   SectionCard(spacing = 10.dp, modifier = Modifier.testTag("quick_trip_logger_card")) {
-    CardTitle("Quick Trip Logger (Single or Multi-Leg Transfer)", fontSize = 16.sp)
+    CardTitle("Quick Trip Logger (Single or Multi-Leg Transfer)")
     val transName =
       uiState.logTransferStationId?.let { graphEngine.getStation(it)?.name }
         ?: "None (Direct / Auto)"
@@ -262,22 +261,21 @@ private fun QuickTripLoggerCard(
         "Origin: ${graphEngine.stationName(uiState.logOriginStationId)}  →  " +
           "Transfer: $transName  →  " +
           "Destination: ${graphEngine.stationName(uiState.logDestinationStationId)}",
-      color = MtaColors.AccentGold,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.tertiary,
+      style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
     )
     Text(
       text = "Popular Trip Presets (or tap any station on the Map tab):",
-      color = MtaColors.TextSecondary,
-      fontSize = 11.sp,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall,
     )
     TripPresets(onUpdateLogForm)
     Button(
       onClick = onSubmitQuickRide,
-      colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
+      colors = primaryButtonColors(),
       modifier = Modifier.fillMaxWidth().testTag("submit_log_ride_btn"),
     ) {
-      Text("Log Subway Ride", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+      Text("Log Subway Ride")
     }
   }
 }
@@ -313,20 +311,16 @@ private fun PresetChip(
   testTag: String,
   onClick: () -> Unit,
 ) {
-  Box(
-    modifier =
-      Modifier.clip(RoundedCornerShape(8.dp))
-        .background(Color(0xFF1F293A))
-        .border(1.dp, Color(0xFF33435E), RoundedCornerShape(8.dp))
-        .clickable { onClick() }
-        .padding(horizontal = 10.dp, vertical = 6.dp)
-        .testTag(testTag),
-  ) {
-    Text(
-      text = label,
-      color = Color.White,
-      fontSize = 11.sp,
-      fontWeight = FontWeight.Medium,
-    )
-  }
+  AssistChip(
+    onClick = onClick,
+    label = { Text(text = label) },
+    shape = MaterialTheme.shapes.small,
+    colors =
+      AssistChipDefaults.assistChipColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        labelColor = MaterialTheme.colorScheme.onSurface,
+      ),
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    modifier = Modifier.testTag(testTag),
+  )
 }
