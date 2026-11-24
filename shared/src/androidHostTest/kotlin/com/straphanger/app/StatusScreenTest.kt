@@ -2,6 +2,7 @@ package com.straphanger.app
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -92,6 +93,21 @@ class StatusScreenTest : AppScreenTest() {
     composeRule.onNodeWithTag("status_favorite_toggle").performClick()
 
     assertEquals(listOf("no-such-complex"), favorites.read())
+  }
+
+  @Test
+  fun aTappedFavoriteOpensInItsOwnPlace() {
+    val others = complexes.filter { it != unionSq }.take(2)
+    favorites = InMemoryFavoriteStationsStore(listOf(others[0], unionSq, others[1]).map { it.complexId })
+    launchApp()
+    openTab("STATUS")
+
+    composeRule.onNodeWithTag("status_station_${unionSq.complexId}").performClick()
+
+    fun top(tag: String) = composeRule.onNodeWithTag(tag).getUnclippedBoundsInRoot().top
+    val card = top("status_arrivals")
+    assertTrue(top("status_station_${others[0].complexId}") < card)
+    assertTrue(card < top("status_station_${others[1].complexId}"))
   }
 
   @Test

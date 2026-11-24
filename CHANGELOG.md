@@ -3,6 +3,10 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.27 (not yet released)
+
+- Status tab: tapping a favorite station opens its arrivals in that favorite's place in the list, instead of moving it below the other favorites.
+
 ## 0.26 (not yet released)
 
 - Commute widget: a home-screen widget that shows the next live departures for the commutes you pick, and refreshes itself during the commute's window. Place as many as you like; each opens a "Choose commutes" screen (and can be reconfigured from the launcher's widget settings). The default size is 3×2; two commutes are shown when the widget is at least 200 dp tall and two windows overlap. Each commute shows the line's coloured bullet, the station, the direction, and its next departures, the next one large.
