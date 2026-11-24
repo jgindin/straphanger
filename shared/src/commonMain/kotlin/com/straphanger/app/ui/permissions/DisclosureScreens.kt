@@ -10,17 +10,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.primaryButtonColors
 
 const val BACKGROUND_LOCATION_DISCLOSURE_TEXT =
   "Straphanger uses your location in the background to notice when you enter and leave subway stations, " +
@@ -65,18 +63,21 @@ private fun DisclosureScreen(
   Column(
     modifier =
       Modifier.fillMaxSize()
-        .background(MtaColors.DarkBg)
+        .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
         .padding(20.dp)
         .testTag(screenTag),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
-    Text(text = title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+    Text(
+      text = title,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+    )
     Text(
       text = body,
-      color = Color.White,
-      fontSize = 15.sp,
-      lineHeight = 22.sp,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyLarge,
       modifier = Modifier.testTag("${screenTag}_text"),
     )
     Row(
@@ -84,11 +85,11 @@ private fun DisclosureScreen(
       horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
       OutlinedButton(onClick = onNotNow, modifier = Modifier.testTag("disclosure_not_now")) {
-        Text("Not now", color = Color.White)
+        Text("Not now", color = MaterialTheme.colorScheme.onSurface)
       }
       Button(
         onClick = onContinue,
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0039A6)),
+        colors = primaryButtonColors(),
         modifier = Modifier.testTag("disclosure_continue"),
       ) {
         Text("Continue")

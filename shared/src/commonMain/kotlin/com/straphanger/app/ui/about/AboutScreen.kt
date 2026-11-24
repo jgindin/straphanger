@@ -1,16 +1,18 @@
 package com.straphanger.app.ui.about
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,15 +21,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.PRIVACY_POLICY_URL
-import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.quietButtonColors
+import org.jetbrains.compose.resources.painterResource
+import straphanger.shared.generated.resources.Res
+import straphanger.shared.generated.resources.ic_arrow_back
+
+const val ICONS_CREDIT_TEXT = "Icons: Material Symbols by Google (Apache License 2.0)."
 
 const val NOT_AFFILIATED_TEXT =
   "Unofficial app. Not affiliated with or endorsed by the Metropolitan Transportation Authority."
@@ -79,11 +84,14 @@ fun AboutScreen(
 @Composable
 private fun LicensesView(onBack: () -> Unit, licensesContent: @Composable () -> Unit) {
   Column(
-    modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("licenses_screen"),
+    modifier =
+      Modifier.fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        .testTag("licenses_screen"),
   ) {
     BackArrowButton(
       onClick = onBack,
-      modifier = Modifier.padding(8.dp).testTag("licenses_back_btn"),
+      modifier = Modifier.padding(Spacing.sm).testTag("licenses_back_btn"),
     )
     licensesContent()
   }
@@ -101,39 +109,44 @@ private fun AboutContent(
   Column(
     modifier =
       Modifier.fillMaxSize()
-        .background(MtaColors.DarkBg)
+        .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
-        .padding(16.dp)
+        .padding(Spacing.lg)
         .testTag("about_screen"),
-    verticalArrangement = Arrangement.spacedBy(14.dp),
+    verticalArrangement = Arrangement.spacedBy(Spacing.md),
   ) {
     BackArrowButton(onClick = onBack, modifier = Modifier.testTag("about_back_btn"))
     Text(
       "About Straphanger",
-      color = Color.White,
-      fontSize = 20.sp,
-      fontWeight = FontWeight.ExtraBold,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
     )
     Text(
       "Version $appVersion",
-      color = MtaColors.TextSecondary,
-      fontSize = 13.sp,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodyMedium,
       modifier = Modifier.testTag("about_version"),
     )
     DataSourceText(sourceDate)
     if (basemapSourceDate != null) {
       Text(
         basemapAttributionText(basemapSourceDate),
-        color = MtaColors.TextSecondary,
-        fontSize = 13.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.testTag("about_basemap_attribution"),
       )
     }
+    Text(
+      ICONS_CREDIT_TEXT,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodyMedium,
+      modifier = Modifier.testTag("about_icons_credit"),
+    )
     PrivacyPolicyLink()
-    Button(
+    FilledTonalButton(
       onClick = onOpenLicenses,
       enabled = licensesAvailable,
-      colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
+      colors = quietButtonColors(),
       modifier = Modifier.testTag("about_licenses_btn"),
     ) {
       Text(
@@ -149,21 +162,20 @@ private fun AboutContent(
 private fun DataSourceText(sourceDate: String) {
   Text(
     "Subway data: MTA GTFS, $sourceDate",
-    color = Color.White,
-    fontSize = 14.sp,
-    fontWeight = FontWeight.SemiBold,
+    color = MaterialTheme.colorScheme.onSurface,
+    style = MaterialTheme.typography.titleSmall,
     modifier = Modifier.testTag("about_data_date"),
   )
   Text(
     mtaAttributionText(sourceDate),
-    color = MtaColors.TextSecondary,
-    fontSize = 13.sp,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    style = MaterialTheme.typography.bodyMedium,
     modifier = Modifier.testTag("about_attribution"),
   )
   Text(
     NOT_AFFILIATED_TEXT,
-    color = Color.White,
-    fontSize = 13.sp,
+    color = MaterialTheme.colorScheme.onSurface,
+    style = MaterialTheme.typography.bodyMedium,
     modifier = Modifier.testTag("about_disclaimer"),
   )
 }
@@ -171,14 +183,18 @@ private fun DataSourceText(sourceDate: String) {
 @Composable
 private fun PrivacyPolicyLink() {
   val uriHandler = LocalUriHandler.current
-  Text(
-    "Privacy policy",
-    color = Color(0xFF8AB4F8),
-    fontSize = 14.sp,
-    textDecoration = TextDecoration.Underline,
-    modifier =
-      Modifier.clickable { uriHandler.openUri(PRIVACY_POLICY_URL) }
-        .padding(vertical = 8.dp)
-        .testTag("about_privacy_policy_link"),
-  )
+  TextButton(
+    onClick = { uriHandler.openUri(PRIVACY_POLICY_URL) },
+    modifier = Modifier.testTag("about_privacy_policy_link"),
+  ) {
+    Text("Privacy policy", textDecoration = TextDecoration.Underline)
+  }
+}
+
+/** The arrow at the top left of a screen that goes back. */
+@Composable
+private fun BackArrowButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+  IconButton(onClick = onClick, modifier = modifier) {
+    Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = "Back")
+  }
 }

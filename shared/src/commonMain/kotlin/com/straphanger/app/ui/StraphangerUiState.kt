@@ -54,6 +54,8 @@ data class StraphangerUiState(
   /** Why station geofences are not registered, or null. */
   val passiveCaptureError: String? = null,
   val statusMessage: String = "Rides are stored on this device",
+  /** True when [statusMessage] reports a failure (shown as a warning). */
+  val statusIsFailure: Boolean = false,
   val loadError: String? = null,
   val isNetworkLoaded: Boolean = false,
   /** Set when the bundled subway network could not be loaded; the app cannot work without it. */

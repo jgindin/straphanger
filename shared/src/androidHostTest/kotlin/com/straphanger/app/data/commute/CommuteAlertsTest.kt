@@ -19,7 +19,7 @@ class CommuteAlertsTest {
     h.alerts.fire("c1")
     assertEquals(listOf("c1" to nyMs(2027, 3, 9, 7, 45)), h.scheduler.scheduled)
     assertEquals(
-      listOf("c1" to CommuteAlertText("A Southbound · 168 St", "3 min", null)),
+      listOf("c1" to CommuteAlertText("A Southbound · 168 St", "3 min", null, listOf("3 min"))),
       h.posted,
     )
     assertEquals(listOf(CommuteTap("614", "A", Direction.SOUTH)), h.taps)

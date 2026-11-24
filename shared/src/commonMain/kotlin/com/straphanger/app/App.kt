@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -23,10 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.straphanger.app.data.capture.GeofenceRegistrar
 import com.straphanger.app.data.capture.InMemoryNotificationSessionStore
@@ -61,7 +60,7 @@ import com.straphanger.app.ui.stats.StatsDashboardScreen
 import com.straphanger.app.ui.status.CommuteAccess
 import com.straphanger.app.ui.status.CommuteControls
 import com.straphanger.app.ui.status.StatusScreen
-import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.StraphangerTheme
 import kotlin.time.Clock
 import kotlinx.coroutines.launch
 
@@ -93,6 +92,8 @@ import kotlinx.coroutines.launch
  * @param commuteAccess whether notifications and exact alarms are allowed right now.
  * @param onFirstCommuteCreated called when the first commute is saved, to ask for permissions.
  * @param onOpenExactAlarmSettings opens the system screen for allowing exact alarms.
+ * @param use24HourTime whether commute times show as "17:30" rather than "5:30 PM", following the
+ *   phone's setting.
  * @param captureRuntime the process-wide ride capture runtime the background receivers share; when
  *   given, [backend], [geofenceRegistrar], [pendingGeofenceEvents] and [notificationSessions] are
  *   ignored, and when null the view model builds its own runtime from them.
@@ -121,6 +122,7 @@ fun App(
   commuteAccess: CommuteAccess = CommuteAccess(),
   onFirstCommuteCreated: () -> Unit = {},
   onOpenExactAlarmSettings: () -> Unit = {},
+  use24HourTime: Boolean = false,
 ) {
   val realtime = remember { RealtimeFeedClient.mta() }
   require(backend != null || captureRuntime != null) { "App needs a backend or a captureRuntime" }
@@ -155,6 +157,7 @@ fun App(
         onFirstCommuteCreated,
         onOpenExactAlarmSettings,
         onOpenNotificationSettings,
+        use24HourTime,
       ),
     ),
   )
@@ -192,7 +195,10 @@ internal fun App(
 
   StraphangerTheme {
     Column(
-      modifier = Modifier.fillMaxSize().background(MtaColors.DarkBg).testTag("straphanger_root"),
+      modifier =
+        Modifier.fillMaxSize()
+          .background(MaterialTheme.colorScheme.background)
+          .testTag("straphanger_root"),
     ) {
       AppHeader(uiState.stats)
       uiState.loadError?.let { StorageErrorBanner(it) }
@@ -342,8 +348,10 @@ private fun NetworkLoading(loadError: String?) {
   ) {
     Text(
       text = loadError ?: "Loading subway network",
-      color = if (loadError != null) Color.White else MtaColors.TextSecondary,
-      fontSize = 13.sp,
+      color =
+        if (loadError != null) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodyMedium,
       modifier =
         Modifier.padding(16.dp)
           .testTag(if (loadError != null) "network_load_error" else "network_loading_text"),

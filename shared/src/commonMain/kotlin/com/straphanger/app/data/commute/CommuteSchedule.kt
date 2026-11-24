@@ -34,7 +34,7 @@ private fun Commute.instantOn(date: LocalDate, zone: TimeZone): Long? =
  * [local] in [zone]. A time skipped by spring-forward resolves to the first valid instant (the
  * moment the clocks jump) rather than being shifted by the whole gap.
  */
-private fun resolveLocal(local: LocalDateTime, zone: TimeZone): Long {
+internal fun resolveLocal(local: LocalDateTime, zone: TimeZone): Long {
   val resolved = local.toInstant(zone)
   val shift = resolved.toLocalDateTime(zone).toInstant(TimeZone.UTC) - local.toInstant(TimeZone.UTC)
   var instant = resolved - shift
@@ -47,7 +47,7 @@ private fun resolveLocal(local: LocalDateTime, zone: TimeZone): Long {
   return instant.toEpochMilliseconds()
 }
 
-private fun localDateOf(epochMs: Long, zone: TimeZone): LocalDate =
+internal fun localDateOf(epochMs: Long, zone: TimeZone): LocalDate =
   Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(zone).date
 
 /** The first occurrence strictly after [afterEpochMs], or null when no day is selected. */

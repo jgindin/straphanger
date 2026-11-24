@@ -11,11 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,14 +43,15 @@ import com.straphanger.app.data.local.RideEntity
 import com.straphanger.app.data.local.RouteChoice
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
+import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.confirmButtonColors
+import com.straphanger.app.ui.theme.tabular
 
 /** Which end of the ride the station search is choosing. */
 private enum class RideEnd(val label: String) {
   START("From"),
   END("To"),
 }
-
-private val ChoiceBg = Color(0xFF1C2433)
 
 /**
  * Lets the rider change where [ride] started and ended and, where an express and a local both run
@@ -88,27 +91,24 @@ internal fun EditStationsDialog(
     // The platform's default width never settles around a text field in a tall window under
     // Robolectric; AlertDialog still limits its own width.
     properties = DialogProperties(usePlatformDefaultWidth = false),
-    containerColor = MtaColors.CardBg,
-    titleContentColor = MtaColors.TextPrimary,
-    textContentColor = MtaColors.TextPrimary,
-    shape = RoundedCornerShape(16.dp),
-    title = { Text("Edit stations", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    titleContentColor = MaterialTheme.colorScheme.onSurface,
+    textContentColor = MaterialTheme.colorScheme.onSurface,
+    shape = MaterialTheme.shapes.large,
+    title = { Text("Edit stations", style = MaterialTheme.typography.titleLarge) },
     text = {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        RideEnd.entries.forEach { end ->
-          val id = if (end == RideEnd.START) origin else destination
-          EndChooser(end, graphEngine.getStation(id), id, selected = choosing == end) {
-            choosing = end
-            query = ""
-          }
+        EndChoosers(graphEngine, origin, destination, choosing) { end ->
+          choosing = end
+          query = ""
         }
         if (routes.isNotEmpty()) RouteChips(routes, route) { route = it }
         SearchField(choosing, query) { query = it }
         if (failed) {
           Text(
             "No route joins those stations.",
-            color = MtaColors.AccentGold,
-            fontSize = 12.sp,
+            color = MtaColors.Warning,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.testTag("edit_stations_error"),
           )
         }
@@ -121,7 +121,7 @@ internal fun EditStationsDialog(
     confirmButton = { SaveButton { failed = !onSave(origin, destination, route) } },
     dismissButton = {
       TextButton(onClick = onDismiss, modifier = Modifier.testTag("edit_stations_cancel")) {
-        Text("Cancel", color = MtaColors.TextSecondary)
+        Text("Cancel")
       }
     },
     modifier = Modifier.padding(horizontal = 16.dp).testTag("edit_stations_dialog"),
@@ -132,10 +132,30 @@ internal fun EditStationsDialog(
 private fun SaveButton(onClick: () -> Unit) {
   Button(
     onClick = onClick,
-    colors = ButtonDefaults.buttonColors(containerColor = MtaColors.ActionGreen),
+    colors = confirmButtonColors(),
     modifier = Modifier.testTag("edit_stations_save"),
   ) {
-    Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
+    Text("Save")
+  }
+}
+
+/** The From and To choosers; one of them, [choosing], is the end the search fills in. */
+@Composable
+private fun EndChoosers(
+  graphEngine: SubwayGraphEngine,
+  origin: String,
+  destination: String,
+  choosing: RideEnd,
+  onChoose: (RideEnd) -> Unit,
+) {
+  Column(
+    modifier = Modifier.selectableGroup(),
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+  ) {
+    RideEnd.entries.forEach { end ->
+      val id = if (end == RideEnd.START) origin else destination
+      EndChooser(end, graphEngine.getStation(id), id, selected = choosing == end) { onChoose(end) }
+    }
   }
 }
 
@@ -150,31 +170,34 @@ private fun EndChooser(
   Row(
     modifier =
       Modifier.fillMaxWidth()
-        .clip(RoundedCornerShape(10.dp))
-        .background(ChoiceBg)
+        .heightIn(min = 48.dp)
+        .clip(MaterialTheme.shapes.small)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         .border(
           width = if (selected) 2.dp else 1.dp,
-          color = if (selected) MtaColors.AccentGold else MtaColors.CardBorder,
-          shape = RoundedCornerShape(10.dp),
+          color =
+            if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant,
+          shape = MaterialTheme.shapes.small,
         )
-        .clickable(onClick = onClick)
-        .padding(horizontal = 12.dp, vertical = 10.dp)
+        .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+        .padding(horizontal = Spacing.md, vertical = 10.dp)
         .testTag("edit_stations_choose_${end.name.lowercase()}"),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     Text(
       end.label,
-      color = if (selected) MtaColors.AccentGold else MtaColors.TextSecondary,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Bold,
+      color =
+        if (selected) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge,
       modifier = Modifier.padding(end = 2.dp),
     )
     Text(
       station?.name ?: stationId,
-      color = MtaColors.TextPrimary,
-      fontSize = 15.sp,
-      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.titleMedium,
       modifier = Modifier.weight(1f),
     )
     station?.let { Bullets(it.daytimeRoutes) }
@@ -186,17 +209,11 @@ private fun SearchField(choosing: RideEnd, query: String, onQueryChange: (String
   OutlinedTextField(
     value = query,
     onValueChange = onQueryChange,
-    label = { Text("Search for the ${choosing.label.lowercase()} station", fontSize = 12.sp) },
+    label = { Text("Search for the ${choosing.label.lowercase()} station") },
     singleLine = true,
     colors =
       OutlinedTextFieldDefaults.colors(
-        focusedTextColor = MtaColors.TextPrimary,
-        unfocusedTextColor = MtaColors.TextPrimary,
-        focusedBorderColor = MtaColors.AccentGold,
-        unfocusedBorderColor = MtaColors.CardBorder,
-        focusedLabelColor = MtaColors.AccentGold,
-        unfocusedLabelColor = MtaColors.TextSecondary,
-        cursorColor = MtaColors.AccentGold,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
       ),
     modifier = Modifier.fillMaxWidth().testTag("edit_stations_search"),
   )
@@ -216,16 +233,23 @@ private fun StationMatches(
     verticalArrangement = Arrangement.spacedBy(2.dp),
   ) {
     if (choices.isEmpty()) {
-      Text("No stations match.", color = MtaColors.TextSecondary, fontSize = 13.sp)
+      Text(
+        "No stations match.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
+      )
     }
     choices.forEach { (station, miles) ->
       val chosen = station.id == chosenId
       Row(
         modifier =
           Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (chosen) ChoiceBg else Color.Transparent)
-            .clickable { onPick(station) }
+            .heightIn(min = 48.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(
+              if (chosen) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+            )
+            .clickable(role = Role.Button) { onPick(station) }
             .padding(horizontal = 8.dp, vertical = 9.dp)
             .testTag("edit_stations_option_${station.id}"),
         verticalAlignment = Alignment.CenterVertically,
@@ -233,14 +257,21 @@ private fun StationMatches(
       ) {
         Text(
           station.name,
-          color = if (chosen) MtaColors.AccentGold else MtaColors.TextPrimary,
-          fontSize = 14.sp,
-          fontWeight = if (chosen) FontWeight.Bold else FontWeight.Normal,
+          color =
+            if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+          style =
+            MaterialTheme.typography.bodyMedium.copy(
+              fontWeight = if (chosen) FontWeight.Bold else FontWeight.Normal,
+            ),
           modifier = Modifier.weight(1f),
         )
         Bullets(station.daytimeRoutes)
         if (miles != null) {
-          Text(distanceText(miles), color = MtaColors.TextSecondary, fontSize = 11.sp)
+          Text(
+            distanceText(miles),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall.tabular(),
+          )
         }
       }
     }
@@ -288,11 +319,11 @@ private fun RouteChips(
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Text(
       "Which train?",
-      color = MtaColors.TextSecondary,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge,
     )
     FlowRow(
+      modifier = Modifier.selectableGroup(),
       horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -324,14 +355,16 @@ private fun RouteChip(
 ) {
   Row(
     modifier =
-      Modifier.clip(RoundedCornerShape(10.dp))
-        .background(ChoiceBg)
+      Modifier.clip(MaterialTheme.shapes.small)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         .border(
           width = if (selected) 2.dp else 1.dp,
-          color = if (selected) MtaColors.AccentGold else MtaColors.CardBorder,
-          shape = RoundedCornerShape(10.dp),
+          color =
+            if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant,
+          shape = MaterialTheme.shapes.small,
         )
-        .clickable(onClick = onClick)
+        .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
         .padding(horizontal = 10.dp, vertical = 7.dp)
         .testTag(tag),
     verticalAlignment = Alignment.CenterVertically,
@@ -340,9 +373,12 @@ private fun RouteChip(
     routeId?.let { MtaRouteBullet(routeId = it, size = 20.dp, fontSize = 10.sp) }
     Text(
       label,
-      color = if (selected) MtaColors.AccentGold else MtaColors.TextPrimary,
-      fontSize = 13.sp,
-      fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+      color =
+        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+      style =
+        MaterialTheme.typography.bodyMedium.copy(
+          fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        ),
     )
   }
 }
