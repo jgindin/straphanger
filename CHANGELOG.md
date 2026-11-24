@@ -3,6 +3,13 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.26 (not yet released)
+
+- Commute widget: a home-screen widget that shows the next live departures for the commutes you pick, and refreshes itself during the commute's window. Place as many as you like; each opens a "Choose commutes" screen (and can be reconfigured from the launcher's widget settings). The default size is 3×2; two commutes are shown when the widget is at least 140 dp tall and two windows overlap.
+- Commutes have an optional "Show on widget until" time. The window runs from the alert time to that time on the commute's days (an end at or before the start runs past midnight), and the Commutes list shows it, such as "Weekdays 7:45–8:30". A commute with no end time is not shown on the widget.
+- During a window the widget refreshes every 2 minutes while the screen is on. With the screen off it does not wake the phone, so a refresh comes within seconds of waking it. With "Alarms & reminders" allowed refreshes are on time, otherwise within about 30 seconds. Outside a window, or when the times are more than 15 minutes old, it says "Tap to refresh" and one tap fetches once. The title line shows "Updated 7:52" and a refresh icon. Tapping a row opens that station filtered to the line and direction.
+- The departures in the commute alert notification now read "3 min · 9 min · 14 min" (they were "3, 9, 14 min"), the same as on the widget.
+
 ## 0.25 (not yet released)
 
 - Commute alerts: on a station's arrivals card on the Status tab, "Add commute alert" sets one line, one direction, the days (Monday to Friday by default) and a time (8:00 by default). At that time on those days the phone shows one notification with the next live departures, such as "A Southbound · 168 St" and "3, 9, 14 min", with the first service alert for that line if there is one. "See trains", or tapping the notification, opens the Status tab on that station showing only that line and direction; "Show all" clears it. A Commutes section at the top of the Status tab lists every commute with an on/off switch; tap one to edit or delete it. Alerts are posted on the new "Commute alerts" channel, even with the app closed, and are set again after a reboot, an app update or a clock or time zone change.
