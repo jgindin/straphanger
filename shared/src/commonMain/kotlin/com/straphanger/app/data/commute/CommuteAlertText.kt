@@ -49,11 +49,8 @@ fun commuteAlertText(
     } else if (departures.isEmpty()) {
       "No ${commute.routeId} trains listed ${directionName.lowercase()} right now"
     } else {
-      // "3, 9, 14 min": the unit once, on the last; "now" wherever a train is arriving.
-      departures
-        .map { it.minutesFrom(nowEpochSeconds) }
-        .mapIndexed { i, m -> if (m == 0 || i == departures.lastIndex) minutesText(m) else "$m" }
-        .joinToString(", ")
+      // "3 min · 9 min · 14 min"; "now" wherever a train is arriving.
+      departures.joinToString(" · ") { minutesText(it.minutesFrom(nowEpochSeconds)) }
     }
   val alertLine =
     snapshot.alerts

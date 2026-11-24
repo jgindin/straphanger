@@ -30,15 +30,15 @@ class CommuteAlertTextTest {
   fun listsUpToThreeDeparturesSoonestFirst() {
     val arrivals =
       listOf(south("A", "A09", 14), south("A", "A09", 3), south("A", "A09", 20), south("A", "A09", 9))
-    assertEquals("3, 9, 14 min", text(snapshot(arrivals)).text)
-    assertEquals("now, 5 min", text(snapshot(listOf(south("A", "A09", 0), south("A", "A09", 5)))).text)
+    assertEquals("3 min · 9 min · 14 min", text(snapshot(arrivals)).text)
+    assertEquals("now · 5 min", text(snapshot(listOf(south("A", "A09", 0), south("A", "A09", 5)))).text)
   }
 
   @Test
   fun includesExpressVariant() {
     val six = commute.copy(routeId = "6", complexId = "x")
     val arrivals = listOf(south("6X", "A09", 4), south("6", "112", 2))
-    assertEquals("2, 4 min", text(snapshot(arrivals), six).text)
+    assertEquals("2 min · 4 min", text(snapshot(arrivals), six).text)
   }
 
   @Test

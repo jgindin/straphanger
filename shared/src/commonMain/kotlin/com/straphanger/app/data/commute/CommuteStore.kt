@@ -52,7 +52,16 @@ class FileCommuteStore(
     stateFile
       .read { json.decodeFromString(serializer, it) }
       ?.filter { it.hour in 0..LAST_HOUR && it.minute in 0..LAST_MINUTE }
+      ?.map { it.withValidEndTime() }
       .orEmpty()
+
+  /** A half-set or impossible end time reads as no end time; the commute itself stays. */
+  private fun Commute.withValidEndTime(): Commute =
+    if (endHour in 0..LAST_HOUR && endMinute in 0..LAST_MINUTE) {
+      this
+    } else {
+      copy(endHour = null, endMinute = null)
+    }
 
   override fun write(commutes: List<Commute>) {
     try {

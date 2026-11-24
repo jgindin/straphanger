@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.commute.Commute
+import com.straphanger.app.data.commute.commuteTimeText
 import com.straphanger.app.data.commute.daysText
 import com.straphanger.app.data.realtime.Direction
 import com.straphanger.app.ui.SectionCard
@@ -25,10 +26,6 @@ import com.straphanger.app.ui.theme.MtaColors
 /** "Northbound" or "Southbound". */
 internal fun directionText(direction: Direction): String =
   if (direction == Direction.NORTH) "Northbound" else "Southbound"
-
-/** The 24-hour time as "7:45" or "18:10". */
-internal fun commuteTimeText(hour: Int, minute: Int): String =
-  "$hour:${minute.toString().padStart(2, '0')}"
 
 /** "A Southbound · 168 St · Weekdays 7:45"; [stationName] is null for a station that is gone. */
 internal fun commuteRowText(commute: Commute, stationName: String?): String =
