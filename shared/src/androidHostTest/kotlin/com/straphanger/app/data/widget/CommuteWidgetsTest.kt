@@ -20,7 +20,7 @@ class CommuteWidgetsTest {
     h.widgets.onRefreshAlarm(1)
     assertEquals(listOf(listOf("A", "AX")), h.fetched)
     assertEquals(listOf(1 to now + WIDGET_REFRESH_MS), h.scheduler.refreshes)
-    assertEquals(CommuteTimes("3 min", null, now), h.store.times()["c1"])
+    assertEquals(CommuteTimes("3 min", null, now, departures = listOf("3 min")), h.store.times()["c1"])
     assertEquals(listOf(1), h.updated)
     assertIs<WidgetRow.Times>(h.widgets.content(1).rows.single())
   }

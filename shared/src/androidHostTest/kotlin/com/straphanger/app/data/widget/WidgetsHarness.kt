@@ -27,7 +27,12 @@ internal fun windowed(
   AlertsHarness.commute(id, complexId)
     .copy(routeId = routeId, hour = hour, minute = minute, endHour = endHour, endMinute = endMinute)
 
-internal fun fresh(fetchedAtMs: Long) = CommuteTimes("3 min · 9 min", "Delays", fetchedAtMs)
+internal fun fresh(fetchedAtMs: Long) = CommuteTimes(
+    "3 min · 9 min",
+    "Delays",
+    fetchedAtMs,
+    departures = listOf("3 min", "9 min"),
+  )
 
 internal fun content(
   commuteIds: List<String>,

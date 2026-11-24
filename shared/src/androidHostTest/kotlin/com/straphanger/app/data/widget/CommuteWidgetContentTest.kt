@@ -10,14 +10,22 @@ import kotlin.test.assertEquals
 /** 2027-03-08 is a Monday; the A commute's window is weekdays 7:45–8:30. */
 class CommuteWidgetContentTest {
   private val tap = CommuteTap("614", "A", Direction.SOUTH)
-  private val title = "A Southbound · 168 St"
+  private val station = "168 St"
 
   @Test
   fun showsFreshTimesWithUpdatedTime() {
     val times = mapOf("c1" to fresh(nyMs(2027, 3, 8, 7, 52)))
     val content = content(listOf("c1"), times = times, nowMs = nyMs(2027, 3, 8, 7, 55))
     assertEquals(
-      listOf(WidgetRow.Times("c1", title, tap, "3 min · 9 min", "Delays", "Updated 7:52")),
+      listOf(WidgetRow.Times(
+          "c1",
+          station,
+          tap,
+          listOf("3 min", "9 min"),
+          "3 min · 9 min",
+          "Delays",
+          "Updated 7:52",
+        )),
       content.rows,
     )
   }
@@ -29,7 +37,7 @@ class CommuteWidgetContentTest {
     val atLimit = content(listOf("c1"), times = times, nowMs = nyMs(2027, 3, 8, 8, 7))
     assertEquals(listOf("Times"), atLimit.rows.map { it::class.simpleName })
     val stale = content(listOf("c1"), times = times, nowMs = nyMs(2027, 3, 8, 8, 8))
-    assertEquals(listOf(WidgetRow.TapToRefresh("c1", title, tap)), stale.rows)
+    assertEquals(listOf(WidgetRow.TapToRefresh("c1", station, tap)), stale.rows)
   }
 
   @Test
@@ -45,7 +53,7 @@ class CommuteWidgetContentTest {
       listOf(
         WidgetRow.TapToRefresh(
           "evening",
-          "1 Southbound · 168 St",
+          station,
           CommuteTap("614", "1", Direction.SOUTH),
         )
       ),
@@ -82,23 +90,23 @@ class CommuteWidgetContentTest {
     val oldTimes = fresh(nyMs(2027, 3, 8, 7, 52))
     val failed = mapOf("c1" to oldTimes.copy(failedAtMs = nyMs(2027, 3, 8, 8, 19)))
     assertEquals(
-      listOf(WidgetRow.Failed("c1", title, tap)),
+      listOf(WidgetRow.Failed("c1", station, tap)),
       content(listOf("c1"), times = failed, nowMs = now).rows,
     )
     val neverFetched = mapOf("c1" to CommuteTimes(failedAtMs = nyMs(2027, 3, 8, 8, 19)))
     assertEquals(
-      listOf(WidgetRow.Failed("c1", title, tap)),
+      listOf(WidgetRow.Failed("c1", station, tap)),
       content(listOf("c1"), times = neverFetched, nowMs = now).rows,
     )
     // A failure older than the times it followed, or one that is itself old, is not shown.
     val oldFailure = mapOf("c1" to oldTimes.copy(failedAtMs = nyMs(2027, 3, 8, 7, 50)))
     assertEquals(
-      listOf(WidgetRow.TapToRefresh("c1", title, tap)),
+      listOf(WidgetRow.TapToRefresh("c1", station, tap)),
       content(listOf("c1"), times = oldFailure, nowMs = now).rows,
     )
     val staleFailure = mapOf("c1" to CommuteTimes(failedAtMs = nyMs(2027, 3, 8, 8, 0)))
     assertEquals(
-      listOf(WidgetRow.TapToRefresh("c1", title, tap)),
+      listOf(WidgetRow.TapToRefresh("c1", station, tap)),
       content(listOf("c1"), times = staleFailure, nowMs = now).rows,
     )
   }
@@ -137,13 +145,13 @@ class CommuteWidgetContentTest {
     val now = nyMs(2027, 3, 8, 8, 0)
     assertEquals(
       listOf(
-        WidgetRow.StationGone("c1", "A Southbound", CommuteTap("999", "A", Direction.SOUTH))
+        WidgetRow.StationGone("c1", null, CommuteTap("999", "A", Direction.SOUTH))
       ),
       content(listOf("c1"), gone, nowMs = now).rows,
     )
-    // Before the network loads, the title has no station and the row is not "gone".
+    // Before the network loads, the row has no station and the row is not "gone".
     assertEquals(
-      listOf(WidgetRow.TapToRefresh("c1", "A Southbound", tap)),
+      listOf(WidgetRow.TapToRefresh("c1", null, tap)),
       content(listOf("c1"), complexes = null, nowMs = now).rows,
     )
   }

@@ -31,6 +31,7 @@ class CommuteAlertTextTest {
     val arrivals =
       listOf(south("A", "A09", 14), south("A", "A09", 3), south("A", "A09", 20), south("A", "A09", 9))
     assertEquals("3 min · 9 min · 14 min", text(snapshot(arrivals)).text)
+    assertEquals(listOf("3 min", "9 min", "14 min"), text(snapshot(arrivals)).departures)
     assertEquals("now · 5 min", text(snapshot(listOf(south("A", "A09", 0), south("A", "A09", 5)))).text)
   }
 
@@ -57,6 +58,7 @@ class CommuteAlertTextTest {
   @Test
   fun noTrainsText() {
     assertEquals("No A trains listed southbound right now", text(snapshot(emptyList())).text)
+    assertEquals(emptyList(), text(snapshot(emptyList())).departures)
     val north = commute.copy(direction = Direction.NORTH)
     assertEquals("No A trains listed northbound right now", text(snapshot(emptyList()), north).text)
   }

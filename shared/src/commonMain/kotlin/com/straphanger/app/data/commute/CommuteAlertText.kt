@@ -6,9 +6,15 @@ import com.straphanger.app.data.realtime.RealtimeSnapshot
 
 /**
  * What a commute's notification says: [title] names the train, [text] its next departures, and
- * [alertLine] the header of a service alert on that line, when there is one.
+ * [alertLine] the header of a service alert on that line, when there is one. [departures] holds
+ * each departure of [text] ("3 min", "now"), and is empty when [text] is a message instead.
  */
-data class CommuteAlertText(val title: String, val text: String, val alertLine: String?)
+data class CommuteAlertText(
+  val title: String,
+  val text: String,
+  val alertLine: String?,
+  val departures: List<String> = emptyList(),
+)
 
 private const val MAX_DEPARTURES = 3
 
@@ -21,7 +27,8 @@ private val ALERT_PREFERENCE = listOf(AlertKind.DELAY, AlertKind.OTHER, AlertKin
 /** "now" for 0, else "7 min". */
 fun minutesText(minutes: Int): String = if (minutes == 0) "now" else "$minutes min"
 
-private fun Direction.displayName(): String =
+/** "Northbound" or "Southbound". */
+internal fun Direction.displayName(): String =
   if (this == Direction.NORTH) "Northbound" else "Southbound"
 
 /** "A Southbound · 168 St", or "A Southbound" when the station is not known. */
@@ -53,19 +60,21 @@ fun commuteAlertText(
       .filter { it.direction == commute.direction && commute.matchesLine(it.routeId) }
       .sortedBy { it.epochSeconds }
       .take(MAX_DEPARTURES)
+  // "now" wherever a train is arriving.
+  val minutes = departures.map { minutesText(it.minutesFrom(nowEpochSeconds)) }
   val text =
     if (departures.isEmpty() && snapshot.partial) {
       FETCH_FAILED_TEXT
     } else if (departures.isEmpty()) {
       "No ${commute.routeId} trains listed ${directionName.lowercase()} right now"
     } else {
-      // "3 min · 9 min · 14 min"; "now" wherever a train is arriving.
-      departures.joinToString(" · ") { minutesText(it.minutesFrom(nowEpochSeconds)) }
+      // "3 min · 9 min · 14 min"
+      minutes.joinToString(" · ")
     }
   val alertLine =
     snapshot.alerts
       .filter { alert -> alert.routes.any(commute::matchesLine) }
       .minByOrNull { ALERT_PREFERENCE.indexOf(it.kind).takeIf { i -> i >= 0 } ?: Int.MAX_VALUE }
       ?.header
-  return CommuteAlertText(title, text, alertLine)
+  return CommuteAlertText(title, text, alertLine, minutes)
 }

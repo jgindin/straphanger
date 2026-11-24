@@ -65,7 +65,7 @@ internal class CommuteTimesFetcher(
       if (text == null || text.text == FETCH_FAILED_TEXT) {
         (store.times()[commute.id] ?: CommuteTimes()).copy(failedAtMs = now)
       } else {
-        CommuteTimes(text.text, text.alertLine, fetchedAtMs = now)
+        CommuteTimes(text.text, text.alertLine, fetchedAtMs = now, departures = text.departures)
       }
     store.setTimes(commute.id, times)
   }

@@ -26,15 +26,15 @@ class CommuteWidgetLayoutTest {
   /** Which action a [TestCallback] stands in for. */
   private val kind = ActionParameters.Key<String>("kind")
   private val tap = CommuteTap("611", "A", Direction.SOUTH)
-  private val title = "A Southbound · 168 St"
-  private val small = DpSize(250.dp, 139.dp)
-  private val tall = DpSize(250.dp, 140.dp)
+  private val small = DpSize(250.dp, 199.dp)
+  private val tall = DpSize(250.dp, 200.dp)
 
-  private fun times(id: String = "c1", title: String = this.title) =
+  private fun times(id: String = "c1", station: String = "168 St", tap: CommuteTap = this.tap) =
     WidgetRow.Times(
       id,
-      title,
+      station,
       tap,
+      listOf("3 min", "9 min", "14 min"),
       "3 min · 9 min · 14 min",
       "Delays: signal problems at 125 St",
       "Updated 7:52",
@@ -66,34 +66,40 @@ class CommuteWidgetLayoutTest {
   private val opensTap = runs("open ${tap.complexId}")
 
   @Test
-  fun timesRowShowsTitleTimesAlertAndUpdated() =
+  fun timesRowShowsBulletStationDirectionDeparturesAlertAndUpdated() =
     render(listOf(times())) {
-      onNode(hasTextEqualTo(title)).assertExists()
-      onNode(hasTextEqualTo("3 min · 9 min · 14 min")).assertExists()
-      onNode(hasTextEqualTo("Delays: signal problems at 125 St")).assertExists()
+      onNode(hasTextEqualTo("A")).assertExists()
+      onNode(hasTextEqualTo("168 St")).assertExists()
+      onNode(hasTextEqualTo("SOUTHBOUND")).assertExists()
+      onNode(hasTextEqualTo("3 min")).assertExists()
+      onNode(hasTextEqualTo("9 min")).assertExists()
+      onNode(hasTextEqualTo("14 min")).assertExists()
+      onNode(hasTextEqualTo("⚠ Delays: signal problems at 125 St")).assertExists()
       onNode(hasTextEqualTo("Updated 7:52")).assertExists()
-      onNode(opensTap and hasAnyDescendant(hasTextEqualTo(title))).assertExists()
+      onNode(opensTap and hasAnyDescendant(hasTextEqualTo("168 St"))).assertExists()
+      onNode(hasContentDescription("Refresh")).assert(runs("refresh"))
     }
 
   @Test
-  fun refreshIconHasRefreshDescriptionAndAction() =
-    render(listOf(times())) {
-      onNode(hasContentDescription("Refresh"))
-        .assert(runs("refresh"))
+  fun timesWithoutDeparturesShowTheMessage() =
+    render(
+      listOf(times().copy(departures = emptyList(), text = "No A trains listed southbound right now"))
+    ) {
+      onNode(hasTextEqualTo("No A trains listed southbound right now")).assertExists()
     }
 
   @Test
   fun tapToRefreshRowRunsRefresh() =
-    render(listOf(WidgetRow.TapToRefresh("c1", title, tap))) {
-      onNode(hasTextEqualTo(title)).assertExists()
+    render(listOf(WidgetRow.TapToRefresh("c1", "168 St", tap))) {
+      onNode(hasTextEqualTo("168 St")).assertExists()
       onNode(hasTextEqualTo("Tap to refresh"))
         .assert(runs("refresh"))
-      onNode(opensTap and hasAnyDescendant(hasTextEqualTo(title))).assertExists()
+      onNode(opensTap and hasAnyDescendant(hasTextEqualTo("168 St"))).assertExists()
     }
 
   @Test
   fun failedRowShowsCouldNotGetTrainTimes() =
-    render(listOf(WidgetRow.Failed("c1", title, tap))) {
+    render(listOf(WidgetRow.Failed("c1", "168 St", tap))) {
       onNode(hasTextEqualTo("Couldn't get train times"))
         .assert(runs("refresh"))
       onNode(hasContentDescription("Refresh"))
@@ -102,9 +108,10 @@ class CommuteWidgetLayoutTest {
 
   @Test
   fun stationGoneRowShowsStationNoLongerListed() =
-    render(listOf(WidgetRow.StationGone("c1", "A Southbound", tap))) {
+    render(listOf(WidgetRow.StationGone("c1", null, tap))) {
       onNode(hasTextEqualTo("Station no longer listed")).assertExists()
-      onNode(opensTap and hasAnyDescendant(hasTextEqualTo("A Southbound"))).assertExists()
+      onNode(opensTap and hasAnyDescendant(hasTextEqualTo("Station no longer listed")))
+        .assertExists()
     }
 
   @Test
@@ -116,7 +123,8 @@ class CommuteWidgetLayoutTest {
 
   @Test
   fun twoRowsOnlyWhenTall() {
-    val rows = listOf(times("c1", "A Southbound · 168 St"), times("c2", "C Northbound · 14 St"))
+    val rows =
+      listOf(times("c1", "168 St"), times("c2", "14 St", CommuteTap("618", "C", Direction.NORTH)))
     render(rows, small) {
       onNode(hasText("168 St")).assertExists()
       onNode(hasText("14 St")).assertDoesNotExist()

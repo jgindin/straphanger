@@ -13,7 +13,8 @@ import kotlinx.serialization.json.Json
 
 /**
  * One commute's last good times, [text] and [alertLine] as fetched at [fetchedAtMs], and when a
- * fetch last failed, [failedAtMs]. A failure never clears the times before it.
+ * fetch last failed, [failedAtMs]. [departures] holds each departure of [text], empty when [text]
+ * is a message or the times were stored by 0.25. A failure never clears the times before it.
  */
 @Serializable
 data class CommuteTimes(
@@ -21,6 +22,7 @@ data class CommuteTimes(
   val alertLine: String? = null,
   val fetchedAtMs: Long? = null,
   val failedAtMs: Long? = null,
+  val departures: List<String> = emptyList(),
 )
 
 /**
