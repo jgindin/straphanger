@@ -20,7 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
@@ -33,7 +36,8 @@ import com.straphanger.app.ui.theme.tabular
 /**
  * One recorded ride: when, which lines, where from and to. A ride that needs review offers its
  * review choices here too, and any ride the next one could continue offers to combine them, above
- * Edit (the station editor) and Delete.
+ * Edit (the station editor) and Delete. Delete (also a screen reader's "Delete ride" action)
+ * deletes at once; the app offers to undo it.
  */
 @Composable
 internal fun RideHistoryItem(
@@ -56,6 +60,16 @@ internal fun RideHistoryItem(
           shape = MaterialTheme.shapes.medium,
         )
         .clickable(role = Role.Button) { expanded = !expanded }
+        // Swiping deletes too; this is the same delete for a screen reader.
+        .semantics {
+          customActions =
+            listOf(
+              CustomAccessibilityAction("Delete ride") {
+                onDelete()
+                true
+              },
+            )
+        }
         .padding(Spacing.md)
         .testTag("ride_item_${rec.ride.rideId}"),
     verticalArrangement = Arrangement.spacedBy(6.dp),

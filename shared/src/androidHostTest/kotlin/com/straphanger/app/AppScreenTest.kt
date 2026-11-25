@@ -15,6 +15,10 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToKey
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.lifecycle.viewModelScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.straphanger.app.data.commute.Commute
@@ -174,6 +178,30 @@ abstract class AppScreenTest {
   protected fun pressBack() {
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     composeRule.waitForIdle()
+  }
+
+  /** Logs a ride from [fromId] to [toId] with the Log ride button and the sheet's station search. */
+  protected fun logRideThroughSheet(fromId: String, toId: String) {
+    composeRule.onNodeWithTag("log_ride_fab").performClick()
+    pickStation("log_from_field", fromId)
+    pickStation("log_to_field", toId)
+    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    composeRule.waitForIdle()
+  }
+
+  /** Swipes the log sheet down, the way a rider closes it without logging. */
+  protected fun closeLogRideSheet() {
+    composeRule.onNodeWithTag("log_ride_sheet").performTouchInput { swipeDown() }
+    composeRule.waitForIdle()
+  }
+
+  /** Taps the log sheet's [fieldTag] field, searches for [stationId] by name and chooses it. */
+  protected fun pickStation(fieldTag: String, stationId: String) {
+    composeRule.onNodeWithTag(fieldTag).performClick()
+    val name = BundledNetwork.engine().getStation(stationId)!!.name
+    composeRule.onNodeWithTag("log_station_search_field").performTextInput(name)
+    composeRule.onNodeWithTag("log_station_results").performScrollToKey(stationId)
+    composeRule.onNodeWithTag("log_station_result_$stationId").performClick()
   }
 
   /** Opens the Stats tab, reads its Total Rides card, then goes back to the tab it was on. */

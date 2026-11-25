@@ -115,7 +115,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
   }
 
   @Test
-  fun tappingAStationOpensItsCardAndLogsARideFromIt() {
+  fun tappingAStationOpensItsCardAndLogsARideFromOrToIt() {
     val vm = launchApp()
     openTab("MAP")
     composeRule.onNodeWithTag("station_detail_sheet").assertDoesNotExist()
@@ -145,7 +145,18 @@ class MapAndStatsScreenTest : AppScreenTest() {
 
     composeRule.onNodeWithText("Log Ride From Here").performClick()
     composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
+    composeRule.onNodeWithTag("log_ride_sheet").assertIsDisplayed()
     assertEquals(selected, vm.uiState.value.logOriginStationId)
+    assertEquals(null, vm.uiState.value.logTransferStationId)
+
+    // Closing the sheet leaves the station chosen on the map.
+    closeLogRideSheet()
+    composeRule.onNodeWithTag("log_ride_sheet").assertDoesNotExist()
+    openTab("MAP")
+    composeRule.onNodeWithText("Log Ride To Here").performClick()
+    composeRule.onNodeWithTag("log_ride_sheet").assertIsDisplayed()
+    assertEquals(selected, vm.uiState.value.logDestinationStationId)
+    assertEquals(null, vm.uiState.value.logOriginStationId, "only the tapped end is filled in")
   }
 
   @Test

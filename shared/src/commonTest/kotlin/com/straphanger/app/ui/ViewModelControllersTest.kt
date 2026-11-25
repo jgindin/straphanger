@@ -5,6 +5,7 @@ import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
+import com.straphanger.app.testutil.logSampleRide
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -71,21 +72,43 @@ class ViewModelControllersTest {
   // Navigation
 
   @Test
-  fun logRideSheetOpensWithStationsAndCloses() {
+  fun logRideSheetOpensWithANewFormAndCloses() {
     val vm = viewModel()
-    val before = vm.uiState.value
+    vm.updateLogForm(
+      originId = StationIds.UNION_SQ_LEX,
+      transferId = StationIds.UNION_SQ_L,
+      destinationId = StationIds.BEDFORD_AV_L,
+      preferredRouteId = "6",
+      forceExpress = true,
+    )
     vm.openLogRideSheet(destinationId = StationIds.EIGHTY_SIXTH_LEX)
     with(vm.uiState.value) {
       assertTrue(isLogRideSheetOpen)
-      assertEquals(before.logOriginStationId, logOriginStationId, "unchanged when not given")
+      assertEquals(null, logOriginStationId, "cleared when not given")
+      assertEquals(null, logTransferStationId)
       assertEquals(StationIds.EIGHTY_SIXTH_LEX, logDestinationStationId)
+      assertEquals(null, logPreferredRouteId)
+      assertEquals(null, logForceExpress)
     }
 
     vm.openLogRideSheet(originId = StationIds.UNION_SQ_LEX, transferStationId = "X")
     assertEquals(StationIds.UNION_SQ_LEX, vm.uiState.value.logOriginStationId)
     assertEquals("X", vm.uiState.value.logTransferStationId)
+    assertEquals(null, vm.uiState.value.logDestinationStationId)
 
     vm.closeLogRideSheet()
+    assertFalse(vm.uiState.value.isLogRideSheetOpen)
+  }
+
+  @Test
+  fun leavingTheRidesTabClosesTheLogSheet() {
+    val vm = viewModel()
+    vm.selectTab(AppTab.RIDES)
+    vm.openLogRideSheet()
+    vm.selectTab(AppTab.RIDES)
+    assertTrue(vm.uiState.value.isLogRideSheetOpen)
+
+    vm.selectTab(AppTab.STATUS)
     assertFalse(vm.uiState.value.isLogRideSheetOpen)
   }
 
@@ -137,7 +160,7 @@ class ViewModelControllersTest {
   @Test
   fun exportAndRestoreReportTheirOutcome() = runTest {
     val vm = viewModel()
-    vm.submitQuickRide(timestampEpochMs = 1794405600000L)
+    vm.logSampleRide(timestampEpochMs = 1794405600000L)
     val json = vm.exportBackup()
     assertTrue(json.contains("rides"), json)
 

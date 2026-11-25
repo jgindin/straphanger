@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
@@ -94,8 +95,7 @@ class RidePersistenceEmulatorTest {
   fun loggedRideIsDecodedFromDiskByAFreshViewModel() {
     launch()
     assertEquals(0, statsRideCount())
-    composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    composeTestRule.logShuttleRide()
     assertEquals(1, statsRideCount())
 
     // A fresh runtime and view model, which must decode rides.json from disk.
@@ -105,19 +105,18 @@ class RidePersistenceEmulatorTest {
   }
 
   @Test
-  fun loggedRideCanBeDeletedAfterConfirming() {
+  fun loggedRideCanBeDeletedAndUndone() {
     launch()
-    composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    composeTestRule.logShuttleRide()
     assertEquals(1, statsRideCount())
 
-    // Cancel keeps the ride.
+    // Undo puts the ride back.
     composeTestRule.onNode(hasTestTagPrefix("delete_ride_btn_")).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag("cancel_delete_btn").performClick()
+    composeTestRule.onNodeWithText("Undo").performClick()
+    awaitStatsRideCount { it == 1 }
     assertEquals(1, statsRideCount())
 
     composeTestRule.onNode(hasTestTagPrefix("delete_ride_btn_")).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag("confirm_delete_btn").performClick()
     awaitStatsRideCount { it == 0 }
     assertEquals(0, statsRideCount())
 

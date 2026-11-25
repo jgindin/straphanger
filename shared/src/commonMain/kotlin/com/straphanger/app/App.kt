@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,6 +34,7 @@ import com.straphanger.app.data.commute.CommuteStore
 import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.commute.InMemoryCommuteStore
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
+import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.FavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryFavoriteStationsStore
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
@@ -49,6 +52,7 @@ import com.straphanger.app.ui.about.LicensesScreen
 import com.straphanger.app.ui.map.SubwayMapScreen
 import com.straphanger.app.ui.permissions.BackgroundLocationDisclosure
 import com.straphanger.app.ui.permissions.NotificationAccessDisclosure
+import com.straphanger.app.ui.rides.LogRideFab
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
 import com.straphanger.app.ui.settings.SettingsScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
@@ -167,29 +171,23 @@ internal fun App(
 ) {
   LaunchedEffect(captureAccess) { captureAccess?.let { viewModel.updateCaptureAccess(it) } }
   val backStack = rememberAppBackStack()
-  LaunchedEffect(Unit) {
-    RideTapInbox.pendingRideId.collect {
-      RideTapInbox.consume()?.let { rideId ->
-        // Like a tab tap: the Rides tab shows at once, not behind Settings or About.
-        backStack.clear()
-        viewModel.showRide(rideId)
-      }
-    }
-  }
   var commuteTap by remember { mutableStateOf<CommuteTap?>(null) }
-  LaunchedEffect(Unit) {
-    CommuteTapInbox.pendingTap.collect {
-      CommuteTapInbox.consume()?.let { tap ->
-        commuteTap = tap
-        // Like a tab tap: the Status tab shows at once, not behind Settings or About.
-        backStack.clear()
-        viewModel.selectTab(AppTab.STATUS)
-      }
-    }
-  }
+  CollectNotificationTaps(viewModel, backStack) { commuteTap = it }
   val uiState by viewModel.uiState.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
+  var ridesListAtTop by remember { mutableStateOf(true) }
+  val ridesTab =
+    remember(viewModel, snackbarHostState, scope) {
+      RidesTabHooks(
+        onRideDeleted = { rec ->
+          viewModel.deleteRide(rec.ride.rideId).also { deleted ->
+            if (deleted) scope.launch { offerUndo(viewModel, rec, snackbarHostState) }
+          }
+        },
+        onListAtTopChange = { ridesListAtTop = it },
+      )
+    }
   BackStackHandler(backStack)
 
   StraphangerTheme {
@@ -206,9 +204,23 @@ internal fun App(
         backStack.clear()
         viewModel.selectTab(tab)
       },
+      floatingActionButton = {
+        val ridesShowing =
+          uiState.activeTab == AppTab.RIDES && backStack.top == null && uiState.isNetworkLoaded
+        if (ridesShowing && viewModel.graphEngine != null) {
+          LogRideFab(expanded = ridesListAtTop) { viewModel.openLogRideSheet() }
+        }
+      },
     ) {
-      AppContent(viewModel, uiState, backStack, platform, commuteTap, { commuteTap = null }) {
-        message ->
+      AppContent(
+        viewModel,
+        uiState,
+        backStack,
+        platform,
+        ridesTab,
+        commuteTap,
+        { commuteTap = null },
+      ) { message ->
         scope.launch {
           snackbarHostState.currentSnackbarData?.dismiss()
           snackbarHostState.showSnackbar(message)
@@ -216,6 +228,53 @@ internal fun App(
       }
     }
   }
+}
+
+/** Opens the tab a tapped ride or commute notification asks for, over any pushed screen. */
+@Composable
+private fun CollectNotificationTaps(
+  viewModel: StraphangerViewModel,
+  backStack: AppBackStack,
+  onCommuteTap: (CommuteTap) -> Unit,
+) {
+  LaunchedEffect(Unit) {
+    RideTapInbox.pendingRideId.collect {
+      RideTapInbox.consume()?.let { rideId ->
+        // Like a tab tap: the Rides tab shows at once, not behind Settings or About.
+        backStack.clear()
+        viewModel.showRide(rideId)
+      }
+    }
+  }
+  LaunchedEffect(Unit) {
+    CommuteTapInbox.pendingTap.collect {
+      CommuteTapInbox.consume()?.let { tap ->
+        onCommuteTap(tap)
+        // Like a tab tap: the Status tab shows at once, not behind Settings or About.
+        backStack.clear()
+        viewModel.selectTab(AppTab.STATUS)
+      }
+    }
+  }
+}
+
+/**
+ * Says [rec], just deleted, is gone, in a snackbar with Undo, which puts the ride back exactly as
+ * it was. A message already showing is dismissed first, so only the newest deletion can be undone.
+ */
+private suspend fun offerUndo(
+  viewModel: StraphangerViewModel,
+  rec: CompleteRideRecord,
+  snackbarHostState: SnackbarHostState,
+) {
+  snackbarHostState.currentSnackbarData?.dismiss()
+  val result =
+    snackbarHostState.showSnackbar(
+      message = "Ride deleted",
+      actionLabel = "Undo",
+      duration = SnackbarDuration.Long,
+    )
+  if (result == SnackbarResult.ActionPerformed) viewModel.restoreRide(rec)
 }
 
 /** What the platform supplies besides the view model's inputs; see [App]. */
@@ -243,6 +302,7 @@ private fun AppContent(
   uiState: StraphangerUiState,
   backStack: AppBackStack,
   platform: PlatformHooks,
+  ridesTab: RidesTabHooks,
   commuteTap: CommuteTap?,
   onCommuteTapConsumed: () -> Unit,
   onBackupMessage: (String) -> Unit,
@@ -260,7 +320,15 @@ private fun AppContent(
       PushedScreen(pushed, viewModel, uiState, graphEngine, backStack, platform, onBackupMessage)
     else ->
       tabStates.SaveableStateProvider(activeTab.name) {
-        TabContent(viewModel, uiState, graphEngine, platform, commuteTap, onCommuteTapConsumed)
+        TabContent(
+          viewModel,
+          uiState,
+          graphEngine,
+          platform,
+          ridesTab,
+          commuteTap,
+          onCommuteTapConsumed,
+        )
       }
   }
 }
@@ -338,6 +406,7 @@ private fun TabContent(
   uiState: StraphangerUiState,
   graphEngine: SubwayGraphEngine,
   platform: PlatformHooks,
+  ridesTab: RidesTabHooks,
   commuteTap: CommuteTap?,
   onCommuteTapConsumed: () -> Unit,
 ) {
@@ -349,13 +418,14 @@ private fun TabContent(
         onColorModeChange = viewModel::setMapColorMode,
         onRouteFilterSelect = viewModel::setRouteFilter,
         onStationSelect = viewModel::selectStationOnMap,
+        // The Rides tab opens with the log sheet, that station filled in.
         onStartRideFromStation = { stId ->
-          viewModel.updateLogForm(originId = stId)
           viewModel.selectTab(AppTab.RIDES)
+          viewModel.openLogRideSheet(originId = stId)
         },
         onEndRideAtStation = { stId ->
-          viewModel.updateLogForm(destinationId = stId)
           viewModel.selectTab(AppTab.RIDES)
+          viewModel.openLogRideSheet(destinationId = stId)
         },
       )
     AppTab.STATS ->
@@ -375,7 +445,7 @@ private fun TabContent(
         onCommuteTapConsumed,
         platform.commutes,
       )
-    AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine)
+    AppTab.RIDES -> RidesTab(viewModel, uiState, graphEngine, ridesTab)
   }
 }
 
@@ -384,6 +454,7 @@ private fun RidesTab(
   viewModel: StraphangerViewModel,
   uiState: StraphangerUiState,
   graphEngine: SubwayGraphEngine,
+  hooks: RidesTabHooks,
 ) {
   RidesHistoryAndLoggerScreen(
     uiState = uiState,
@@ -394,10 +465,12 @@ private fun RidesTab(
     onSubmitQuickRide = { viewModel.submitQuickRide() },
     onConfirmAmbiguousRide = { id, r, exp -> viewModel.confirmAmbiguousRide(id, r, exp) },
     onKeepRideAsIs = viewModel::keepRideAsIs,
-    onDeleteRide = viewModel::deleteRide,
+    onDeleteRide = hooks.onRideDeleted,
     onChangeRideStations = viewModel::changeRideStations,
     onCombineRides = viewModel::combineRides,
     onClearRouteFilter = { viewModel.showRidesOnRoute(null) },
+    onCloseLogRideSheet = viewModel::closeLogRideSheet,
+    onListAtTopChange = hooks.onListAtTopChange,
   )
 }
 

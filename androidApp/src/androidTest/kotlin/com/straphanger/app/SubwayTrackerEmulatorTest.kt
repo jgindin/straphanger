@@ -118,9 +118,8 @@ class SubwayTrackerEmulatorTest {
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
     composeTestRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
 
-    // 2. Select 42 St Shuttle preset and log ride
-    composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    // 2. Log the 42 St Shuttle through the log sheet
+    composeTestRule.logShuttleRide()
 
     // 3. Simulate a passive GPS ride (14 St-Union Sq -> 86 St) that requires Express vs Local
     // review
@@ -192,8 +191,7 @@ class SubwayTrackerEmulatorTest {
     waitForNetwork()
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
     val before = statsRideCount()
-    composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    composeTestRule.logShuttleRide()
     assertEquals(before + 1, statsRideCount())
 
     composeTestRule.activityRule.scenario.recreate()

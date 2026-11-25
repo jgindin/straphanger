@@ -3,6 +3,13 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.31 (not yet released)
+
+- The Rides tab is now just your rides, grouped by day under "Today", "Yesterday" and the date, with the count of rides at the top. With no rides yet it says how to add one.
+- A "Log ride" button at the bottom right opens a sheet to log a ride, starting empty: tap From, Change at (optional) or To and search for the station. "Log ride" is available once From and To are two different stations. "Your trips" offers the trips you take most, and most recently, in one tap; the made-up sample trips and the preset starting stations are gone.
+- "Log Ride From Here" and "Log Ride To Here" on the map open that sheet with just that station filled in.
+- Swipe a ride to the left to delete it, then tap Undo to bring it back. The Delete button also deletes at once with Undo, and no longer asks first. Only the most recent deletion can be undone: deleting another ride makes the one before final. If the deletion cannot be saved, the ride stays and the storage warning says why.
+
 ## 0.30 (not yet released)
 
 - Settings is now a proper page with four sections: Ride capture (the three switches; tap anywhere on a row to flip it), Commute alerts, Your data (import a Google Maps Timeline, export a backup, restore from a backup) and About.

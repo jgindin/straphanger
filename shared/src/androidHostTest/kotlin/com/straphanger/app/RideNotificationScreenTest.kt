@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.RideTapInbox
+import com.straphanger.app.testutil.logSampleRide
 import kotlin.test.assertEquals
 import org.junit.After
 import org.junit.Test
@@ -77,8 +78,11 @@ class RideNotificationScreenTest : AppScreenTest() {
   @Test
   fun tappedRideOpensRidesTabHighlighted() {
     val vm = launchApp()
-    composeRule.runOnUiThread { vm.loadDemoRides() }
-    // The last row is far down the list, so showing it means the list scrolled to it.
+    // A ride a day for a month: the oldest is far down the list, not even composed until the list
+    // scrolls to it, so showing it means the list scrolled.
+    composeRule.runOnUiThread {
+      repeat(30) { day -> vm.logSampleRide(timestampEpochMs = 1_794_405_600_000L - day * 86_400_000L) }
+    }
     val rideId = vm.uiState.value.rides.last().ride.rideId
 
     composeRule.runOnUiThread {

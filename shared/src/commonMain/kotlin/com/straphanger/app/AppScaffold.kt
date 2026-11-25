@@ -57,6 +57,8 @@ import straphanger.shared.generated.resources.ic_settings
  * @param pendingReviewCount rides waiting for review, shown as a badge on the Rides tab.
  * @param storageError why the saved rides could not be read; null when they were.
  * @param settingsAvailable whether the gear is shown; it is hidden until the network has loaded.
+ * @param floatingActionButton the current screen's floating button, such as the Rides tab's "Log
+ *   ride"; nothing by default.
  */
 @Composable
 internal fun AppScaffold(
@@ -69,12 +71,14 @@ internal fun AppScaffold(
   onOpenSettings: () -> Unit,
   onBack: () -> Unit,
   onSelectTab: (AppTab) -> Unit,
+  floatingActionButton: @Composable () -> Unit = {},
   content: @Composable () -> Unit,
 ) {
   Scaffold(
     modifier = Modifier.fillMaxSize().testTag("straphanger_root"),
     topBar = { AppTopBar(activeTab, pushed, onOpenSettings.takeIf { settingsAvailable }, onBack) },
     bottomBar = { AppNavigationBar(activeTab, pendingReviewCount, onSelectTab) },
+    floatingActionButton = floatingActionButton,
     snackbarHost = {
       SnackbarHost(snackbarHostState, modifier = Modifier.testTag("backup_snackbar"))
     },

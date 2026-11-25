@@ -200,7 +200,7 @@ private fun EndChooser(
       style = MaterialTheme.typography.titleMedium,
       modifier = Modifier.weight(1f),
     )
-    station?.let { Bullets(it.daytimeRoutes) }
+    station?.let { StationBullets(it.daytimeRoutes) }
   }
 }
 
@@ -265,7 +265,7 @@ private fun StationMatches(
             ),
           modifier = Modifier.weight(1f),
         )
-        Bullets(station.daytimeRoutes)
+        StationBullets(station.daytimeRoutes)
         if (miles != null) {
           Text(
             distanceText(miles),
@@ -278,8 +278,9 @@ private fun StationMatches(
   }
 }
 
+/** A station's line bullets, without the express variants that draw the same. */
 @Composable
-private fun Bullets(routes: List<String>) {
+internal fun StationBullets(routes: List<String>) {
   Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
     bulletRoutes(routes).forEach { MtaRouteBullet(routeId = it, size = 20.dp, fontSize = 10.sp) }
   }
