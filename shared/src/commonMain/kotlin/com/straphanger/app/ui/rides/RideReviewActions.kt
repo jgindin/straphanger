@@ -6,23 +6,23 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.theme.MtaColors
-
-private val QuietButton = Color(0xFF2B3548)
+import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.confirmButtonColors
+import com.straphanger.app.ui.theme.quietButtonColors
 
 /**
  * What a ride's review buttons do, wherever they are shown: confirm a line, say the ride looks
@@ -48,23 +48,21 @@ internal fun NeedsReviewBanner(
   SectionCard(
     spacing = 8.dp,
     modifier = Modifier.testTag("needs_review_banner"),
-    background = Color(0xFF281F12),
-    borderColor = MtaColors.AccentGold,
+    background = MtaColors.WarningContainer,
+    borderColor = MtaColors.Warning,
   ) {
     Text(
       text = "Needs review: ${countOf(rides.size, "ride")}",
-      color = MtaColors.AccentGold,
-      fontSize = 15.sp,
-      fontWeight = FontWeight.ExtraBold,
+      color = MtaColors.Warning,
+      style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
     )
     rides.forEach { rec ->
       val review = reviewFor(rec.ride)
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
           text = rideWhen(rec.ride.startTimeEpochMs, rec.ride.endTimeEpochMs),
-          color = MtaColors.AccentGold,
-          fontSize = 12.sp,
-          fontWeight = FontWeight.Bold,
+          color = MtaColors.Warning,
+          style = MaterialTheme.typography.labelLarge,
           modifier = Modifier.testTag("review_when_${rec.ride.rideId}"),
         )
         Text(
@@ -72,8 +70,8 @@ internal fun NeedsReviewBanner(
             "${graphEngine.stationName(rec.ride.originStationId)} → " +
               "${graphEngine.stationName(rec.ride.destinationStationId)} " +
               "(${rec.ride.totalDistanceMiles} mi). ${review.prompt}",
-          color = Color.White,
-          fontSize = 13.sp,
+          color = MaterialTheme.colorScheme.onSurface,
+          style = MaterialTheme.typography.bodyMedium,
         )
         ReviewButtons(
           rec = rec,
@@ -112,7 +110,7 @@ internal fun ReviewButtons(
     if (offerEditStations) {
       ReviewButton(
         "Edit stations",
-        QuietButton,
+        quietButtonColors(),
         "review_edit_stations_$rideId",
       ) {
         actions.onEditStations(rideId)
@@ -122,7 +120,7 @@ internal fun ReviewButtons(
       ReviewButton(
         "Combine with next ride (${graphEngine.stationName(rec.ride.originStationId)} → " +
           "${graphEngine.stationName(next.ride.destinationStationId)})",
-        QuietButton,
+        quietButtonColors(),
         "combine_next_$rideId",
       ) {
         actions.onCombine(rec, next)
@@ -142,7 +140,7 @@ private fun ReviewActionButton(
     is ReviewAction.ConfirmCandidate ->
       ReviewButton(
         action.label,
-        if (action.index == 0) MtaColors.ActionGreen else QuietButton,
+        if (action.index == 0) confirmButtonColors() else quietButtonColors(),
         "confirm_candidate_${rideId}_${action.index}",
       ) {
         actions.onConfirmAmbiguousRide(rideId, action.routeId, action.isExpress)
@@ -152,7 +150,7 @@ private fun ReviewActionButton(
       val onlyChoice = review.actions.none { it is ReviewAction.ConfirmCandidate }
       ReviewButton(
         "Looks right",
-        if (onlyChoice) MtaColors.ActionGreen else QuietButton,
+        if (onlyChoice) confirmButtonColors() else quietButtonColors(),
         "keep_as_is_$rideId",
       ) {
         actions.onKeepRideAsIs(rideId)
@@ -162,14 +160,8 @@ private fun ReviewActionButton(
 }
 
 @Composable
-private fun ReviewButton(label: String, color: Color, tag: String, onClick: () -> Unit) {
-  Button(
-    onClick = onClick,
-    colors = ButtonDefaults.buttonColors(containerColor = color),
-    modifier = Modifier.testTag(tag),
-  ) {
-    Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-  }
+private fun ReviewButton(label: String, colors: ButtonColors, tag: String, onClick: () -> Unit) {
+  Button(onClick = onClick, colors = colors, modifier = Modifier.testTag(tag)) { Text(label) }
 }
 
 /** Asks before making [first] and [second] one ride, naming the trip and both rides' times. */
@@ -187,40 +179,39 @@ internal fun CombineRidesDialog(
       rideWhen(rec.ride.startTimeEpochMs, rec.ride.endTimeEpochMs)
   AlertDialog(
     onDismissRequest = onDismiss,
-    containerColor = MtaColors.CardBg,
-    titleContentColor = MtaColors.TextPrimary,
-    textContentColor = MtaColors.TextPrimary,
-    title = { Text("Combine into one ride?", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    titleContentColor = MaterialTheme.colorScheme.onSurface,
+    textContentColor = MaterialTheme.colorScheme.onSurface,
+    title = { Text("Combine into one ride?", style = MaterialTheme.typography.titleLarge) },
     text = {
-      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+      Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         Text(
           "${graphEngine.stationName(first.ride.originStationId)} → " +
             graphEngine.stationName(second.ride.destinationStationId),
-          fontSize = 15.sp,
-          fontWeight = FontWeight.Bold,
+          style = MaterialTheme.typography.titleMedium,
           modifier = Modifier.testTag("combine_trip"),
         )
-        Text("First: ${describe(first)}", fontSize = 13.sp)
-        Text("Then: ${describe(second)}", fontSize = 13.sp)
+        Text("First: ${describe(first)}", style = MaterialTheme.typography.bodyMedium)
+        Text("Then: ${describe(second)}", style = MaterialTheme.typography.bodyMedium)
         Text(
           "The lines are found again for the whole trip, and the second ride is removed.",
-          color = MtaColors.TextSecondary,
-          fontSize = 12.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.bodySmall,
         )
       }
     },
     confirmButton = {
       Button(
         onClick = onConfirm,
-        colors = ButtonDefaults.buttonColors(containerColor = MtaColors.ActionGreen),
+        colors = confirmButtonColors(),
         modifier = Modifier.testTag("confirm_combine_btn"),
       ) {
-        Text("Combine", color = Color.White, fontWeight = FontWeight.Bold)
+        Text("Combine")
       }
     },
     dismissButton = {
       TextButton(onClick = onDismiss, modifier = Modifier.testTag("cancel_combine_btn")) {
-        Text("Cancel", color = MtaColors.TextSecondary)
+        Text("Cancel")
       }
     },
     modifier = Modifier.testTag("combine_rides_dialog"),

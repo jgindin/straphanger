@@ -30,6 +30,10 @@ interface ScreenNavigation : StraphangerScreenState {
 
   fun setStationVisitFilterMode(mode: StationVisitFilterMode)
 
+  /**
+   * Opens the log sheet with a new form: only the given stations are set, and the preferred route
+   * and express choice are cleared.
+   */
   fun openLogRideSheet(
     originId: String? = null,
     destinationId: String? = null,
@@ -39,9 +43,9 @@ interface ScreenNavigation : StraphangerScreenState {
   fun closeLogRideSheet()
 
   fun updateLogForm(
-    originId: String = uiState.value.logOriginStationId,
+    originId: String? = uiState.value.logOriginStationId,
     transferId: String? = uiState.value.logTransferStationId,
-    destinationId: String = uiState.value.logDestinationStationId,
+    destinationId: String? = uiState.value.logDestinationStationId,
     preferredRouteId: String? = uiState.value.logPreferredRouteId,
     forceExpress: Boolean? = uiState.value.logForceExpress,
   )
@@ -53,7 +57,14 @@ internal class ScreenNavigationController(private val session: StraphangerSessio
     get() = session.state
 
   override fun selectTab(tab: AppTab) {
-    session.update { it.copy(activeTab = tab, highlightedRideId = null) }
+    session.update {
+      it.copy(
+        activeTab = tab,
+        highlightedRideId = null,
+        // The log sheet belongs to the Rides tab.
+        isLogRideSheetOpen = it.isLogRideSheetOpen && tab == AppTab.RIDES,
+      )
+    }
   }
 
   override fun showRide(rideId: String) {
@@ -101,9 +112,11 @@ internal class ScreenNavigationController(private val session: StraphangerSessio
     session.update {
       it.copy(
         isLogRideSheetOpen = true,
-        logOriginStationId = originId ?: it.logOriginStationId,
-        logDestinationStationId = destinationId ?: it.logDestinationStationId,
+        logOriginStationId = originId,
+        logDestinationStationId = destinationId,
         logTransferStationId = transferStationId,
+        logPreferredRouteId = null,
+        logForceExpress = null,
       )
     }
   }
@@ -113,9 +126,9 @@ internal class ScreenNavigationController(private val session: StraphangerSessio
   }
 
   override fun updateLogForm(
-    originId: String,
+    originId: String?,
     transferId: String?,
-    destinationId: String,
+    destinationId: String?,
     preferredRouteId: String?,
     forceExpress: Boolean?,
   ) {

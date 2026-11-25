@@ -118,6 +118,7 @@ dependencies {
   implementation(libs.kotlinx.io.core)
   implementation(libs.play.services.location)
   implementation(libs.aboutlibraries.compose.m3)
+  implementation(libs.glance.appwidget)
 
   debugImplementation(libs.androidx.compose.ui.tooling)
   debugImplementation(libs.androidx.compose.ui.test.manifest)

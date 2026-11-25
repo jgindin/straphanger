@@ -12,19 +12,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +41,8 @@ import com.straphanger.app.ui.StraphangerUiState
 import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
+import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.tabular
 
 @Composable
 fun StatsDashboardScreen(
@@ -49,17 +55,16 @@ fun StatsDashboardScreen(
   Column(
     modifier =
       Modifier.fillMaxSize()
-        .background(MtaColors.DarkBg)
+        .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
-        .padding(16.dp)
+        .padding(Spacing.lg)
         .testTag("stats_dashboard_screen"),
-    verticalArrangement = Arrangement.spacedBy(14.dp),
+    verticalArrangement = Arrangement.spacedBy(Spacing.md),
   ) {
     Text(
       text = "NYC Subway System Analytics",
-      color = Color.White,
-      fontSize = 20.sp,
-      fontWeight = FontWeight.ExtraBold,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
     )
     HeroMetrics(uiState)
     StationCountingCard(uiState, onGroupingModeChange, onVisitFilterModeChange)
@@ -89,7 +94,6 @@ private fun HeroMetrics(uiState: StraphangerUiState) {
       title = "Total Rides",
       value = "${stats.totalRides}",
       subtitle = "Since tracking started",
-      accentColor = Color(0xFF00E5FF),
       testTag = "stat_card_total_rides",
       modifier = Modifier.weight(1f),
     )
@@ -97,7 +101,6 @@ private fun HeroMetrics(uiState: StraphangerUiState) {
       title = "Total Miles Ridden",
       value = "${stats.totalMilesRidden} mi",
       subtitle = "${stats.totalHoursUnderground} hrs underground",
-      accentColor = Color(0xFFFF6319),
       testTag = "stat_card_total_miles",
       modifier = Modifier.weight(1f),
     )
@@ -111,7 +114,6 @@ private fun HeroMetrics(uiState: StraphangerUiState) {
       title = "Unique System Miles",
       value = "${stats.uniqueCorridorMilesRidden} mi",
       subtitle = "${stats.systemCompletionPercent}% of network covered",
-      accentColor = MtaColors.AccentGreen,
       testTag = "stat_card_unique_miles",
       modifier = Modifier.weight(1f),
     )
@@ -120,7 +122,6 @@ private fun HeroMetrics(uiState: StraphangerUiState) {
       value =
         "$displayedStationsCount / ${stats.getDisplayedStationTotal(uiState.stationGroupingMode)}",
       subtitle = "${uiState.stationGroupingMode.label} • ${uiState.stationVisitFilterMode.label}",
-      accentColor = MtaColors.AccentGold,
       testTag = "stat_card_stations_visited",
       modifier = Modifier.weight(1f),
     )
@@ -135,24 +136,22 @@ private fun StationCountingCard(
   onVisitFilterModeChange: (StationVisitFilterMode) -> Unit,
 ) {
   SectionCard(spacing = 10.dp) {
-    CardTitle("Station Counting Mode", fontSize = 14.sp)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    CardTitle("Station Counting Mode", style = MaterialTheme.typography.titleSmall)
+    Row(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       StationGroupingMode.entries.forEach { mode ->
         ModeToggle(
           text = "${uiState.stats.getDisplayedStationTotal(mode)} ${mode.label}",
           active = uiState.stationGroupingMode == mode,
-          activeColor = Color(0xFF0039A6),
           onClick = { onGroupingModeChange(mode) },
           testTag = "toggle_grouping_${mode.name}",
         )
       }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       StationVisitFilterMode.entries.forEach { mode ->
         ModeToggle(
           text = mode.label,
           active = uiState.stationVisitFilterMode == mode,
-          activeColor = MtaColors.ActionGreen,
           onClick = { onVisitFilterModeChange(mode) },
           testTag = "toggle_visit_${mode.name}",
         )
@@ -165,25 +164,29 @@ private fun StationCountingCard(
 private fun RowScope.ModeToggle(
   text: String,
   active: Boolean,
-  activeColor: Color,
   onClick: () -> Unit,
   testTag: String,
 ) {
   Box(
     modifier =
       Modifier.weight(1f)
-        .clip(RoundedCornerShape(8.dp))
-        .background(if (active) activeColor else Color(0xFF1E2636))
-        .clickable(onClick = onClick)
-        .padding(vertical = 8.dp)
+        .minimumInteractiveComponentSize()
+        .clip(MaterialTheme.shapes.small)
+        .background(
+          if (active) MaterialTheme.colorScheme.primaryContainer
+          else MaterialTheme.colorScheme.surfaceContainerHigh,
+        )
+        .selectable(selected = active, role = Role.RadioButton, onClick = onClick)
+        .padding(vertical = Spacing.sm)
         .testTag(testTag),
     contentAlignment = Alignment.Center,
   ) {
     Text(
       text = text,
-      color = if (active) Color.White else MtaColors.TextSecondary,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.Bold,
+      color =
+        if (active) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
     )
   }
 }
@@ -197,7 +200,11 @@ private fun LineCompletionCard(stats: SubwayStatsSnapshot, onLineSelect: (String
     sortedLines.take(12).forEach { lineStat ->
       val rId = lineStat.routeInfo.routeId
       Column(
-        modifier = Modifier.fillMaxWidth().clickable { onLineSelect(rId) }.testTag("line_row_$rId"),
+        modifier =
+          Modifier.fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(role = Role.Button) { onLineSelect(rId) }
+            .testTag("line_row_$rId"),
         verticalArrangement = Arrangement.spacedBy(4.dp),
       ) {
         Row(
@@ -212,9 +219,8 @@ private fun LineCompletionCard(stats: SubwayStatsSnapshot, onLineSelect: (String
             MtaRouteBullet(routeId = rId, size = 22.dp, fontSize = 11.sp)
             Text(
               text = lineStat.routeInfo.name,
-              color = Color.White,
-              fontSize = 13.sp,
-              fontWeight = FontWeight.SemiBold,
+              color = MaterialTheme.colorScheme.onSurface,
+              style = MaterialTheme.typography.titleSmall,
             )
           }
           Text(
@@ -222,16 +228,16 @@ private fun LineCompletionCard(stats: SubwayStatsSnapshot, onLineSelect: (String
               "${lineStat.completionPercent}% (${lineStat.uniqueCorridorMilesRidden}/" +
                 "${lineStat.totalCorridorMilesAvailable} mi • " +
                 "${countOf(lineStat.legRideCount, "leg")})",
-            color = MtaColors.TextSecondary,
-            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall.tabular(),
             modifier = Modifier.testTag("line_stat_$rId"),
           )
         }
         LinearProgressIndicator(
           progress = { (lineStat.completionPercent / 100.0).toFloat().coerceIn(0f, 1f) },
           color = MtaColors.routeColor(rId),
-          trackColor = Color(0xFF232C3D),
-          modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+          trackColor = MaterialTheme.colorScheme.outlineVariant,
+          modifier = Modifier.fillMaxWidth().height(6.dp).clip(MaterialTheme.shapes.extraSmall),
         )
       }
     }
@@ -249,16 +255,15 @@ private fun BoroughCard(stats: SubwayStatsSnapshot) {
       ) {
         Text(
           text = boro.borough.displayName,
-          color = Color.White,
-          fontSize = 13.sp,
-          fontWeight = FontWeight.Medium,
+          color = MaterialTheme.colorScheme.onSurface,
+          style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
         )
         Text(
           text =
             "${boro.stationsVisited}/${boro.totalStationsInGraph} stations • " +
               "${boro.milesRidden} mi (${countOf(boro.rideTouches, "ride")})",
-          color = MtaColors.TextSecondary,
-          fontSize = 12.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.bodySmall.tabular(),
         )
       }
     }
@@ -274,8 +279,8 @@ private fun TopStationsAndTrendsCard(stats: SubwayStatsSnapshot) {
         text =
           "• ${fav.stationName} (${fav.borough.displayName}) — " +
             "${fav.visitCount} board/exit/transfer visits",
-        color = MtaColors.TextSecondary,
-        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
       )
     }
     Spacer(modifier = Modifier.height(4.dp))
@@ -284,8 +289,8 @@ private fun TopStationsAndTrendsCard(stats: SubwayStatsSnapshot) {
         text =
           "Month ${trend.yearMonth}: ${countOf(trend.rideCount, "ride")} • " +
             "${trend.totalMiles} total mi (+${trend.newUniqueMiles} new unique mi)",
-        color = MtaColors.AccentGold,
-        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.bodyMedium.tabular(),
       )
     }
   }
@@ -300,8 +305,11 @@ private fun AchievementsCard(stats: SubwayStatsSnapshot) {
       Row(
         modifier =
           Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (ach.isUnlocked) Color(0xFF192822) else Color(0xFF1A202C))
+            .clip(MaterialTheme.shapes.small)
+            .background(
+              if (ach.isUnlocked) MtaColors.SuccessContainer
+              else MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
             .padding(10.dp)
             .testTag("achievement_${ach.id}"),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -310,22 +318,21 @@ private fun AchievementsCard(stats: SubwayStatsSnapshot) {
         Column(modifier = Modifier.weight(1f)) {
           Text(
             text = "${if (ach.isUnlocked) "✓ " else ""}${ach.title}",
-            color = if (ach.isUnlocked) MtaColors.AccentGreen else Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+            color = if (ach.isUnlocked) MtaColors.Success else MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
           )
           Text(
             text = ach.description,
-            color = MtaColors.TextSecondary,
-            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
           )
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
           text = "${ach.currentValue.toInt()}/${ach.targetValue.toInt()}",
-          color = if (ach.isUnlocked) MtaColors.AccentGold else MtaColors.TextSecondary,
-          fontSize = 12.sp,
-          fontWeight = FontWeight.Bold,
+          color =
+            if (ach.isUnlocked) MtaColors.Success else MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.labelLarge.tabular(),
         )
       }
     }
@@ -337,37 +344,35 @@ private fun StatHeroCard(
   title: String,
   value: String,
   subtitle: String,
-  accentColor: Color,
   testTag: String,
   modifier: Modifier = Modifier,
 ) {
   Column(
     modifier =
       modifier
-        .clip(RoundedCornerShape(14.dp))
-        .background(MtaColors.CardBg)
-        .border(1.dp, MtaColors.CardBorder, RoundedCornerShape(14.dp))
-        .padding(14.dp)
+        .clip(MaterialTheme.shapes.medium)
+        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+        .padding(Spacing.md)
         .testTag(testTag),
   ) {
     Text(
       text = title,
-      color = MtaColors.TextSecondary,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.SemiBold,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelMedium,
     )
     Spacer(modifier = Modifier.height(4.dp))
     Text(
       text = value,
-      color = accentColor,
-      fontSize = 22.sp,
-      fontWeight = FontWeight.ExtraBold,
+      color = MaterialTheme.colorScheme.primary,
+      style =
+        MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold).tabular(),
     )
     Spacer(modifier = Modifier.height(2.dp))
     Text(
       text = subtitle,
-      color = MtaColors.TextSecondary,
-      fontSize = 11.sp,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall,
     )
   }
 }

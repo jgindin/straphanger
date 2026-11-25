@@ -50,7 +50,7 @@ internal class BackupController(private val session: StraphangerSession) : Backu
     )
 
   override fun reportBackupExportFailed(reason: String?): String =
-    session.setStatus("Backup export failed: ${reason ?: "unknown error"}")
+    session.setStatus("Backup export failed: ${reason ?: "unknown error"}", failure = true)
 
   override suspend fun importBackup(bytes: ByteArray): Result<Int> {
     val text =
@@ -68,10 +68,12 @@ internal class BackupController(private val session: StraphangerSession) : Backu
         onSuccess = { n -> "Restored ${countOf(n, "ride")} from backup" },
         onFailure = { "Could not restore: the file is not a Straphanger backup" },
       ),
+      failure = result.isFailure,
     )
 
   override fun reportBackupRestoreFailed(reason: String?): String =
     session.setStatus(
       "Could not restore: the rides could not be saved (${reason ?: "unknown error"})",
+      failure = true,
     )
 }

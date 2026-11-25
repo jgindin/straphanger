@@ -13,15 +13,15 @@ import kotlinx.coroutines.flow.StateFlow
 interface RideLogging : StraphangerScreenState {
   /**
    * Logs a manual ride from the log form (or the given stations) and closes the log sheet. Returns
-   * null when the network has not loaded, the stations are the same, no route connects them, or the
-   * ride could not be saved.
+   * null when the network has not loaded, a station is missing, the stations are the same, no route
+   * connects them, or the ride could not be saved.
    *
    * @param timestampEpochMs when the ride started; null means now.
    */
   fun submitQuickRide(
-    originStationId: String = uiState.value.logOriginStationId,
+    originStationId: String? = uiState.value.logOriginStationId,
     transferStationId: String? = uiState.value.logTransferStationId,
-    destinationStationId: String = uiState.value.logDestinationStationId,
+    destinationStationId: String? = uiState.value.logDestinationStationId,
     preferredRouteId: String? = uiState.value.logPreferredRouteId,
     forceExpress: Boolean? = uiState.value.logForceExpress,
     timestampEpochMs: Long? = null,
@@ -35,8 +35,14 @@ interface RideLogging : StraphangerScreenState {
   /** Clears the review flag of [rideId] without changing its legs. */
   fun keepRideAsIs(rideId: String)
 
-  /** Deletes [rideId]. */
-  fun deleteRide(rideId: String)
+  /** Deletes [rideId]; false when there is no such ride or the deletion could not be saved. */
+  fun deleteRide(rideId: String): Boolean
+
+  /**
+   * Puts back [record], a ride deleted a moment ago, exactly as it was: the same id, times,
+   * stations, legs and review state.
+   */
+  fun restoreRide(record: CompleteRideRecord)
 
   fun clearAllRides()
 
@@ -80,13 +86,14 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
     get() = session.services?.graphEngine
 
   override fun submitQuickRide(
-    originStationId: String,
+    originStationId: String?,
     transferStationId: String?,
-    destinationStationId: String,
+    destinationStationId: String?,
     preferredRouteId: String?,
     forceExpress: Boolean?,
     timestampEpochMs: Long?,
   ): CompleteRideRecord? {
+    if (originStationId == null || destinationStationId == null) return null
     val engine = graphEngine
     val form =
       QuickRideForm(
@@ -134,6 +141,7 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
       session.update {
         it.copy(
           isLogRideSheetOpen = false,
+          statusIsFailure = false,
           statusMessage =
             "Logged ride (${record.ride.totalDistanceMiles} mi across " +
               "${countOf(record.legs.size, "leg")})",
@@ -187,10 +195,17 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
     session.setStatusIfSaved { "Kept the ride as recorded" }
   }
 
-  override fun deleteRide(rideId: String) {
-    if (dao.getRideById(rideId) == null) return
+  override fun deleteRide(rideId: String): Boolean {
+    if (dao.getRideById(rideId) == null) return false
     dao.deleteRide(rideId)
+    // A failed save leaves the ride in place and says so in the storage error banner.
     session.setStatusIfSaved { "Deleted the ride" }
+    return dao.lastSaveSucceeded
+  }
+
+  override fun restoreRide(record: CompleteRideRecord) {
+    dao.insertOrReplaceRide(record)
+    session.setStatusIfSaved { "Restored the ride" }
   }
 
   override fun clearAllRides() {

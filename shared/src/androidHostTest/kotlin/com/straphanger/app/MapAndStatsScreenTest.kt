@@ -44,6 +44,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
   @Test
   fun mapScreenRendersAndSwitchesModesAndFilters() {
     val vm = launchApp()
+    openTab("MAP")
     composeRule.onNodeWithTag("straphanger_root").assertIsDisplayed()
     composeRule.onNodeWithTag("subway_map_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("subway_map_canvas").assertIsDisplayed()
@@ -83,6 +84,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
   @Test
   fun draggingAfterZoomingInKeepsTheZoom() {
     val vm = launchApp()
+    openTab("MAP")
     composeRule.waitUntil(timeoutMillis = 5_000) { vm.uiState.value.basemap != null }
     val opening = mapPixels()
     composeRule.onNodeWithTag("map_zoom_in").performClick()
@@ -103,6 +105,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
   @Test
   fun basemapIsAlwaysDrawnUnderTheLinesAndHasNoSwitch() {
     val vm = launchApp()
+    openTab("MAP")
     composeRule.waitUntil(timeoutMillis = 5_000) { vm.uiState.value.basemap != null }
     composeRule.onNodeWithTag("map_basemap_toggle").assertDoesNotExist()
     // The opening view shows the whole network, so land, water and parks all appear.
@@ -112,8 +115,9 @@ class MapAndStatsScreenTest : AppScreenTest() {
   }
 
   @Test
-  fun tappingAStationOpensItsCardAndLogsARideFromIt() {
+  fun tappingAStationOpensItsCardAndLogsARideFromOrToIt() {
     val vm = launchApp()
+    openTab("MAP")
     composeRule.onNodeWithTag("station_detail_sheet").assertDoesNotExist()
 
     // Tap the station drawn nearest the canvas centre, using the screen's own projection and the
@@ -141,7 +145,18 @@ class MapAndStatsScreenTest : AppScreenTest() {
 
     composeRule.onNodeWithText("Log Ride From Here").performClick()
     composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
+    composeRule.onNodeWithTag("log_ride_sheet").assertIsDisplayed()
     assertEquals(selected, vm.uiState.value.logOriginStationId)
+    assertEquals(null, vm.uiState.value.logTransferStationId)
+
+    // Closing the sheet leaves the station chosen on the map.
+    closeLogRideSheet()
+    composeRule.onNodeWithTag("log_ride_sheet").assertDoesNotExist()
+    openTab("MAP")
+    composeRule.onNodeWithText("Log Ride To Here").performClick()
+    composeRule.onNodeWithTag("log_ride_sheet").assertIsDisplayed()
+    assertEquals(selected, vm.uiState.value.logDestinationStationId)
+    assertEquals(null, vm.uiState.value.logOriginStationId, "only the tapped end is filled in")
   }
 
   @Test
@@ -172,7 +187,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
   fun unreadableSavedRidesShowTheStorageErrorBanner() {
     launchApp(newViewModel(InMemoryPersistenceBackend(initialJson = "{ not json")))
     composeRule.onNodeWithTag("storage_error_banner").assertIsDisplayed()
-    assertEquals(0, headerRideCount())
+    assertEquals(0, statsRideCount())
   }
 
   @Test
@@ -197,5 +212,7 @@ class MapAndStatsScreenTest : AppScreenTest() {
       .onNodeWithTag("network_load_error")
       .assert(hasText("The subway network could not be loaded: broken bundle"))
     composeRule.onNodeWithTag("subway_map_screen").assertDoesNotExist()
+    // Settings needs the network, so the gear is not offered.
+    composeRule.onNodeWithTag("top_bar_settings").assertDoesNotExist()
   }
 }

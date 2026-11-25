@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onChildAt
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
@@ -52,10 +53,11 @@ class RidePersistenceEmulatorTest {
     launch()
   }
 
-  private fun headerRideCount(): Int =
+  /** The Total Rides card's value; the Stats tab must be showing. */
+  private fun shownRideCount(): Int =
     composeTestRule
-      .onNodeWithTag("header_total_rides")
-      .onChildAt(0)
+      .onNodeWithTag("stat_card_total_rides")
+      .onChildAt(1)
       .fetchSemanticsNode()
       .config
       .getOrNull(SemanticsProperties.Text)!!
@@ -63,51 +65,64 @@ class RidePersistenceEmulatorTest {
       .text
       .toInt()
 
+  /** Opens the Stats tab, reads its Total Rides card, then goes back to the Rides tab. */
+  private fun statsRideCount(): Int {
+    composeTestRule.onNodeWithTag("nav_tab_STATS").performClick()
+    val count = shownRideCount()
+    composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
+    return count
+  }
+
+  /** Opens the Stats tab and waits for its Total Rides card to satisfy [condition]. */
+  private fun awaitStatsRideCount(condition: (Int) -> Boolean) {
+    composeTestRule.onNodeWithTag("nav_tab_STATS").performClick()
+    composeTestRule.waitUntil(timeoutMillis = 15_000) { condition(shownRideCount()) }
+    composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
+  }
+
   @Test
   fun importingSampleTimelineAddsRides() {
     launch()
-    assertEquals(0, headerRideCount())
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    assertEquals(0, statsRideCount())
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     scenario!!.onActivity { it.straphangerViewModel().importSampleGoogleMapsTimeline() }
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
-    composeTestRule.waitUntil(timeoutMillis = 15_000) { headerRideCount() > 0 }
-    assertEquals(EXPECTED_SAMPLE_RIDES, headerRideCount())
+    awaitStatsRideCount { it > 0 }
+    assertEquals(EXPECTED_SAMPLE_RIDES, statsRideCount())
   }
 
   @Test
   fun loggedRideIsDecodedFromDiskByAFreshViewModel() {
     launch()
-    assertEquals(0, headerRideCount())
-    composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
-    assertEquals(1, headerRideCount())
+    assertEquals(0, statsRideCount())
+    composeTestRule.logShuttleRide()
+    assertEquals(1, statsRideCount())
 
     // A fresh runtime and view model, which must decode rides.json from disk.
     relaunchAsNewProcess()
-    composeTestRule.waitUntil(timeoutMillis = 15_000) { headerRideCount() == 1 }
-    assertEquals(1, headerRideCount())
+    awaitStatsRideCount { it == 1 }
+    assertEquals(1, statsRideCount())
   }
 
   @Test
-  fun loggedRideCanBeDeletedAfterConfirming() {
+  fun loggedRideCanBeDeletedAndUndone() {
     launch()
-    composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
-    assertEquals(1, headerRideCount())
+    composeTestRule.logShuttleRide()
+    assertEquals(1, statsRideCount())
 
-    // Cancel keeps the ride.
+    // Undo puts the ride back.
     composeTestRule.onNode(hasTestTagPrefix("delete_ride_btn_")).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag("cancel_delete_btn").performClick()
-    assertEquals(1, headerRideCount())
+    composeTestRule.onNodeWithText("Undo").performClick()
+    awaitStatsRideCount { it == 1 }
+    assertEquals(1, statsRideCount())
 
     composeTestRule.onNode(hasTestTagPrefix("delete_ride_btn_")).performScrollTo().performClick()
-    composeTestRule.onNodeWithTag("confirm_delete_btn").performClick()
-    composeTestRule.waitUntil(timeoutMillis = 5_000) { headerRideCount() == 0 }
-    assertEquals(0, headerRideCount())
+    awaitStatsRideCount { it == 0 }
+    assertEquals(0, statsRideCount())
 
     // The deletion was saved: a fresh runtime decodes no rides from disk.
     relaunchAsNewProcess()
-    assertEquals(0, headerRideCount())
+    assertEquals(0, statsRideCount())
   }
 
   private companion object {

@@ -9,11 +9,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.ui.RideTapInbox
+import com.straphanger.app.testutil.logSampleRide
 import kotlin.test.assertEquals
 import org.junit.After
 import org.junit.Test
 
-/** The ride-recorded notification: its switch on Import & Backup, and opening a tapped ride. */
+/** The ride-recorded notification: its switch in Settings, and opening a tapped ride. */
 class RideNotificationScreenTest : AppScreenTest() {
   @After
   fun clearInbox() {
@@ -23,7 +24,7 @@ class RideNotificationScreenTest : AppScreenTest() {
   @Test
   fun rideNotificationSwitchCallsRequestWhenTurnedOnAndDisableWhenOff() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     val toggle = composeRule.onNodeWithTag("ride_notifications_toggle").performScrollTo()
     toggle.assertIsOff()
     composeRule
@@ -53,7 +54,7 @@ class RideNotificationScreenTest : AppScreenTest() {
     captureAccess =
       CaptureAccessState(rideNotificationsTurnedOn = true, postNotificationsGranted = false)
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("ride_notifications_toggle").performScrollTo().assertIsOff()
     composeRule
       .onNodeWithTag("ride_notifications_toggle_detail", useUnmergedTree = true)
@@ -67,7 +68,7 @@ class RideNotificationScreenTest : AppScreenTest() {
     captureAccess =
       CaptureAccessState(rideNotificationsTurnedOn = true, postNotificationsGranted = false)
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("ride_notifications_toggle").performScrollTo().performClick()
     assertEquals(1, notificationSettingsOpens)
     assertEquals(0, rideNotificationRequests)
@@ -77,8 +78,11 @@ class RideNotificationScreenTest : AppScreenTest() {
   @Test
   fun tappedRideOpensRidesTabHighlighted() {
     val vm = launchApp()
-    composeRule.runOnUiThread { vm.loadDemoRides() }
-    // The last row is far down the list, so showing it means the list scrolled to it.
+    // A ride a day for a month: the oldest is far down the list, not even composed until the list
+    // scrolls to it, so showing it means the list scrolled.
+    composeRule.runOnUiThread {
+      repeat(30) { day -> vm.logSampleRide(timestampEpochMs = 1_794_405_600_000L - day * 86_400_000L) }
+    }
     val rideId = vm.uiState.value.rides.last().ride.rideId
 
     composeRule.runOnUiThread {
@@ -95,5 +99,21 @@ class RideNotificationScreenTest : AppScreenTest() {
     openTab("STATS")
     openTab("RIDES")
     composeRule.onNodeWithTag("ride_row_highlighted").assertDoesNotExist()
+  }
+
+  @Test
+  fun tappedRideClosesSettingsAndShowsRides() {
+    val vm = launchApp()
+    composeRule.runOnUiThread { vm.loadDemoRides() }
+    val rideId = vm.uiState.value.rides.first().ride.rideId
+    openSettings()
+    composeRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
+
+    composeRule.runOnUiThread { RideTapInbox.open(rideId) }
+    composeRule.waitForIdle()
+
+    composeRule.onNodeWithTag("sources_sync_screen").assertDoesNotExist()
+    composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
+    composeRule.onNodeWithTag("header_title").assertTextEquals("Rides")
   }
 }

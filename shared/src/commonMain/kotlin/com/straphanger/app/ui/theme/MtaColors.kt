@@ -21,15 +21,30 @@ import androidx.compose.ui.unit.sp
 private const val MAP_LINE_MIN_LUMINANCE = 0.1f
 
 object MtaColors {
+  // Raw palette values behind the colour scheme (StraphangerColorScheme). Composables use
+  // MaterialTheme.colorScheme instead; these stay for code with no composition: the Glance widget
+  // and the map's Canvas drawing.
   val DarkBg = Color(0xFF0B0E14)
   val CardBg = Color(0xFF141A24)
   val CardBorder = Color(0xFF232C3D)
-  val UnriddenTrack = Color(0xFF7A869F)
-  val UnriddenStation = Color(0xFFC3CCDD)
   val TextPrimary = Color(0xFFF3F6FA)
   val TextSecondary = Color(0xFF9BA7B8)
   val AccentGold = Color(0xFFFCCC0A)
-  val AccentGreen = Color(0xFF00E676)
+
+  /** Warnings: a failed refresh, service-alert markers, rides that need review. Not gold. */
+  val Warning = Color(0xFFFFB74D)
+
+  /** The background behind a warning card (the needs-review banner). */
+  val WarningContainer = Color(0xFF281F12)
+
+  /** Confirmations (a train is stopped, a ride was logged). */
+  val Success = Color(0xFF00E676)
+
+  /** The background behind an unlocked achievement. */
+  val SuccessContainer = Color(0xFF192822)
+
+  val UnriddenTrack = Color(0xFF7A869F)
+  val UnriddenStation = Color(0xFFC3CCDD)
 
   // The basemap under the map: water a visible dark blue, land a lighter charcoal than the app
   // background, parks a muted green, and roads between land and the unridden track so they never
