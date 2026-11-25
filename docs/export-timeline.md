@@ -1,6 +1,6 @@
 # Getting your Timeline file out of Google Maps
 
-Straphanger imports rides from a file that Google Maps writes. Nothing is uploaded: you export the file on your phone and pick it in **Import & Backup > Choose Timeline file…**. The file is read on the device.
+Straphanger imports rides from a file that Google Maps writes. Nothing is uploaded: you export the file on your phone and pick it in **gear > Settings > Your data > Import Google Maps Timeline**. The file is read on the device.
 
 Google changes its menus from time to time. If a step below does not match what you see, search the Google Maps help for "export Timeline data".
 
@@ -10,7 +10,7 @@ Google changes its menus from time to time. If a step below does not match what 
 2. Open **Your Timeline**.
 3. Tap the **⋯** (more) menu, then **Settings and privacy**, then **Export Timeline data**. You may need to confirm your screen lock.
 4. Choose where to save it (for example **Downloads**). The file is called `Timeline.json`.
-5. In Straphanger, open **Import & Backup**, tap **Choose Timeline file…** and pick that file.
+5. In Straphanger, open the gear, then **Settings > Your data > Import Google Maps Timeline**, and pick that file.
 
 This works only if Timeline is turned on and saving to your device. If you do not see the export option, check **Your Timeline > Settings** first.
 
@@ -19,7 +19,7 @@ This works only if Timeline is turned on and saving to your device. If you do no
 1. Open **Google Maps** and tap your profile picture.
 2. Open **Your Timeline**, then the **⋯** menu and **Settings and privacy**.
 3. Choose **Export Timeline data** and save the file to **Files**.
-4. In Straphanger, open **Import & Backup**, tap **Choose Timeline file…** and pick it.
+4. In Straphanger, open the gear, then **Settings > Your data > Import Google Maps Timeline**, and pick it.
 
 ## From Google Takeout (any device)
 

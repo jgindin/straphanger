@@ -3,6 +3,7 @@ package com.straphanger.app.data.local
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
+import com.straphanger.app.testutil.logSampleRide
 import com.straphanger.app.ui.StraphangerViewModel
 import kotlin.random.Random
 import kotlin.test.Test
@@ -211,7 +212,7 @@ class FileRidePersistenceBackendTest {
         basemapLoader = { TestBasemap.empty },
       )
 
-    val result = vm.submitQuickRide(timestampEpochMs = sampleTime)
+    val result = vm.logSampleRide(timestampEpochMs = sampleTime)
 
     assertNull(result)
     assertTrue(vm.dao.getAllRides().isEmpty())
@@ -275,11 +276,11 @@ class FileRidePersistenceBackendTest {
         networkLoader = { TestNetwork.data },
         basemapLoader = { TestBasemap.empty },
       )
-    assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime))
+    assertNotNull(vm.logSampleRide(timestampEpochMs = sampleTime))
     val before = vm.dao.getAllRides()
 
     backend.failing = true
-    val result = vm.submitQuickRide(timestampEpochMs = sampleTime + 1_000L)
+    val result = vm.logSampleRide(timestampEpochMs = sampleTime + 1_000L)
     vm.loadDemoRides()
 
     assertNull(result)
@@ -288,7 +289,7 @@ class FileRidePersistenceBackendTest {
     assertTrue(vm.uiState.value.loadError!!.contains("disk full"))
 
     backend.failing = false
-    assertNotNull(vm.submitQuickRide(timestampEpochMs = sampleTime + 2_000L))
+    assertNotNull(vm.logSampleRide(timestampEpochMs = sampleTime + 2_000L))
     assertNull(vm.uiState.value.loadError)
   }
 

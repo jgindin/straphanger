@@ -63,6 +63,7 @@ internal class RideEditController(private val session: StraphangerSession) : Rid
     if (saved && engine != null && updated != null) {
       session.update {
         it.copy(
+          statusIsFailure = false,
           statusMessage =
             "Ride now runs ${engine.stationName(updated.ride.originStationId)} → " +
               engine.stationName(updated.ride.destinationStationId),

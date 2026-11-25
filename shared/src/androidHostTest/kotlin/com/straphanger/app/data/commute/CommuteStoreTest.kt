@@ -63,4 +63,34 @@ class CommuteStoreTest {
     SystemFileSystem.sink(file).buffered().use { it.writeString(json) }
     assertEquals(listOf(commute), FileCommuteStore(file).read())
   }
+
+  private fun readJson(json: String): List<Commute> {
+    val file = newFile()
+    SystemFileSystem.sink(file).buffered().use { it.writeString(json) }
+    return FileCommuteStore(file).read()
+  }
+
+  private val head =
+    """{"id":"c_1","routeId":"6","complexId":"635","direction":"NORTH","days":["MONDAY"],""" +
+      """"hour":7,"minute":45,"enabled":false"""
+
+  @Test
+  fun aZeroTwentyFiveFileReadsWithNoEndTime() {
+    assertEquals(listOf(commute), readJson("[$head}]"))
+  }
+
+  @Test
+  fun anEndTimeRoundTrips() {
+    val file = newFile()
+    val withEnd = commute.copy(endHour = 8, endMinute = 30)
+    FileCommuteStore(file).write(listOf(withEnd))
+    assertEquals(listOf(withEnd), FileCommuteStore(file).read())
+  }
+
+  @Test
+  fun aBadEndTimeIsDroppedButTheCommuteKept() {
+    assertEquals(listOf(commute), readJson("[$head,\"endHour\":25,\"endMinute\":0}]"))
+    assertEquals(listOf(commute), readJson("[$head,\"endHour\":8}]"))
+    assertEquals(listOf(commute), readJson("[$head,\"endHour\":8,\"endMinute\":60}]"))
+  }
 }

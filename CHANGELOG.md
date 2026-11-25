@@ -3,6 +3,54 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.32 (not yet released)
+
+- Status: pull the list down to refresh the arrivals; the Refresh button is still there.
+- Map: the two colour modes are now a segmented button ("Line colors" and "Heatmap"), the line filter is a row of chips with each line's bullet, the + and - buttons are icons with tooltips, and tapping a station shows a sheet with a drag handle and a Close button instead of a bare panel. The sheet is not modal, so the map can still be panned behind it.
+- Stats: the "NYC Subway System Analytics" title is gone, the cards are titled "Counting stations", "Lines", "Boroughs", "Top stations", "Monthly miles" and "Achievements" (with "x of y" beside it), the station counting choices are segmented buttons, and unlocked achievements show a check icon.
+- The station search on Status and in the Log ride sheet has a search icon and a Clear button. The Settings gear shows a tooltip.
+
+## 0.31 (not yet released)
+
+- The Rides tab is now just your rides, grouped by day under "Today", "Yesterday" and the date, with the count of rides at the top. With no rides yet it says how to add one.
+- A "Log ride" button at the bottom right opens a sheet to log a ride, starting empty: tap From, Change at (optional) or To and search for the station. "Log ride" is available once From and To are two different stations. "Your trips" offers the trips you take most, and most recently, in one tap; the made-up sample trips and the preset starting stations are gone.
+- "Log Ride From Here" and "Log Ride To Here" on the map open that sheet with just that station filled in.
+- Swipe a ride to the left to delete it, then tap Undo to bring it back. The Delete button also deletes at once with Undo, and no longer asks first. Only the most recent deletion can be undone: deleting another ride makes the one before final. If the deletion cannot be saved, the ride stays and the storage warning says why.
+
+## 0.30 (not yet released)
+
+- Settings is now a proper page with four sections: Ride capture (the three switches; tap anywhere on a row to flip it), Commute alerts, Your data (import a Google Maps Timeline, export a backup, restore from a backup) and About.
+- Commute alerts shows whether notifications and exact alarms are allowed. When one is blocked it shows a warning, and tapping the row opens the system setting that fixes it.
+- The numbered cards and the separate "Import & Backup" heading are gone; the top bar already says "Settings".
+
+## 0.29 (not yet released)
+
+- Four tabs with icons along the bottom: Status, Map, Rides and Stats. The app now opens on Status. The Rides tab shows a badge with the number of rides that need review.
+- A bar at the top names the screen you are on. Import & Backup has moved to Settings, opened with the gear at the top right.
+- The header with your ride, mile and unique-mile totals is gone; the same totals are at the top of the Stats tab.
+- Back (the arrow at the top left, or the phone's Back) works through Settings and About: Back from About returns to Settings, and Back from Settings returns to the tab you were on, with the map's zoom and the lists' scroll positions as you left them. A tapped ride notification closes Settings and opens the Rides tab.
+
+## 0.28 (not yet released)
+
+- Larger, consistent text across the app: one type scale, with nothing smaller than 13 sp for body text.
+- Text buttons and links are a readable light blue, and tappable text is now a proper button with a larger touch target.
+- Icons for favourite (a star), back and clearing the line filter, in place of text symbols.
+- Gold is kept for highlights (header totals, the favourite star, direction headings); warnings such as a failed refresh or a ride that needs review are amber.
+
+## 0.27 (not yet released)
+
+- Status tab: tapping a favorite station opens its arrivals in that favorite's place in the list, instead of moving it below the other favorites.
+
+## 0.26 (not yet released)
+
+- Commute widget: a home-screen widget that shows the next live departures for the commutes you pick, and refreshes itself during the commute's window. Place as many as you like; each opens a "Choose commutes" screen (and can be reconfigured from the launcher's widget settings). The default size is 3×2; two commutes are shown when the widget is at least 200 dp tall and two windows overlap. Each commute shows the line's coloured bullet, the station, the direction, and its next departures, the next one large.
+- Commutes have an optional "Show on widget until" time. The window runs from the alert time to that time on the commute's days (an end at or before the start runs past midnight), and the Commutes list shows it, such as "Weekdays 7:45–8:30". A commute with no end time is not shown on the widget.
+- During a window the widget refreshes every 2 minutes while the screen is on. With the screen off it does not wake the phone, so a refresh comes within seconds of waking it. With "Alarms & reminders" allowed refreshes are on time; without it a refresh, and the start of a window, may be up to about 10 minutes late.
+- Times stay on the widget for 15 minutes. When it has no times from the last 15 minutes it says "Tap to refresh", and outside a window it fetches only when tapped. If the last fetch failed it says "Couldn't get train times" for up to 15 minutes after the failure. The station line has a refresh icon, and the direction line shows "Updated 7:52". Tapping a row opens that station filtered to the line and direction.
+- The commute editor's time and "Show on widget until" are now buttons that open Material's clock-face time picker (OK, Cancel, and Clear for the end time), instead of typed hour and minute fields.
+- Commute times follow the phone's 12/24-hour setting: the Commutes list ("Weekdays 7:45 AM–8:30 AM"), the editor, the time picker, the widget's "Choose commutes" screen and the widget's "Updated 7:52 AM". iOS shows 12-hour times for now.
+- The departures in the commute alert notification now read "3 min · 9 min · 14 min" (they were "3, 9, 14 min"), the same as on the widget.
+
 ## 0.25 (not yet released)
 
 - Commute alerts: on a station's arrivals card on the Status tab, "Add commute alert" sets one line, one direction, the days (Monday to Friday by default) and a time (8:00 by default). At that time on those days the phone shows one notification with the next live departures, such as "A Southbound · 168 St" and "3, 9, 14 min", with the first service alert for that line if there is one. "See trains", or tapping the notification, opens the Status tab on that station showing only that line and direction; "Show all" clears it. A Commutes section at the top of the Status tab lists every commute with an on/off switch; tap one to edit or delete it. Alerts are posted on the new "Commute alerts" channel, even with the app closed, and are set again after a reboot, an app update or a clock or time zone change.

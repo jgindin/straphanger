@@ -1,4 +1,4 @@
-package com.straphanger.app.ui.rides
+package com.straphanger.app.ui.settings
 
 import com.straphanger.app.ui.catchingFileFailure
 import com.straphanger.app.ui.catchingSaveFailure

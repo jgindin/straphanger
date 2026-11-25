@@ -32,6 +32,17 @@ fun commuteTapFrom(intent: Intent?): CommuteTap? {
   }
 }
 
+/**
+ * Opens the Status tab on [tap]'s station, line and direction. A notification adds
+ * [MainActivity.EXTRA_COMMUTE_NOTIFICATION] so the tap also dismisses it; a widget row does not.
+ */
+fun commuteTapActivityIntent(context: Context, tap: CommuteTap): Intent =
+  Intent(context, MainActivity::class.java)
+    .putExtra(MainActivity.EXTRA_COMMUTE_COMPLEX, tap.complexId)
+    .putExtra(MainActivity.EXTRA_COMMUTE_ROUTE, tap.routeId)
+    .putExtra(MainActivity.EXTRA_COMMUTE_DIRECTION, tap.direction.name)
+    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
 /** Takes down the commute notification [intent] came from, if it names one. */
 fun dismissCommuteNotification(context: Context, intent: Intent?) {
   val commuteId = intent?.getStringExtra(MainActivity.EXTRA_COMMUTE_NOTIFICATION) ?: return

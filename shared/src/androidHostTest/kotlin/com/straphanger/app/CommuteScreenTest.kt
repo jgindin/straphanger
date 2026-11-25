@@ -30,8 +30,7 @@ class CommuteScreenTest : CommuteScreenTestBase() {
     composeRule.onNodeWithTag("commute_line_${unionSq.routes.first()}").assertIsSelected()
     composeRule.onNodeWithTag("commute_direction_NORTH").assertIsSelected()
     weekdays.forEach { composeRule.onNodeWithTag("commute_day_${it.name}").assertIsSelected() }
-    composeRule.onNodeWithTag("commute_hour").assertTextContains("8")
-    composeRule.onNodeWithTag("commute_minute").assertTextContains("00")
+    composeRule.onNodeWithTag("commute_time").assertTextEquals("8:00")
     composeRule.onNodeWithTag("commute_save").performClick()
 
     val saved = commuteStore.read().single()
@@ -45,8 +44,8 @@ class CommuteScreenTest : CommuteScreenTestBase() {
   fun savingAddsARowAndReportsTheList() {
     openEditorFromStationCard()
     composeRule.onNodeWithTag("commute_direction_SOUTH").performClick()
-    composeRule.onNodeWithTag("commute_hour").performTextReplacement("18")
-    composeRule.onNodeWithTag("commute_minute").performTextReplacement("10")
+    pickTime("commute_time", "18 hours", "10 minutes")
+    composeRule.onNodeWithTag("commute_time").assertTextEquals("18:10")
     composeRule.onNodeWithTag("commute_save").performClick()
 
     val saved = commuteStore.read().single()
@@ -88,7 +87,7 @@ class CommuteScreenTest : CommuteScreenTestBase() {
 
     composeRule.onNodeWithTag("commute_row_c1").performClick()
     composeRule.onNodeWithTag("commute_day_FRIDAY").performClick()
-    composeRule.onNodeWithTag("commute_minute").performTextReplacement("05")
+    pickTime("commute_time", "7 hours", "5 minutes")
     composeRule.onNodeWithTag("commute_save").performClick()
 
     val edited = commuteStore.read().single()
@@ -103,6 +102,33 @@ class CommuteScreenTest : CommuteScreenTestBase() {
     assertEquals(emptyList(), commuteStore.read())
     assertEquals(emptyList(), commuteChanges.last())
     assertEquals(0, count("commute_row_c1"))
+  }
+
+  @Test
+  fun twelveHourTimesInTheEditorAndList() {
+    use24Hour = false
+    openEditorFromStationCard()
+    composeRule.onNodeWithTag("commute_time").assertTextEquals("8:00 AM")
+    pickTime("commute_time", "5 o'clock", "30 minutes", period = "PM")
+    composeRule.onNodeWithTag("commute_time").assertTextEquals("5:30 PM")
+    composeRule.onNodeWithTag("commute_save").performClick()
+
+    val saved = commuteStore.read().single()
+    assertEquals(17 to 30, saved.hour to saved.minute)
+    composeRule
+      .onNodeWithTag("commute_row_${saved.id}")
+      .assertTextEquals("${saved.routeId} Northbound · ${unionSq.name} · Weekdays 5:30 PM")
+  }
+
+  @Test
+  fun cancellingThePickerKeepsTheTime() {
+    openEditorFromStationCard()
+    composeRule.onNodeWithTag("commute_time").performClick()
+    composeRule.onNodeWithTag("commute_time_dialog").assertExists()
+    composeRule.onNodeWithTag("commute_time_cancel").performClick()
+
+    assertEquals(0, count("commute_time_dialog"))
+    composeRule.onNodeWithTag("commute_time").assertTextEquals("8:00")
   }
 
   @Test

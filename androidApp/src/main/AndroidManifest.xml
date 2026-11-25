@@ -75,6 +75,34 @@
             </intent-filter>
         </receiver>
 
+        <!-- A commute widget's refresh and stale-redraw alarms -->
+        <receiver
+            android:name=".widget.WidgetRefreshReceiver"
+            android:exported="false" />
+
+        <!-- The commute widget; only the system sends APPWIDGET_UPDATE -->
+        <receiver
+            android:name=".widget.CommuteWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/commute_widget_info" />
+        </receiver>
+
+        <!-- Chooses a commute widget's commutes; the launcher starts it to place or reconfigure one -->
+        <activity
+            android:name=".widget.CommuteWidgetConfigActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <!-- Live Google Maps Transit Navigation Notification Listener -->
         <service
             android:name=".capture.GoogleMapsTransitNotificationListener"
