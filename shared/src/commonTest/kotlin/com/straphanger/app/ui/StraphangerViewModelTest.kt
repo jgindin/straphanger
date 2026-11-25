@@ -10,11 +10,13 @@ import com.straphanger.app.data.capture.SchedulerClock
 import com.straphanger.app.data.gtfs.SubwayNetworkData
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RideSource
+import com.straphanger.app.data.local.RouteChoice
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.testutil.FixedClock
 import com.straphanger.app.testutil.TestBasemap
 import com.straphanger.app.testutil.TestNetwork
+import com.straphanger.app.testutil.logSampleRide
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -61,7 +63,7 @@ class StraphangerViewModelTest {
     assertTrue(ambigRide.ride.needsReview)
 
     // 3. Confirm ambiguous ride as 6 Local
-    vm.confirmAmbiguousRide(ambigRide.ride.rideId, "6", false)
+    vm.confirmAmbiguousRide(ambigRide.ride.rideId, mapOf(0 to RouteChoice("6", false)))
     assertEquals(0, vm.uiState.value.stats.pendingReviewCount)
     assertFalse(vm.dao.getRideById(ambigRide.ride.rideId)!!.ride.needsReview)
 
@@ -109,13 +111,36 @@ class StraphangerViewModelTest {
         networkLoader = { TestNetwork.data },
         basemapLoader = { TestBasemap.empty },
       )
-    val a = vm.submitQuickRide(timestampEpochMs = 1794405600000L)!!
-    val b = vm.submitQuickRide(timestampEpochMs = 1794409200000L)!!
+    val a = vm.logSampleRide(timestampEpochMs = 1794405600000L)!!
+    val b = vm.logSampleRide(timestampEpochMs = 1794409200000L)!!
 
     vm.deleteRide(a.ride.rideId)
 
     assertEquals(listOf(b.ride.rideId), vm.uiState.value.rides.map { it.ride.rideId })
     assertEquals(1, vm.uiState.value.stats.totalRides)
+  }
+
+  @Test
+  fun restoringADeletedRidePutsItBackExactly() {
+    val vm =
+      StraphangerViewModel(
+        backend = InMemoryPersistenceBackend(),
+        dispatcher = Dispatchers.Unconfined,
+        networkLoader = { TestNetwork.data },
+        basemapLoader = { TestBasemap.empty },
+      )
+    vm.logSampleRide(timestampEpochMs = 1794405600000L)!!
+    // A ride that needs review, so the review state must come back too.
+    val deleted = vm.simulateAmbiguousPassiveRide()!!
+    val before = vm.uiState.value.rides
+
+    vm.deleteRide(deleted.ride.rideId)
+    assertEquals(1, vm.uiState.value.rides.size)
+    vm.restoreRide(deleted)
+
+    assertEquals(before, vm.uiState.value.rides)
+    assertEquals(deleted, vm.dao.getRideById(deleted.ride.rideId))
+    assertEquals(1, vm.uiState.value.stats.pendingReviewCount)
   }
 
   @Test
@@ -128,10 +153,10 @@ class StraphangerViewModelTest {
         basemapLoader = { TestBasemap.empty },
       )
     val ts = 1794405600000L
-    val a = vm.submitQuickRide(timestampEpochMs = ts)!!
-    val b = vm.submitQuickRide(timestampEpochMs = ts)!!
+    val a = vm.logSampleRide(timestampEpochMs = ts)!!
+    val b = vm.logSampleRide(timestampEpochMs = ts)!!
     vm.dao.deleteRide(a.ride.rideId)
-    val c = vm.submitQuickRide(timestampEpochMs = ts)!!
+    val c = vm.logSampleRide(timestampEpochMs = ts)!!
 
     assertEquals(
       setOf(b.ride.rideId, c.ride.rideId),
@@ -141,7 +166,7 @@ class StraphangerViewModelTest {
   }
 
   @Test
-  fun defaultLogFormUsesGtfsStationIdsThatExistInTheNetwork() {
+  fun theLogFormStartsEmptyAndTheSampleStationsExist() {
     val vm =
       StraphangerViewModel(
         backend = InMemoryPersistenceBackend(),
@@ -150,11 +175,15 @@ class StraphangerViewModelTest {
         basemapLoader = { TestBasemap.empty },
       )
     val state = vm.uiState.value
+    assertEquals(null, state.logOriginStationId)
+    assertEquals(null, state.logTransferStationId)
+    assertEquals(null, state.logDestinationStationId)
+    assertEquals(null, vm.submitQuickRide(), "nothing to log without stations")
     val engine = vm.graphEngine!!
-    assertEquals("Bedford Av", engine.getStation(state.logOriginStationId)?.name)
-    assertEquals("14 St-Union Sq", engine.getStation(state.logTransferStationId!!)?.name)
-    assertEquals("86 St", engine.getStation(state.logDestinationStationId)?.name)
-    assertTrue(vm.submitQuickRide() != null)
+    assertEquals("Bedford Av", engine.getStation(StationIds.BEDFORD_AV_L)?.name)
+    assertEquals("14 St-Union Sq", engine.getStation(StationIds.UNION_SQ_L)?.name)
+    assertEquals("86 St", engine.getStation(StationIds.EIGHTY_SIXTH_LEX)?.name)
+    assertTrue(vm.logSampleRide() != null)
     assertEquals(TestNetwork.data.stationCount, vm.uiState.value.stats.totalStationsInNetwork)
   }
 
@@ -170,7 +199,7 @@ class StraphangerViewModelTest {
         basemapLoader = { TestBasemap.empty },
       )
     assertFalse(vm.uiState.value.isNetworkLoaded)
-    assertEquals(null, vm.submitQuickRide())
+    assertEquals(null, vm.logSampleRide())
     assertEquals(0, vm.uiState.value.stats.totalRides)
 
     gate.complete(TestNetwork.data)

@@ -23,7 +23,7 @@ The in-app disclosure text is:
 The video must show the feature working and the disclosure and permission flow. Record on a real phone or emulator running Android 11 or later. Upload to YouTube as unlisted and paste the link.
 
 1. App launch from the home screen. Show the app name.
-2. Tap the Sources tab. Scroll to "Passive Capture". Show the "Station geofences" toggle in the off state.
+2. Tap the gear to open Settings. Under "Ride capture", show the "Station geofences" toggle in the off state.
 3. Tap the toggle. The background location disclosure appears. Hold on it long enough to read the full text.
 4. Tap "Continue". Show the system precise location prompt and grant it while using the app.
 5. Show the second system step for "Allow all the time" (the app settings screen on Android 11 and later). Grant it.

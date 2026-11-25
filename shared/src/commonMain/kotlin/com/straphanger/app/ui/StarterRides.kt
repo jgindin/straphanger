@@ -36,11 +36,14 @@ private fun bedfordToEightySixthSt(engine: SubwayGraphEngine, start: Long) =
     endTimeEpochMs = start + BEDFORD_TO_86_ST_MINUTES * MS_PER_MINUTE,
     source = RideSource.TIMELINE_IMPORT,
     resolved =
-      engine.resolveOriginToDestinationAuto(
-        originStationId = StationIds.BEDFORD_AV_L,
-        destinationStationId = StationIds.EIGHTY_SIXTH_LEX,
-        timestampEpochMs = start,
-      ),
+      engine
+        .resolveOriginToDestinationAuto(
+          originStationId = StationIds.BEDFORD_AV_L,
+          destinationStationId = StationIds.EIGHTY_SIXTH_LEX,
+          timestampEpochMs = start,
+        )
+        // A sample ride is shown as already reviewed, though its Lexington leg could be the 4 or 6.
+        .copy(isAmbiguous = false, ambiguousCandidates = emptyList()),
     graphEngine = engine,
   )
 

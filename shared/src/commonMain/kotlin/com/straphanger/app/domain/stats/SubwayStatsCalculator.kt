@@ -21,8 +21,8 @@ enum class StationGroupingMode(val label: String) {
 
 @Serializable
 enum class StationVisitFilterMode(val label: String) {
-  STOPPED_AT("All Stopped At"),
-  BOARDED_OR_EXITED_ONLY("Boarded / Exited Only"),
+  STOPPED_AT("All stops"),
+  BOARDED_OR_EXITED_ONLY("Boarded / exited"),
 }
 
 @Serializable

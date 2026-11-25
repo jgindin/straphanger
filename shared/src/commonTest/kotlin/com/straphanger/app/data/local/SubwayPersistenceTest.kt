@@ -90,8 +90,7 @@ class SubwayPersistenceTest {
     val confirmed =
       dao.confirmAmbiguousRide(
         rideId = "ride_ambig_1",
-        confirmedRouteId = "6",
-        confirmedIsExpress = false,
+        choices = mapOf(0 to RouteChoice("6", isExpress = false)),
         graphEngine = engine,
       )!!
 

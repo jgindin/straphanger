@@ -17,6 +17,8 @@ kover = "0.9.11"
 compose-multiplatform = "1.12.2"
 androidx-compose = "1.12.1"
 filekit = "0.17.0"
+# Newest stable Glance; it needs Compose runtime 1.7.8 or later, so the app's 1.12.1 is kept.
+glance = "1.2.0"
 kotlin = "2.4.21"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.13.0"
@@ -56,6 +58,8 @@ androidx-test-runner = { module = "androidx.test:runner", version.ref = "android
 androidx-test-orchestrator = { module = "androidx.test:orchestrator", version.ref = "androidx-test-orchestrator" }
 androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "androidx-espresso" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test-core" }
+glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+glance-appwidget-testing = { module = "androidx.glance:glance-appwidget-testing", version.ref = "glance" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlibraries" }

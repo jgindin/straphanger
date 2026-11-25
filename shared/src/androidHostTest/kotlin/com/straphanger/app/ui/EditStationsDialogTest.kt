@@ -124,7 +124,7 @@ class EditStationsDialogTest {
 
   @Test
   fun aTripWithAnExpressAndALocalOffersEachAndLetsTheAppDecideByDefault() {
-    var saved: RouteChoice? = RouteChoice("none", false)
+    var saved: Map<Int, RouteChoice>? = null
     rule.setContent { EditStationsDialog(eighthAv, engine, { _, _, c -> true.also { saved = c } }, {}) }
 
     rule.onNodeWithTag("edit_stations_route_0").assertTextContains("A Express")
@@ -132,36 +132,36 @@ class EditStationsDialogTest {
     rule.onNodeWithTag("edit_stations_route_auto", useUnmergedTree = true).assertIsDisplayed()
     rule.onNodeWithTag("edit_stations_save").performClick()
 
-    assertEquals(null, saved)
+    assertEquals(emptyMap(), saved)
   }
 
   @Test
   fun choosingTheExpressSavesIt() {
-    var saved: RouteChoice? = null
+    var saved: Map<Int, RouteChoice>? = null
     rule.setContent { EditStationsDialog(eighthAv, engine, { _, _, c -> true.also { saved = c } }, {}) }
 
     rule.onNodeWithTag("edit_stations_route_0").performClick()
     rule.onNodeWithTag("edit_stations_save").performClick()
 
-    assertEquals(RouteChoice("A", true), saved)
+    assertEquals(mapOf(0 to RouteChoice("A", true)), saved)
   }
 
   @Test
   fun theRidesOwnLineIsChosenWhileTheStationsAreUnchanged() {
-    var saved: RouteChoice? = null
+    var saved: Map<Int, RouteChoice>? = null
     rule.setContent {
       EditStationsDialog(
         eighthAv,
         engine,
         { _, _, c -> true.also { saved = c } },
         {},
-        currentRoute = RouteChoice("C", false),
+        currentRoutes = mapOf(0 to RouteChoice("C", false)),
       )
     }
 
     rule.onNodeWithTag("edit_stations_save").performClick()
 
-    assertEquals(RouteChoice("C", false), saved)
+    assertEquals(mapOf(0 to RouteChoice("C", false)), saved)
   }
 
   @Test

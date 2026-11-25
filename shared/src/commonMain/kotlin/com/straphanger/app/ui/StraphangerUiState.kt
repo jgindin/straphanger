@@ -8,20 +8,20 @@ import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import com.straphanger.app.ui.map.ProjectedBasemap
 
 enum class MapColorMode(val label: String) {
-  OFFICIAL_MTA_COLORS("MTA Line Colors"),
-  FREQUENCY_HEATMAP("Frequency Heatmap"),
+  OFFICIAL_MTA_COLORS("Line colors"),
+  FREQUENCY_HEATMAP("Heatmap"),
 }
 
+/** The bottom navigation tabs, in the order the bar shows them. */
 enum class AppTab(val label: String) {
-  MAP("Map"),
-  STATS("Stats"),
   STATUS("Status"),
-  RIDES("Rides & Log"),
-  SOURCES("Import & Backup"),
+  MAP("Map"),
+  RIDES("Rides"),
+  STATS("Stats"),
 }
 
 data class StraphangerUiState(
-  val activeTab: AppTab = AppTab.MAP,
+  val activeTab: AppTab = AppTab.STATUS,
   /** The ride a tapped notification opened; the Rides tab scrolls to it until the tab changes. */
   val highlightedRideId: String? = null,
   val rides: List<CompleteRideRecord> = emptyList(),
@@ -36,10 +36,10 @@ data class StraphangerUiState(
   val stationGroupingMode: StationGroupingMode = StationGroupingMode.INDIVIDUAL_STATIONS,
   val stationVisitFilterMode: StationVisitFilterMode = StationVisitFilterMode.STOPPED_AT,
   val isLogRideSheetOpen: Boolean = false,
-  // GTFS station IDs: Bedford Av (L), 14 St-Union Sq (L), 86 St (4/5/6)
-  val logOriginStationId: String = StationIds.BEDFORD_AV_L,
-  val logTransferStationId: String? = StationIds.UNION_SQ_L,
-  val logDestinationStationId: String = StationIds.EIGHTY_SIXTH_LEX,
+  /** The log sheet's stations (GTFS station IDs); each is null until the rider chooses one. */
+  val logOriginStationId: String? = null,
+  val logTransferStationId: String? = null,
+  val logDestinationStationId: String? = null,
   val logPreferredRouteId: String? = null,
   val logForceExpress: Boolean? = null,
   /** True when station geofences are registered with the platform. */
@@ -54,6 +54,8 @@ data class StraphangerUiState(
   /** Why station geofences are not registered, or null. */
   val passiveCaptureError: String? = null,
   val statusMessage: String = "Rides are stored on this device",
+  /** True when [statusMessage] reports a failure (shown as a warning). */
+  val statusIsFailure: Boolean = false,
   val loadError: String? = null,
   val isNetworkLoaded: Boolean = false,
   /** Set when the bundled subway network could not be loaded; the app cannot work without it. */
@@ -90,7 +92,7 @@ data class CaptureAccessState(
   val lastKnownLng: Double? = null,
 )
 
-/** GTFS parent-station IDs used by the log form defaults, presets and sample rides. */
+/** GTFS parent-station IDs used by the sample rides and the tests. */
 object StationIds {
   const val BEDFORD_AV_L = "L08"
   const val UNION_SQ_L = "L03"

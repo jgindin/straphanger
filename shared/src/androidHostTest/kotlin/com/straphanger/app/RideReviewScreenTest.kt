@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToKey
 import com.straphanger.app.data.local.CompleteRideRecord
 import com.straphanger.app.data.local.RideSource
 import com.straphanger.app.data.local.SubwayDao
@@ -93,6 +94,8 @@ class RideReviewScreenTest : AppScreenTest() {
       trackedRide("second", "A18", StationIds.FOURTEENTH_ST_8AV, startMinute = 16, endMinute = 40)
     composeRule.runOnUiThread { vm.dao.insertOrReplaceRides(listOf(uptown, downtown)) }
     val combine = hasTestTag("combine_next_first") and hasAnyAncestor(hasTestTag("ride_item_first"))
+    // The list draws only the rows on screen; the earlier ride is below the later one.
+    composeRule.onNodeWithTag("rides_history_screen").performScrollToKey("first")
 
     composeRule.onNode(combine).performScrollTo().assert(hasText("168 St → 14 St", substring = true))
     composeRule.onNode(combine).performClick()

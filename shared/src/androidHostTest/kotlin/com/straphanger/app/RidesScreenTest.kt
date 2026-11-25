@@ -1,11 +1,13 @@
 package com.straphanger.app
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -27,28 +29,26 @@ import org.junit.Test
 /** The Rides tab: logging, review and deleting rides. */
 class RidesScreenTest : AppScreenTest() {
   @Test
-  fun loggingAPresetRideAddsItToTheListAndHeader() {
+  fun loggingARideAddsItToTheListAndStats() {
     val vm = launchApp()
+    assertEquals(0, statsRideCount())
     openTab("RIDES")
     composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
-    assertEquals(0, headerRideCount())
 
-    composeRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    logShuttleRide()
 
-    assertEquals(1, headerRideCount())
     val ride = vm.uiState.value.rides.single().ride
     // The fixed clock's time, not the wall clock's.
     assertEquals(Instant.parse("2026-11-11T14:00:00Z").toEpochMilliseconds(), ride.startTimeEpochMs)
     composeRule.onNodeWithTag("ride_item_${ride.rideId}").performScrollTo().assertIsDisplayed()
+    assertEquals(1, statsRideCount())
   }
 
   @Test
   fun aRideCardShowsWhenItHappenedAndExpandsToItsLegs() {
     val vm = launchApp()
     openTab("RIDES")
-    composeRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    logShuttleRide()
     val rideId = vm.uiState.value.rides.single().ride.rideId
 
     composeRule.onNodeWithTag("ride_when_$rideId", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
@@ -74,21 +74,20 @@ class RidesScreenTest : AppScreenTest() {
 
     composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("route_filter_chip").performScrollTo().assertIsDisplayed()
-    composeRule.onNodeWithText("Recorded Subway Rides ($onLine)").assertExists()
+    composeRule
+      .onNodeWithTag("rides_count")
+      .assertTextEquals(if (onLine == 1) "1 ride on the $routeId line" else "$onLine rides on the $routeId line")
 
     composeRule.onNodeWithTag("route_filter_chip").performClick()
     composeRule.onNodeWithTag("route_filter_chip").assertDoesNotExist()
-    composeRule
-      .onNodeWithText("Recorded Subway Rides (${vm.uiState.value.rides.size})")
-      .assertExists()
+    composeRule.onNodeWithTag("rides_count").assertTextEquals("${vm.uiState.value.rides.size} rides")
   }
 
   @Test
   fun anyRideCardOpensTheStationEditor() {
     val vm = launchApp()
     openTab("RIDES")
-    composeRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
+    logShuttleRide()
     val rideId = vm.uiState.value.rides.single().ride.rideId
 
     composeRule.onNodeWithTag("edit_ride_btn_$rideId").performScrollTo().performClick()
@@ -125,7 +124,9 @@ class RidesScreenTest : AppScreenTest() {
 
     composeRule.runOnUiThread { vm.simulateAmbiguousPassiveRide() }
     composeRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
-    composeRule.onNodeWithTag("nav_tab_RIDES").assert(hasText("(1)", substring = true))
+    composeRule
+      .onNodeWithTag("nav_badge_RIDES", useUnmergedTree = true)
+      .assertContentDescriptionEquals("1 ride needs review")
     val inBanner = hasAnyAncestor(hasTestTag("needs_review_banner"))
     composeRule
       .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_1") and inBanner)
@@ -141,40 +142,56 @@ class RidesScreenTest : AppScreenTest() {
   }
 
   @Test
-  fun deletingARideAsksFirstAndCancelKeepsIt() {
+  fun theReviewBannerShowsAtTheTopAboveRidesAlreadyListed() {
     val vm = launchApp()
     openTab("RIDES")
-    composeRule.onNodeWithTag("preset_42_shuttle").performClick()
-    composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
-    val rideId = vm.uiState.value.rides.single().ride.rideId
+    logShuttleRide()
+
+    composeRule.runOnUiThread { vm.simulateAmbiguousPassiveRide() }
+
+    // The list keeps its first row in place as rows come in above it; at the top, it stays there.
+    fun top(tag: String) = composeRule.onNodeWithTag(tag).fetchSemanticsNode().positionInRoot.y
+    val bannerTop = top("needs_review_banner")
+    val listTop = top("rides_history_screen")
+    assertTrue(bannerTop >= listTop, "The banner's top $bannerTop is above the list's $listTop")
+  }
+
+  @Test
+  fun theDeleteButtonDeletesAtOnceAndUndoBringsItBack() {
+    val vm = launchApp()
+    openTab("RIDES")
+    logShuttleRide()
+    val rec = vm.uiState.value.rides.single()
+    val rideId = rec.ride.rideId
 
     composeRule.onNodeWithTag("delete_ride_btn_$rideId").performScrollTo().performClick()
-    composeRule.onNodeWithTag("delete_ride_dialog").assertIsDisplayed()
-    composeRule.onNodeWithTag("cancel_delete_btn").performClick()
-    composeRule.onNodeWithTag("delete_ride_dialog").assertDoesNotExist()
-    assertEquals(1, vm.uiState.value.rides.size)
-
-    composeRule.onNodeWithTag("delete_ride_btn_$rideId").performScrollTo().performClick()
-    composeRule.onNodeWithTag("confirm_delete_btn").performClick()
-    composeRule.onNodeWithTag("delete_ride_dialog").assertDoesNotExist()
     composeRule.onNodeWithTag("ride_item_$rideId").assertDoesNotExist()
     assertEquals(0, vm.uiState.value.rides.size)
-    assertEquals(0, headerRideCount())
+    assertEquals(0, statsRideCount())
+
+    composeRule.onNodeWithText("Undo").performClick()
+    assertEquals(listOf(rec), vm.uiState.value.rides)
+    composeRule.onNodeWithTag("ride_item_$rideId").assertIsDisplayed()
   }
 
   @Test
   fun theAppHasNoControlsThatFabricateRides() {
     launchApp()
     openTab("RIDES")
-    composeRule.onNodeWithTag("submit_log_ride_btn").assertIsDisplayed()
+    composeRule.onNodeWithTag("log_ride_fab").assertIsDisplayed()
     composeRule.onNodeWithTag("simulate_passive_ride_btn").assertDoesNotExist()
     composeRule.onNodeWithTag("load_demo_rides_btn").assertDoesNotExist()
 
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("import_sample_timeline_btn").assertDoesNotExist()
     composeRule.onNodeWithTag("pick_timeline_file_btn").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithTag("export_backup_btn").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithTag("import_backup_btn").performScrollTo().assertIsDisplayed()
+  }
+
+  /** Logs the 42 St shuttle, Times Sq to Grand Central, through the log sheet. */
+  private fun logShuttleRide() {
+    logRideThroughSheet(StationIds.TIMES_SQ_SHUTTLE, StationIds.GRAND_CENTRAL_SHUTTLE)
   }
 }
