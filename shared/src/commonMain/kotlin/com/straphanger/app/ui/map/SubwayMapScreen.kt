@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -137,7 +138,8 @@ fun SubwayMapScreen(
   val projectedGeometry = remember(network) { projectGeometry(network) }
   val basemapPaths = remember(uiState.basemap) { uiState.basemap?.let(::BasemapPaths) }
   var canvasSize by remember { mutableStateOf(IntSize.Zero) }
-  var gestureView by remember { mutableStateOf<MapView?>(null) }
+  // Saveable, so the zoom and pan survive Settings being pushed over the map.
+  var gestureView by rememberSaveable(stateSaver = MapView.Saver) { mutableStateOf(null) }
   // Until the user moves the map it is fitted to the network; the controls at the top are left
   // clear.
   val fitted = rememberOpeningView(projectedGeometry, canvasSize)

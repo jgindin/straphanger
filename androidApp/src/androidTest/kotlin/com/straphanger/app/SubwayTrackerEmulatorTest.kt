@@ -97,6 +97,7 @@ class SubwayTrackerEmulatorTest {
   @Test
   fun mapScreenRendersAndTogglesBetweenMtaColorsAndFrequencyHeatmap() {
     waitForNetwork()
+    composeTestRule.onNodeWithTag("nav_tab_MAP").performClick()
     composeTestRule.onNodeWithTag("straphanger_root").assertIsDisplayed()
     composeTestRule.onNodeWithTag("subway_map_screen").assertIsDisplayed()
     composeTestRule.onNodeWithTag("subway_map_canvas").assertIsDisplayed()
@@ -113,7 +114,7 @@ class SubwayTrackerEmulatorTest {
   @Test
   fun loggingRideAndConfirmingPassiveAmbiguousRideUpdatesStatsAndToggles() {
     waitForNetwork()
-    // 1. Navigate to Rides & Log tab
+    // 1. Navigate to Rides tab
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
     composeTestRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
 
@@ -159,8 +160,8 @@ class SubwayTrackerEmulatorTest {
       .performClick()
     composeTestRule.onNodeWithTag("toggle_visit_STOPPED_AT").performScrollTo().performClick()
 
-    // 6. Navigate to Import & Backup tab and import Timeline.json sample
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    // 6. Open Settings and import Timeline.json sample
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     composeTestRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
     composeTestRule.runOnUiThread {
       composeTestRule.activity.straphangerViewModel().importSampleGoogleMapsTimeline()
@@ -169,37 +170,43 @@ class SubwayTrackerEmulatorTest {
     composeTestRule.onNodeWithTag("import_backup_btn").performScrollTo().assertIsDisplayed()
   }
 
-  private fun headerRideCount(): Int =
-    composeTestRule
-      .onNodeWithTag("header_total_rides")
-      .onChildAt(0)
-      .fetchSemanticsNode()
-      .config
-      .getOrNull(SemanticsProperties.Text)!!
-      .first()
-      .text
-      .toInt()
+  /** Opens the Stats tab, reads its Total Rides card, then goes back to the Rides tab. */
+  private fun statsRideCount(): Int {
+    composeTestRule.onNodeWithTag("nav_tab_STATS").performClick()
+    val count =
+      composeTestRule
+        .onNodeWithTag("stat_card_total_rides")
+        .onChildAt(1)
+        .fetchSemanticsNode()
+        .config
+        .getOrNull(SemanticsProperties.Text)!!
+        .first()
+        .text
+        .toInt()
+    composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
+    return count
+  }
 
   @Test
   fun rideSurvivesActivityRecreation() {
     waitForNetwork()
     composeTestRule.onNodeWithTag("nav_tab_RIDES").performClick()
-    val before = headerRideCount()
+    val before = statsRideCount()
     composeTestRule.onNodeWithTag("preset_42_shuttle").performClick()
     composeTestRule.onNodeWithTag("submit_log_ride_btn").performClick()
-    assertEquals(before + 1, headerRideCount())
+    assertEquals(before + 1, statsRideCount())
 
     composeTestRule.activityRule.scenario.recreate()
 
     composeTestRule.waitForIdle()
     waitForNetwork()
-    assertEquals(before + 1, headerRideCount())
+    assertEquals(before + 1, statsRideCount())
   }
 
   @Test
   fun passiveCaptureShowsDisclosureBeforePermissionPrompt() {
     waitForNetwork()
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
     composeTestRule
@@ -218,7 +225,7 @@ class SubwayTrackerEmulatorTest {
   @Test
   fun notificationAccessShowsDisclosureFirst() {
     waitForNetwork()
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     composeTestRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("notification_access_disclosure").assertIsDisplayed()
     composeTestRule
@@ -237,7 +244,7 @@ class SubwayTrackerEmulatorTest {
 
   private fun openAbout() {
     waitForNetwork()
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     composeTestRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
   }
 
@@ -272,7 +279,7 @@ class SubwayTrackerEmulatorTest {
   @Test
   fun systemBackDismissesDisclosureLikeNotNow() {
     waitForNetwork()
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     composeTestRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
 
@@ -301,7 +308,7 @@ class SubwayTrackerEmulatorTest {
   @Test
   fun tabTapClearsDisclosure() {
     waitForNetwork()
-    composeTestRule.onNodeWithTag("nav_tab_SOURCES").performClick()
+    composeTestRule.onNodeWithTag("top_bar_settings").performClick()
     composeTestRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("notification_access_disclosure").assertIsDisplayed()
     composeTestRule.onNodeWithTag("nav_tab_MAP").performClick()

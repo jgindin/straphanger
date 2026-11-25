@@ -8,19 +8,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -28,9 +20,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import com.straphanger.app.PRIVACY_POLICY_URL
 import com.straphanger.app.ui.theme.Spacing
 import com.straphanger.app.ui.theme.quietButtonColors
-import org.jetbrains.compose.resources.painterResource
-import straphanger.shared.generated.resources.Res
-import straphanger.shared.generated.resources.ic_arrow_back
 
 const val ICONS_CREDIT_TEXT = "Icons: Material Symbols by Google (Apache License 2.0)."
 
@@ -50,61 +39,20 @@ fun basemapAttributionText(sourceDate: String): String =
     "downloaded $sourceDate. Provided as is, without warranty."
 
 /**
+ * The About screen's content; the app's top bar carries its title and Back.
+ *
  * @param basemapSourceDate the bundled basemap's download date; null when it is not loaded, and
  *   then its attribution is not shown.
- * @param licensesContent the open-source license list; the platform supplies it (AboutLibraries on
- *   Android). Null where the platform has none.
+ * @param licensesAvailable whether the platform has a license list for [LicensesScreen]; when not,
+ *   the licenses button is disabled.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AboutScreen(
   appVersion: String,
   sourceDate: String,
-  onBack: () -> Unit,
-  basemapSourceDate: String? = null,
-  licensesContent: (@Composable () -> Unit)? = null,
-) {
-  var showLicenses by rememberSaveable { mutableStateOf(false) }
-  // Back closes the licenses view first; otherwise App's handler closes About.
-  BackHandler(enabled = showLicenses) { showLicenses = false }
-  if (showLicenses && licensesContent != null) {
-    LicensesView(onBack = { showLicenses = false }, licensesContent = licensesContent)
-  } else {
-    AboutContent(
-      appVersion = appVersion,
-      sourceDate = sourceDate,
-      basemapSourceDate = basemapSourceDate,
-      onBack = onBack,
-      licensesAvailable = licensesContent != null,
-      onOpenLicenses = { showLicenses = true },
-    )
-  }
-}
-
-@Composable
-private fun LicensesView(onBack: () -> Unit, licensesContent: @Composable () -> Unit) {
-  Column(
-    modifier =
-      Modifier.fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)
-        .testTag("licenses_screen"),
-  ) {
-    BackArrowButton(
-      onClick = onBack,
-      modifier = Modifier.padding(Spacing.sm).testTag("licenses_back_btn"),
-    )
-    licensesContent()
-  }
-}
-
-@Composable
-private fun AboutContent(
-  appVersion: String,
-  sourceDate: String,
-  basemapSourceDate: String?,
-  onBack: () -> Unit,
-  licensesAvailable: Boolean,
   onOpenLicenses: () -> Unit,
+  basemapSourceDate: String? = null,
+  licensesAvailable: Boolean = false,
 ) {
   Column(
     modifier =
@@ -115,7 +63,6 @@ private fun AboutContent(
         .testTag("about_screen"),
     verticalArrangement = Arrangement.spacedBy(Spacing.md),
   ) {
-    BackArrowButton(onClick = onBack, modifier = Modifier.testTag("about_back_btn"))
     Text(
       "About Straphanger",
       color = MaterialTheme.colorScheme.onSurface,
@@ -157,6 +104,23 @@ private fun AboutContent(
   }
 }
 
+/**
+ * The open-source license list, pushed over About.
+ *
+ * @param licensesContent the list; the platform supplies it (AboutLibraries on Android).
+ */
+@Composable
+fun LicensesScreen(licensesContent: @Composable () -> Unit) {
+  Column(
+    modifier =
+      Modifier.fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        .testTag("licenses_screen"),
+  ) {
+    licensesContent()
+  }
+}
+
 /** The data date, the MTA attribution and the disclaimer. */
 @Composable
 private fun DataSourceText(sourceDate: String) {
@@ -188,13 +152,5 @@ private fun PrivacyPolicyLink() {
     modifier = Modifier.testTag("about_privacy_policy_link"),
   ) {
     Text("Privacy policy", textDecoration = TextDecoration.Underline)
-  }
-}
-
-/** The arrow at the top left of a screen that goes back. */
-@Composable
-private fun BackArrowButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-  IconButton(onClick = onClick, modifier = modifier) {
-    Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = "Back")
   }
 }

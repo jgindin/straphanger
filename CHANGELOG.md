@@ -3,6 +3,13 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.29 (not yet released)
+
+- Four tabs with icons along the bottom: Status, Map, Rides and Stats. The app now opens on Status. The Rides tab shows a badge with the number of rides that need review.
+- A bar at the top names the screen you are on. Import & Backup has moved to Settings, opened with the gear at the top right.
+- The header with your ride, mile and unique-mile totals is gone; the same totals are at the top of the Stats tab.
+- Back (the arrow at the top left, or the phone's Back) works through Settings and About: Back from About returns to Settings, and Back from Settings returns to the tab you were on, with the map's zoom and the lists' scroll positions as you left them. A tapped ride notification closes Settings and opens the Rides tab.
+
 ## 0.28 (not yet released)
 
 - Larger, consistent text across the app: one type scale, with nothing smaller than 13 sp for body text.

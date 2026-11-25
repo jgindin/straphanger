@@ -16,12 +16,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.junit.Test
 
-/** The Import & Backup tab and the About screen. */
+/** Settings (the import, capture and backup controls) and the About screen. */
 class SourcesAndAboutScreenTest : AppScreenTest() {
   @Test
   fun importAndBackupShowsItsButtonsAndImportsTheSampleTimeline() {
     val vm = launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("pick_timeline_file_btn").performScrollTo().assertIsDisplayed()
     composeRule.onNodeWithTag("export_backup_btn").performScrollTo().assertIsDisplayed()
@@ -30,13 +30,13 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
 
     composeRule.runOnUiThread { vm.importSampleGoogleMapsTimeline() }
     assertTrue(vm.uiState.value.rides.isNotEmpty())
-    assertEquals(vm.uiState.value.rides.size, headerRideCount())
+    assertEquals(vm.uiState.value.rides.size, statsRideCount())
   }
 
   @Test
   fun timelineImportNamesOnlyAndroidAndLinksToHelp() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithText("iOS", substring = true).assertDoesNotExist()
     composeRule.onNodeWithTag("timeline_help_link").performScrollTo().assertIsDisplayed()
   }
@@ -44,7 +44,7 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
   @Test
   fun aboutScreenShowsDisclaimerVersionAndDataDate() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
     composeRule.onNodeWithTag("about_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("about_disclaimer").assert(hasText(NOT_AFFILIATED_TEXT))
@@ -60,14 +60,15 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
       .assert(hasText("NYC Open Data", substring = true))
       .assert(hasText(BundledBasemap.data.sourceDate, substring = true))
     composeRule.onNodeWithTag("about_icons_credit").assert(hasText(ICONS_CREDIT_TEXT))
-    composeRule.onNodeWithTag("about_back_btn").assertContentDescriptionEquals("Back")
+    composeRule.onNodeWithTag("top_bar_back").assertContentDescriptionEquals("Back")
+    composeRule.onNodeWithTag("header_title").assert(hasText("About"))
 
     composeRule.onNodeWithTag("about_licenses_btn").performScrollTo().performClick()
     composeRule.onNodeWithTag("licenses_screen").assertIsDisplayed()
     composeRule.onNodeWithText("Apache License 2.0").assertIsDisplayed()
-    composeRule.onNodeWithTag("licenses_back_btn").performClick()
+    composeRule.onNodeWithTag("top_bar_back").performClick()
     composeRule.onNodeWithTag("about_screen").assertIsDisplayed()
-    composeRule.onNodeWithTag("about_back_btn").performScrollTo().performClick()
+    composeRule.onNodeWithTag("top_bar_back").performClick()
     composeRule.onNodeWithTag("about_screen").assertDoesNotExist()
     composeRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
   }
@@ -75,7 +76,7 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
   @Test
   fun aboutWithoutLicensesDisablesTheLicensesButton() {
     launchApp(withLicenses = false)
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
     composeRule
       .onNodeWithTag("about_licenses_btn")
@@ -85,7 +86,7 @@ class SourcesAndAboutScreenTest : AppScreenTest() {
   @Test
   fun systemBackClosesLicensesThenAbout() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
     composeRule.onNodeWithTag("about_licenses_btn").performScrollTo().performClick()
     composeRule.onNodeWithTag("licenses_screen").assertIsDisplayed()

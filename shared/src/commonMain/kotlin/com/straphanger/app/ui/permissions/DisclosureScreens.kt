@@ -16,7 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.straphanger.app.ui.theme.primaryButtonColors
 
@@ -28,11 +27,16 @@ const val NOTIFICATION_ACCESS_DISCLOSURE_TEXT =
   "Straphanger can read Google Maps transit navigation notifications to record the ride you're taking. " +
     "It ignores notifications from every other app, and nothing leaves your phone."
 
+/** The background location disclosure's title, shown in the top app bar. */
+const val BACKGROUND_LOCATION_DISCLOSURE_TITLE = "Location in the background"
+
+/** The notification access disclosure's title, shown in the top app bar. */
+const val NOTIFICATION_ACCESS_DISCLOSURE_TITLE = "Google Maps notifications"
+
 /** Shown before the system location permission prompts. "Continue" is the only path to them. */
 @Composable
 fun BackgroundLocationDisclosure(onContinue: () -> Unit, onNotNow: () -> Unit) {
   DisclosureScreen(
-    title = "Location in the background",
     body = BACKGROUND_LOCATION_DISCLOSURE_TEXT,
     screenTag = "background_location_disclosure",
     onContinue = onContinue,
@@ -44,7 +48,6 @@ fun BackgroundLocationDisclosure(onContinue: () -> Unit, onNotNow: () -> Unit) {
 @Composable
 fun NotificationAccessDisclosure(onContinue: () -> Unit, onNotNow: () -> Unit) {
   DisclosureScreen(
-    title = "Google Maps notifications",
     body = NOTIFICATION_ACCESS_DISCLOSURE_TEXT,
     screenTag = "notification_access_disclosure",
     onContinue = onContinue,
@@ -54,7 +57,6 @@ fun NotificationAccessDisclosure(onContinue: () -> Unit, onNotNow: () -> Unit) {
 
 @Composable
 private fun DisclosureScreen(
-  title: String,
   body: String,
   screenTag: String,
   onContinue: () -> Unit,
@@ -69,11 +71,6 @@ private fun DisclosureScreen(
         .testTag(screenTag),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
-    Text(
-      text = title,
-      color = MaterialTheme.colorScheme.onSurface,
-      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-    )
     Text(
       text = body,
       color = MaterialTheme.colorScheme.onSurface,

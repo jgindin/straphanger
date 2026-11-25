@@ -12,16 +12,16 @@ enum class MapColorMode(val label: String) {
   FREQUENCY_HEATMAP("Frequency Heatmap"),
 }
 
+/** The bottom navigation tabs, in the order the bar shows them. */
 enum class AppTab(val label: String) {
-  MAP("Map"),
-  STATS("Stats"),
   STATUS("Status"),
-  RIDES("Rides & Log"),
-  SOURCES("Import & Backup"),
+  MAP("Map"),
+  RIDES("Rides"),
+  STATS("Stats"),
 }
 
 data class StraphangerUiState(
-  val activeTab: AppTab = AppTab.MAP,
+  val activeTab: AppTab = AppTab.STATUS,
   /** The ride a tapped notification opened; the Rides tab scrolls to it until the tab changes. */
   val highlightedRideId: String? = null,
   val rides: List<CompleteRideRecord> = emptyList(),
