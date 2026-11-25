@@ -2,35 +2,37 @@ package com.straphanger.app.ui.rides
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.capture.TimelineImportSummary
 import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
@@ -39,6 +41,9 @@ import com.straphanger.app.ui.TIMELINE_EXPORT_HELP_URL
 import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.currentPhonePlatform
 import com.straphanger.app.ui.theme.MtaColors
+import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.confirmButtonColors
+import com.straphanger.app.ui.theme.quietButtonColors
 import com.straphanger.app.ui.timelineImportDescription
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
@@ -82,19 +87,18 @@ fun DataSourcesAndSyncScreen(
   Column(
     modifier =
       Modifier.fillMaxSize()
-        .background(MtaColors.DarkBg)
+        .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
-        .padding(16.dp)
+        .padding(Spacing.lg)
         .testTag("sources_sync_screen"),
-    verticalArrangement = Arrangement.spacedBy(14.dp),
+    verticalArrangement = Arrangement.spacedBy(Spacing.md),
   ) {
     Text(
       text = "Import & Backup",
-      color = Color.White,
-      fontSize = 20.sp,
-      fontWeight = FontWeight.ExtraBold,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
     )
-    StatusBanner(uiState.statusMessage)
+    StatusBanner(uiState.statusMessage, failure = uiState.statusIsFailure)
     TimelineImportCard(
       uiState = uiState,
       onImportTimelineFile = onImportTimelineFile,
@@ -110,32 +114,31 @@ fun DataSourcesAndSyncScreen(
       onOpenNotificationSettings = onOpenNotificationSettings,
     )
     BackupCard(backup, onBackupMessage)
-    Button(
+    FilledTonalButton(
       onClick = onOpenAbout,
-      colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
+      colors = quietButtonColors(),
       modifier = Modifier.testTag("open_about_btn"),
     ) {
-      Text("About, data sources and licenses", fontSize = 12.sp)
+      Text("About, data sources and licenses")
     }
   }
 }
 
 @Composable
-private fun StatusBanner(message: String) {
+private fun StatusBanner(message: String, failure: Boolean) {
   Box(
     modifier =
       Modifier.fillMaxWidth()
-        .clip(RoundedCornerShape(10.dp))
-        .background(Color(0xFF162234))
-        .border(1.dp, Color(0xFF284268), RoundedCornerShape(10.dp))
-        .padding(12.dp)
+        .clip(MaterialTheme.shapes.small)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
+        .padding(Spacing.md)
         .testTag("status_banner"),
   ) {
     Text(
       text = message,
-      color = MtaColors.AccentGold,
-      fontSize = 12.sp,
-      fontWeight = FontWeight.SemiBold,
+      color = if (failure) MtaColors.Warning else MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
     )
   }
 }
@@ -158,17 +161,17 @@ private fun TimelineImportCard(
     CardTitle("1. Google Maps Timeline Import")
     Text(
       text = timelineImportDescription(currentPhonePlatform),
-      color = MtaColors.TextSecondary,
-      fontSize = 12.sp,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodyMedium,
     )
     TimelineHelpLink()
     Button(
       onClick = { timelineLauncher.launch() },
       enabled = !uiState.timelineImportInProgress,
-      colors = ButtonDefaults.buttonColors(containerColor = MtaColors.ActionGreen),
+      colors = confirmButtonColors(),
       modifier = Modifier.testTag("pick_timeline_file_btn"),
     ) {
-      Text("Choose Timeline file…", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+      Text("Choose Timeline file…")
     }
     if (uiState.timelineImportInProgress) {
       Row(
@@ -177,14 +180,18 @@ private fun TimelineImportCard(
         modifier = Modifier.testTag("timeline_import_progress"),
       ) {
         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-        Text("Importing…", color = MtaColors.TextSecondary, fontSize = 12.sp)
+        Text(
+          "Importing…",
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.bodyMedium,
+        )
       }
     }
     uiState.lastImportSummary?.let { summary ->
       Text(
         text = importSummaryText(summary),
-        color = MtaColors.TextSecondary,
-        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.testTag("timeline_import_summary"),
       )
     }
@@ -257,23 +264,26 @@ private fun BackupCard(backup: BackupCallbacks, onBackupMessage: (String) -> Uni
       text =
         "Export saves all rides to a JSON file you choose. Restore reads a file exported by this " +
           "app; rides already on this device are replaced, not duplicated.",
-      color = MtaColors.TextSecondary,
-      fontSize = 12.sp,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodyMedium,
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Button(
+    Row(
+      modifier = Modifier.height(IntrinsicSize.Min),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      FilledTonalButton(
         onClick = { scope.launch { BackupFiles(backup).export()?.let(onBackupMessage) } },
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
-        modifier = Modifier.weight(1f).testTag("export_backup_btn"),
+        colors = quietButtonColors(),
+        modifier = Modifier.weight(1f).fillMaxHeight().testTag("export_backup_btn"),
       ) {
-        Text("Export backup…", fontSize = 12.sp)
+        Text("Export backup…", textAlign = TextAlign.Center)
       }
-      Button(
+      FilledTonalButton(
         onClick = { restoreLauncher.launch() },
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2B3548)),
-        modifier = Modifier.weight(1f).testTag("import_backup_btn"),
+        colors = quietButtonColors(),
+        modifier = Modifier.weight(1f).fillMaxHeight().testTag("import_backup_btn"),
       ) {
-        Text("Restore from backup…", fontSize = 12.sp)
+        Text("Restore from backup…", textAlign = TextAlign.Center)
       }
     }
   }
@@ -293,11 +303,15 @@ private fun CaptureToggleRow(
     horizontalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     Column(modifier = Modifier.weight(1f)) {
-      Text(text = title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+      Text(
+        text = title,
+        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.titleSmall,
+      )
       Text(
         text = detail,
-        color = MtaColors.TextSecondary,
-        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.testTag("${testTag}_detail"),
       )
     }
@@ -340,14 +354,10 @@ private fun importSummaryText(summary: TimelineImportSummary): String =
 @Composable
 private fun TimelineHelpLink() {
   val uriHandler = LocalUriHandler.current
-  Text(
-    "How do I get my Timeline file?",
-    color = Color(0xFF8AB4F8),
-    fontSize = 13.sp,
-    textDecoration = TextDecoration.Underline,
-    modifier =
-      Modifier.clickable { uriHandler.openUri(TIMELINE_EXPORT_HELP_URL) }
-        .padding(vertical = 6.dp)
-        .testTag("timeline_help_link"),
-  )
+  TextButton(
+    onClick = { uriHandler.openUri(TIMELINE_EXPORT_HELP_URL) },
+    modifier = Modifier.testTag("timeline_help_link"),
+  ) {
+    Text("How do I get my Timeline file?", textDecoration = TextDecoration.Underline)
+  }
 }

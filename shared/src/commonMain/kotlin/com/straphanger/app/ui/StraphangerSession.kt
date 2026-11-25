@@ -45,9 +45,9 @@ internal class StraphangerSession(
     state.update(transform)
   }
 
-  /** Shows [message] in the status banner and returns it. */
-  fun setStatus(message: String): String {
-    state.update { it.copy(statusMessage = message) }
+  /** Shows [message] in the status banner, as a warning when it reports a [failure]. */
+  fun setStatus(message: String, failure: Boolean = false): String {
+    state.update { it.copy(statusMessage = message, statusIsFailure = failure) }
     return message
   }
 

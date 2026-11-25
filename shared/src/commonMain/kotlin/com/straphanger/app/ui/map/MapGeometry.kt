@@ -1,5 +1,6 @@
 package com.straphanger.app.ui.map
 
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.geometry.Offset
 import com.straphanger.app.data.gtfs.SubwayNetworkData
 import com.straphanger.app.data.gtfs.SubwayStation
@@ -116,6 +117,15 @@ internal data class MapView(val zoom: Float, val pan: Offset) {
   }
 
   fun pannedBy(delta: Offset): MapView = copy(pan = pan + delta)
+
+  companion object {
+    /** Saves a moved view as zoom, pan x and pan y; null (not moved yet) is not saved. */
+    val Saver: Saver<MapView?, List<Float>> =
+      Saver(
+        save = { view -> view?.let { listOf(it.zoom, it.pan.x, it.pan.y) } },
+        restore = { (zoom, x, y) -> MapView(zoom, Offset(x, y)) },
+      )
+  }
 }
 
 /** The area the map is first fitted to, in the unit square of [projectGeometry]. */

@@ -134,6 +134,7 @@ internal class RideLogController(private val session: StraphangerSession) : Ride
       session.update {
         it.copy(
           isLogRideSheetOpen = false,
+          statusIsFailure = false,
           statusMessage =
             "Logged ride (${record.ride.totalDistanceMiles} mi across " +
               "${countOf(record.legs.size, "leg")})",

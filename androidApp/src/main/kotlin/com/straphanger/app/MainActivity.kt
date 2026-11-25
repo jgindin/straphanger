@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.format.DateFormat
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -49,6 +50,9 @@ class MainActivity : ComponentActivity() {
   // when the app is reopened in a live process.
   private val captureAccess = mutableStateOf<CaptureAccessState?>(null)
   private val commuteAccess = mutableStateOf(CommuteAccess())
+
+  // The phone's 12/24-hour setting, read again on every resume since changing it recreates nothing.
+  private val use24HourTime = mutableStateOf(false)
 
   // The commutes last saved, so a change can cancel the alarms of the ones it removed.
   private var commuteIds: Set<String> = emptySet()
@@ -131,6 +135,7 @@ class MainActivity : ComponentActivity() {
       commuteAccess = commuteAccess.value,
       onFirstCommuteCreated = requestCommuteNotifications,
       onOpenExactAlarmSettings = ::openExactAlarmSettings,
+      use24HourTime = use24HourTime.value,
       licensesContent = {
         val libraries by produceLibraries(R.raw.aboutlibraries)
         LibrariesContainer(libraries)
@@ -142,6 +147,7 @@ class MainActivity : ComponentActivity() {
     super.onResume()
     refreshCaptureAccess()
     commuteAccess.value = readCommuteAccess(this)
+    use24HourTime.value = DateFormat.is24HourFormat(this)
     // Android drops exact alarms without a broadcast when that permission is revoked, as do a
     // force-stop and a restore; setting them all again here is cheap and idempotent.
     CommuteAlertsHolder.commutesChanged(this, emptySet())
