@@ -64,6 +64,8 @@ abstract class AppScreenTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
   protected var passiveCaptureRequests = 0
+  /** What the platform does when asked to turn ride notifications on; nothing by default. */
+  protected var onRideNotificationsRequested: () -> Unit = {}
   protected var notificationAccessRequests = 0
   protected var passiveCaptureDisables = 0
   protected var rideNotificationRequests = 0
@@ -127,7 +129,10 @@ abstract class AppScreenTest {
             onRequestPassiveCapture = { passiveCaptureRequests++ },
             onDisablePassiveCapture = { passiveCaptureDisables++ },
             onRequestNotificationAccess = { notificationAccessRequests++ },
-            onRequestRideNotifications = { rideNotificationRequests++ },
+            onRequestRideNotifications = {
+              rideNotificationRequests++
+              onRideNotificationsRequested()
+            },
             onDisableRideNotifications = { rideNotificationDisables++ },
             onOpenNotificationSettings = { notificationSettingsOpens++ },
             appVersion = "9.8.7",

@@ -49,8 +49,8 @@ import com.straphanger.app.ui.about.LicensesScreen
 import com.straphanger.app.ui.map.SubwayMapScreen
 import com.straphanger.app.ui.permissions.BackgroundLocationDisclosure
 import com.straphanger.app.ui.permissions.NotificationAccessDisclosure
-import com.straphanger.app.ui.rides.DataSourcesAndSyncScreen
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
+import com.straphanger.app.ui.settings.SettingsScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
 import com.straphanger.app.ui.status.CommuteAccess
 import com.straphanger.app.ui.status.CommuteControls
@@ -278,7 +278,7 @@ private fun PushedScreen(
 ) {
   when (destination) {
     AppDestination.SETTINGS ->
-      SettingsScreen(viewModel, uiState, backStack, platform, onBackupMessage)
+      SettingsContent(viewModel, uiState, backStack, platform, onBackupMessage)
     AppDestination.ABOUT ->
       AboutScreen(
         appVersion = platform.appVersion,
@@ -401,17 +401,19 @@ private fun RidesTab(
   )
 }
 
-/** Settings: for now, the import, capture and backup controls that were the Import & Backup tab. */
+/** Settings: ride capture, commute alerts, your data and About. */
 @Composable
-private fun SettingsScreen(
+private fun SettingsContent(
   viewModel: StraphangerViewModel,
   uiState: StraphangerUiState,
   backStack: AppBackStack,
   platform: PlatformHooks,
   onBackupMessage: (String) -> Unit,
 ) {
-  DataSourcesAndSyncScreen(
+  SettingsScreen(
     uiState = uiState,
+    commute = platform.commutes,
+    appVersion = platform.appVersion,
     onImportTimelineFile = { readBytes -> viewModel.importTimelineFileInBackground(readBytes) },
     suggestedBackupName = viewModel.suggestedBackupName(),
     onExportBackup = { viewModel.exportBackup() },

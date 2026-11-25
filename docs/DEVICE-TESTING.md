@@ -34,7 +34,7 @@ adb shell pm clear com.straphanger.app.debug
 ## Check 0: the app starts (2 minutes)
 
 1. Open the app. The header sits below the status bar, not under the clock.
-2. Run `scripts/dev/push-sample-timeline.sh`, then in the app open **Import & Backup** > **Choose Timeline file…** and pick `sample-timeline.json` from Downloads. Two rides appear on **Rides**. Open **Stats** and **Map**; both show numbers and lines.
+2. Run `scripts/dev/push-sample-timeline.sh`, then in the app tap the gear, then **Settings > Your data > Import Google Maps Timeline** and pick `sample-timeline.json` from Downloads. Two rides appear on **Rides**. Open **Stats** and **Map**; both show numbers and lines.
 3. Delete one ride from the Rides list. A confirmation appears, and the ride is gone after you confirm.
 4. Force-stop the app (long press the icon > App info > Force stop) and open it again. The remaining rides are still there. If they are not, stop here: storage is broken.
 
@@ -44,7 +44,7 @@ Why it matters: the app reads the notification Google Maps shows during transit 
 
 Steps:
 
-1. In the app, open **Import & Backup**. Under **Google Maps notifications**, turn it on. Android opens its notification access settings. Allow **Straphanger**, then go back.
+1. In the app, tap the gear to open **Settings**. Under **Ride capture > Google Maps notifications**, turn it on. Android opens its notification access settings. Allow **Straphanger**, then go back.
 2. The app now says "Notification access granted."
 3. In Google Maps, get **transit** directions for a subway trip and tap **Start**. Leave navigation running until you reach the destination, or press **Exit** at the end.
 4. Open Straphanger > **Rides**.
@@ -70,7 +70,7 @@ Why it matters: geofences are only tested with simulated location. Real GPS jitt
 
 Setup:
 
-1. Open **Import & Backup** > **Passive Capture** and turn it on. Read the disclosure screens, then allow precise location, and **Allow all the time** for background location.
+1. Tap the gear, then **Settings > Ride capture > Station geofences**, and turn it on. Read the disclosure screens, then allow precise location, and **Allow all the time** for background location.
 2. In Android settings > Apps > Straphanger > Battery, choose **Unrestricted** (or "Not optimized") so Android does not delay events.
 3. Check logcat. You should see `Registered N geofences: ...` with N up to 19. Seeing nothing means registration failed; look for `Geofence registration refused`.
 
@@ -112,7 +112,7 @@ On an emulator, `scripts/dev/simulate-passive-ride.sh` moves the emulated GPS fr
 
 ## Check 4: backup and restore
 
-1. **Import & Backup** > export a backup. Choose a place in Files.
+1. Tap the gear, then **Settings > Your data > Export backup**. Choose a place in Files.
 2. Delete a ride, then import the backup file. The ride comes back and nothing is duplicated.
 
 ## Reporting results

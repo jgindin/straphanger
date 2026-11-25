@@ -3,6 +3,12 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.30 (not yet released)
+
+- Settings is now a proper page with four sections: Ride capture (the three switches; tap anywhere on a row to flip it), Commute alerts, Your data (import a Google Maps Timeline, export a backup, restore from a backup) and About.
+- Commute alerts shows whether notifications and exact alarms are allowed. When one is blocked it shows a warning, and tapping the row opens the system setting that fixes it.
+- The numbered cards and the separate "Import & Backup" heading are gone; the top bar already says "Settings".
+
 ## 0.29 (not yet released)
 
 - Four tabs with icons along the bottom: Status, Map, Rides and Stats. The app now opens on Status. The Rides tab shows a badge with the number of rides that need review.
