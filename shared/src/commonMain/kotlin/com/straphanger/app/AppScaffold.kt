@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.theme.Spacing
+import com.straphanger.app.ui.theme.WithTooltip
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import straphanger.shared.generated.resources.Res
@@ -129,8 +130,10 @@ private fun AppTopBar(
     },
     actions = {
       if (pushed == null && onOpenSettings != null) {
-        IconButton(onClick = onOpenSettings, modifier = Modifier.testTag("top_bar_settings")) {
-          Icon(painterResource(Res.drawable.ic_settings), contentDescription = "Settings")
+        WithTooltip("Settings") {
+          IconButton(onClick = onOpenSettings, modifier = Modifier.testTag("top_bar_settings")) {
+            Icon(painterResource(Res.drawable.ic_settings), contentDescription = "Settings")
+          }
         }
       }
     },

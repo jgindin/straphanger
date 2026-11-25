@@ -9,13 +9,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,13 +46,11 @@ import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
 import com.straphanger.app.ui.theme.tabular
-import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import straphanger.shared.generated.resources.Res
 import straphanger.shared.generated.resources.ic_star
 import straphanger.shared.generated.resources.ic_star_filled
 
-private const val REFRESH_MS = 30_000L
 private const val STALE_AFTER_SECONDS = 90L
 
 /**
@@ -77,25 +77,24 @@ internal fun StatusScreen(
   val selected = complexes.firstOrNull { it.complexId == selectedId }
   var refreshRequests by remember { mutableLongStateOf(0) }
   var state by remember { mutableStateOf(StatusState()) }
+  // The request a pull started; the spinner ends when that fetch (not a periodic one) is done.
+  var pulledAt by remember { mutableStateOf<Long?>(null) }
   val commuteUi = rememberCommuteUi(commutes, complexes)
   val now = rememberClock(nowEpochSeconds)
-  LaunchedEffect(tap) {
-    if (tap != null) {
-      selectedId = tap.complexId
-      filter = StatusFilter(tap.routeId.removeSuffix("X"), tap.direction)
-      query = ""
-      onTapConsumed()
-    }
+  TapEffect(tap, onTapConsumed) {
+    selectedId = it.complexId
+    filter = StatusFilter(it.routeId.removeSuffix("X"), it.direction)
+    query = ""
   }
-  LaunchedEffect(selected, refreshRequests) {
-    while (true) {
-      state = refreshStatus(state, selected?.routes.orEmpty(), fetch, nowEpochSeconds())
-      delay(REFRESH_MS)
-    }
+  RefreshFeedEffect(selected, refreshRequests, fetch, nowEpochSeconds, { state }) {
+    result,
+    forRequest ->
+    state = result
+    if (pulledAt?.let { forRequest >= it } == true) pulledAt = null
   }
-  LazyColumn(
-    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp).testTag("status_screen"),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
+  PullToRefreshList(
+    pulledAt != null,
+    onRefresh = { pulledAt = ++refreshRequests },
   ) {
     item { Spacer(Modifier.height(6.dp)) }
     commutesSection(commuteUi)
@@ -127,6 +126,27 @@ internal fun StatusScreen(
     item { Spacer(Modifier.height(6.dp)) }
   }
   commuteUi.editor?.let { CommuteEditorDialog(it, commuteUi) }
+}
+
+/** The Status list, which a pull down on refreshes; [refreshing] shows the spinner. */
+@OptIn(ExperimentalMaterial3Api::class) // PullToRefreshBox is still experimental
+@Composable
+private fun PullToRefreshList(
+  refreshing: Boolean,
+  onRefresh: () -> Unit,
+  content: LazyListScope.() -> Unit,
+) {
+  PullToRefreshBox(
+    isRefreshing = refreshing,
+    onRefresh = onRefresh,
+    modifier = Modifier.fillMaxSize().testTag("status_pull_refresh"),
+  ) {
+    LazyColumn(
+      modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp).testTag("status_screen"),
+      verticalArrangement = Arrangement.spacedBy(10.dp),
+      content = content,
+    )
+  }
 }
 
 @Composable

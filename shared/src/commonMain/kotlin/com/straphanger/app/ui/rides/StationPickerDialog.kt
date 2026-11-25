@@ -77,6 +77,16 @@ internal fun StationPickerDialog(
         onValueChange = { query = it },
         label = { Text("Search stations") },
         leadingIcon = { Icon(painterResource(Res.drawable.ic_search), contentDescription = null) },
+        trailingIcon = {
+          if (query.isNotEmpty()) {
+            IconButton(
+              onClick = { query = "" },
+              modifier = Modifier.testTag("log_station_search_clear"),
+            ) {
+              Icon(painterResource(Res.drawable.ic_close), contentDescription = "Clear search")
+            }
+          }
+        },
         singleLine = true,
         modifier =
           Modifier.fillMaxWidth().focusRequester(focus).testTag("log_station_search_field"),

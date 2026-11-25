@@ -2,31 +2,12 @@ package com.straphanger.app.ui.map
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,33 +15,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.gtfs.SubwayNetworkData
-import com.straphanger.app.data.gtfs.SubwayStation
-import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import com.straphanger.app.ui.MapColorMode
 import com.straphanger.app.ui.StraphangerUiState
-import com.straphanger.app.ui.theme.MtaColors
-import com.straphanger.app.ui.theme.MtaRouteBullet
-import com.straphanger.app.ui.theme.Spacing
-import com.straphanger.app.ui.theme.confirmButtonColors
-import com.straphanger.app.ui.theme.primaryButtonColors
-import com.straphanger.app.ui.theme.tabular
 
 private const val MIN_ZOOM = 0.5f
 private const val MAX_ZOOM = 5.0f
@@ -93,37 +58,6 @@ internal fun initialMapView(
   val edge = FIT_EDGE_DP * density
   return fitView(bounds, width, height, Insets(edge, FIT_TOP_DP * density, edge, edge))
 }
-
-/** The route filter bar's lines, in the MTA's trunk order. */
-private val FILTER_ROUTES =
-  listOf(
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "A",
-    "C",
-    "E",
-    "B",
-    "D",
-    "F",
-    "M",
-    "G",
-    "J",
-    "Z",
-    "L",
-    "N",
-    "Q",
-    "R",
-    "W",
-    "GS",
-    "FS",
-    "H",
-    "SI",
-  )
 
 @Composable
 fun SubwayMapScreen(
@@ -182,6 +116,7 @@ fun SubwayMapScreen(
       StationDetailSheet(
         station = selectedStation,
         stats = uiState.stats,
+        onClose = { onStationSelect(null) },
         onStartRideFromStation = onStartRideFromStation,
         onEndRideAtStation = onEndRideAtStation,
       )
@@ -223,244 +158,5 @@ private fun SubwayMapCanvas(
         },
   ) {
     drawSubwayMap(geometry, MapViewport(size.width, size.height, view), layers, basemap)
-  }
-}
-
-/** The colour mode toggle and the route bullet filter bar. */
-@Composable
-private fun BoxScope.MapControlsOverlay(
-  uiState: StraphangerUiState,
-  onColorModeChange: (MapColorMode) -> Unit,
-  onRouteFilterSelect: (String?) -> Unit,
-) {
-  Column(modifier = Modifier.fillMaxWidth().padding(Spacing.md).align(Alignment.TopCenter)) {
-    Row(
-      modifier =
-        Modifier.fillMaxWidth()
-          .clip(MaterialTheme.shapes.medium)
-          .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f))
-          .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
-          .padding(Spacing.sm),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Row(
-        modifier = Modifier.selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-      ) {
-        MapColorMode.entries.forEach { mode ->
-          ColorModeChip(mode, active = uiState.mapColorMode == mode, onColorModeChange)
-        }
-      }
-      Text(
-        text =
-          "${uiState.stats.uniqueCorridorMilesRidden} mi " +
-            "(${uiState.stats.systemCompletionPercent}%)",
-        color = MaterialTheme.colorScheme.tertiary,
-        style = MaterialTheme.typography.labelLarge.tabular(),
-        modifier = Modifier.testTag("map_header_unique_miles"),
-      )
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-    RouteFilterBar(uiState.selectedRouteFilter, onRouteFilterSelect)
-  }
-}
-
-@Composable
-private fun ColorModeChip(
-  mode: MapColorMode,
-  active: Boolean,
-  onColorModeChange: (MapColorMode) -> Unit,
-) {
-  Box(
-    modifier =
-      Modifier.minimumInteractiveComponentSize()
-        .clip(MaterialTheme.shapes.small)
-        .background(
-          if (active) MaterialTheme.colorScheme.primaryContainer
-          else MaterialTheme.colorScheme.surfaceContainerHigh,
-        )
-        .selectable(selected = active, role = Role.RadioButton) { onColorModeChange(mode) }
-        .padding(horizontal = 10.dp, vertical = 6.dp)
-        .testTag("map_mode_${mode.name}"),
-    contentAlignment = Alignment.Center,
-  ) {
-    Text(
-      text = mode.label,
-      color =
-        if (active) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-      style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-    )
-  }
-}
-
-@Composable
-private fun RouteFilterBar(selectedRoute: String?, onRouteFilterSelect: (String?) -> Unit) {
-  Row(
-    modifier =
-      Modifier.fillMaxWidth()
-        .clip(MaterialTheme.shapes.medium)
-        .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.92f))
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
-        .horizontalScroll(rememberScrollState())
-        .selectableGroup()
-        .padding(horizontal = 10.dp, vertical = 8.dp),
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier =
-        Modifier.clip(MaterialTheme.shapes.small)
-          .background(
-            if (selectedRoute == null) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerHigh,
-          )
-          .selectable(selected = selectedRoute == null, role = Role.RadioButton) {
-            onRouteFilterSelect(null)
-          }
-          .padding(horizontal = 10.dp, vertical = 5.dp)
-          .testTag("filter_route_ALL"),
-    ) {
-      Text(
-        text = "All Lines",
-        color =
-          if (selectedRoute == null) MaterialTheme.colorScheme.onPrimaryContainer
-          else MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-      )
-    }
-    FILTER_ROUTES.forEach { rId ->
-      val isSelected = selectedRoute == rId
-      Box(
-        modifier =
-          Modifier.clip(CircleShape)
-            .border(
-              width = if (isSelected) 2.dp else 0.dp,
-              color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
-              shape = CircleShape,
-            )
-            .selectable(selected = isSelected, role = Role.RadioButton) { onRouteFilterSelect(rId) }
-            .testTag("filter_route_$rId"),
-      ) {
-        MtaRouteBullet(routeId = rId, size = 26.dp, fontSize = 12.sp)
-      }
-    }
-  }
-}
-
-/** The + and − buttons. */
-@Composable
-private fun BoxScope.MapSideControls(
-  onZoomIn: () -> Unit,
-  onZoomOut: () -> Unit,
-) {
-  Column(
-    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(8.dp),
-    horizontalAlignment = Alignment.End,
-  ) {
-    ZoomButton(text = "+", onClick = onZoomIn, testTag = "map_zoom_in")
-    ZoomButton(text = "−", onClick = onZoomOut, testTag = "map_zoom_out")
-  }
-}
-
-@Composable
-private fun ZoomButton(text: String, onClick: () -> Unit, testTag: String) {
-  Surface(
-    onClick = onClick,
-    color = MaterialTheme.colorScheme.surfaceContainer,
-    shape = MaterialTheme.shapes.small,
-    modifier = Modifier.testTag(testTag),
-  ) {
-    Text(
-      text = text,
-      color = MaterialTheme.colorScheme.onSurface,
-      style = MaterialTheme.typography.titleLarge,
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-    )
-  }
-}
-
-/** The selected station's details and the buttons that start or end a ride there. */
-@Composable
-private fun BoxScope.StationDetailSheet(
-  station: SubwayStation,
-  stats: SubwayStatsSnapshot,
-  onStartRideFromStation: (String) -> Unit,
-  onEndRideAtStation: (String) -> Unit,
-) {
-  val isStopped = station.id in stats.visitedStationIdsStoppedAt
-  val isBoarded = station.id in stats.visitedStationIdsBoardedExited
-  Column(
-    modifier =
-      Modifier.align(Alignment.BottomCenter)
-        .fillMaxWidth()
-        .padding(Spacing.md)
-        .clip(MaterialTheme.shapes.large)
-        .background(MaterialTheme.colorScheme.surfaceContainer)
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.large)
-        .padding(Spacing.lg)
-        .testTag("station_detail_sheet"),
-  ) {
-    StationHeader(station)
-    Spacer(modifier = Modifier.height(8.dp))
-    Text(
-      text =
-        when {
-          isBoarded -> "Status: Visited (Boarded / Exited / Transferred here)"
-          isStopped -> "Status: Stopped Through on a train"
-          else -> "Status: Unvisited station"
-        },
-      color = if (isStopped) MtaColors.Success else MaterialTheme.colorScheme.onSurfaceVariant,
-      style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-    )
-    Spacer(modifier = Modifier.height(10.dp))
-    Row(
-      modifier = Modifier.height(IntrinsicSize.Min),
-      horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-      Button(
-        onClick = { onStartRideFromStation(station.id) },
-        colors = primaryButtonColors(),
-        modifier = Modifier.weight(1f).fillMaxHeight(),
-      ) {
-        Text("Log Ride From Here", textAlign = TextAlign.Center)
-      }
-      Button(
-        onClick = { onEndRideAtStation(station.id) },
-        colors = confirmButtonColors(),
-        modifier = Modifier.weight(1f).fillMaxHeight(),
-      ) {
-        Text("Log Ride To Here", textAlign = TextAlign.Center)
-      }
-    }
-  }
-}
-
-@Composable
-private fun StationHeader(station: SubwayStation) {
-  Row(
-    modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.SpaceBetween,
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Column(modifier = Modifier.weight(1f)) {
-      Text(
-        text = station.name,
-        color = MaterialTheme.colorScheme.onSurface,
-        style = MaterialTheme.typography.titleMedium,
-      )
-      Text(
-        text = "${station.borough.displayName} • Complex: ${station.complexName}",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-      )
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-      station.daytimeRoutes.forEach { rId ->
-        MtaRouteBullet(routeId = rId, size = 24.dp, fontSize = 11.sp)
-      }
-    }
   }
 }

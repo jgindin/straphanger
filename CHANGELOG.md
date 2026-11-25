@@ -3,6 +3,13 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.32 (not yet released)
+
+- Status: pull the list down to refresh the arrivals; the Refresh button is still there.
+- Map: the two colour modes are now a segmented button ("Line colors" and "Heatmap"), the line filter is a row of chips with each line's bullet, the + and - buttons are icons with tooltips, and tapping a station shows a sheet with a drag handle and a Close button instead of a bare panel. The sheet is not modal, so the map can still be panned behind it.
+- Stats: the "NYC Subway System Analytics" title is gone, the cards are titled "Counting stations", "Lines", "Boroughs", "Top stations", "Monthly miles" and "Achievements" (with "x of y" beside it), the station counting choices are segmented buttons, and unlocked achievements show a check icon.
+- The station search on Status and in the Log ride sheet has a search icon and a Clear button. The Settings gear shows a tooltip.
+
 ## 0.31 (not yet released)
 
 - The Rides tab is now just your rides, grouped by day under "Today", "Yesterday" and the date, with the count of rides at the top. With no rides yet it says how to add one.

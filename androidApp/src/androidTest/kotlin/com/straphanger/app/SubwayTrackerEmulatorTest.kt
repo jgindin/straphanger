@@ -102,7 +102,7 @@ class SubwayTrackerEmulatorTest {
     composeTestRule.onNodeWithTag("subway_map_screen").assertIsDisplayed()
     composeTestRule.onNodeWithTag("subway_map_canvas").assertIsDisplayed()
 
-    // Switch from Official MTA Colors to Frequency Heatmap and back
+    // Switch from Line colors to Heatmap and back
     composeTestRule.onNodeWithTag("map_mode_FREQUENCY_HEATMAP").performClick()
     composeTestRule.onNodeWithTag("map_mode_OFFICIAL_MTA_COLORS").performClick()
 

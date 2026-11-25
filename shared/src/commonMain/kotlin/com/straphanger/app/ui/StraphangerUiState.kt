@@ -8,8 +8,8 @@ import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import com.straphanger.app.ui.map.ProjectedBasemap
 
 enum class MapColorMode(val label: String) {
-  OFFICIAL_MTA_COLORS("MTA Line Colors"),
-  FREQUENCY_HEATMAP("Frequency Heatmap"),
+  OFFICIAL_MTA_COLORS("Line colors"),
+  FREQUENCY_HEATMAP("Heatmap"),
 }
 
 /** The bottom navigation tabs, in the order the bar shows them. */

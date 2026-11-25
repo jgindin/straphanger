@@ -4,36 +4,40 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
+import com.straphanger.app.domain.stats.SubwayAchievement
 import com.straphanger.app.domain.stats.SubwayStatsSnapshot
 import com.straphanger.app.ui.CardTitle
 import com.straphanger.app.ui.SectionCard
@@ -43,6 +47,9 @@ import com.straphanger.app.ui.theme.MtaColors
 import com.straphanger.app.ui.theme.MtaRouteBullet
 import com.straphanger.app.ui.theme.Spacing
 import com.straphanger.app.ui.theme.tabular
+import org.jetbrains.compose.resources.painterResource
+import straphanger.shared.generated.resources.Res
+import straphanger.shared.generated.resources.ic_check
 
 @Composable
 fun StatsDashboardScreen(
@@ -61,18 +68,12 @@ fun StatsDashboardScreen(
         .testTag("stats_dashboard_screen"),
     verticalArrangement = Arrangement.spacedBy(Spacing.md),
   ) {
-    Text(
-      text = "NYC Subway System Analytics",
-      color = MaterialTheme.colorScheme.onSurface,
-      style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
-    )
     HeroMetrics(uiState)
     StationCountingCard(uiState, onGroupingModeChange, onVisitFilterModeChange)
     LineCompletionCard(stats, onLineSelect)
     BoroughCard(stats)
-    if (stats.topStations.isNotEmpty() || stats.monthlyTrends.isNotEmpty()) {
-      TopStationsAndTrendsCard(stats)
-    }
+    if (stats.topStations.isNotEmpty()) TopStationsCard(stats)
+    if (stats.monthlyTrends.isNotEmpty()) MonthlyMilesCard(stats)
     AchievementsCard(stats)
   }
 }
@@ -136,58 +137,44 @@ private fun StationCountingCard(
   onVisitFilterModeChange: (StationVisitFilterMode) -> Unit,
 ) {
   SectionCard(spacing = 10.dp) {
-    CardTitle("Station Counting Mode", style = MaterialTheme.typography.titleSmall)
-    Row(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      StationGroupingMode.entries.forEach { mode ->
-        ModeToggle(
-          text = "${uiState.stats.getDisplayedStationTotal(mode)} ${mode.label}",
-          active = uiState.stationGroupingMode == mode,
-          onClick = { onGroupingModeChange(mode) },
-          testTag = "toggle_grouping_${mode.name}",
-        )
-      }
-    }
-    Row(modifier = Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      StationVisitFilterMode.entries.forEach { mode ->
-        ModeToggle(
-          text = mode.label,
-          active = uiState.stationVisitFilterMode == mode,
-          onClick = { onVisitFilterModeChange(mode) },
-          testTag = "toggle_visit_${mode.name}",
-        )
-      }
-    }
+    CardTitle("Counting stations", style = MaterialTheme.typography.titleSmall)
+    ModeChoice(
+      modes = StationGroupingMode.entries,
+      selected = uiState.stationGroupingMode,
+      text = { "${uiState.stats.getDisplayedStationTotal(it)} ${it.label}" },
+      onSelect = onGroupingModeChange,
+      testTag = { "toggle_grouping_${it.name}" },
+    )
+    ModeChoice(
+      modes = StationVisitFilterMode.entries,
+      selected = uiState.stationVisitFilterMode,
+      text = { it.label },
+      onSelect = onVisitFilterModeChange,
+      testTag = { "toggle_visit_${it.name}" },
+    )
   }
 }
 
+/** One choice out of [modes], as a segmented button row. */
 @Composable
-private fun RowScope.ModeToggle(
-  text: String,
-  active: Boolean,
-  onClick: () -> Unit,
-  testTag: String,
+private fun <T> ModeChoice(
+  modes: List<T>,
+  selected: T,
+  text: (T) -> String,
+  onSelect: (T) -> Unit,
+  testTag: (T) -> String,
 ) {
-  Box(
-    modifier =
-      Modifier.weight(1f)
-        .minimumInteractiveComponentSize()
-        .clip(MaterialTheme.shapes.small)
-        .background(
-          if (active) MaterialTheme.colorScheme.primaryContainer
-          else MaterialTheme.colorScheme.surfaceContainerHigh,
-        )
-        .selectable(selected = active, role = Role.RadioButton, onClick = onClick)
-        .padding(vertical = Spacing.sm)
-        .testTag(testTag),
-    contentAlignment = Alignment.Center,
-  ) {
-    Text(
-      text = text,
-      color =
-        if (active) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-      style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-    )
+  SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+    modes.forEachIndexed { index, mode ->
+      SegmentedButton(
+        selected = selected == mode,
+        onClick = { onSelect(mode) },
+        shape = SegmentedButtonDefaults.itemShape(index, modes.size),
+        modifier = Modifier.testTag(testTag(mode)),
+      ) {
+        Text(text(mode), maxLines = 1, overflow = TextOverflow.Ellipsis)
+      }
+    }
   }
 }
 
@@ -195,7 +182,7 @@ private fun RowScope.ModeToggle(
 @Composable
 private fun LineCompletionCard(stats: SubwayStatsSnapshot, onLineSelect: (String) -> Unit) {
   SectionCard(spacing = 10.dp) {
-    CardTitle("Per-Line Track Completion")
+    CardTitle("Lines")
     val sortedLines = stats.lineCompletionStats.sortedByDescending { it.completionPercent }
     sortedLines.take(12).forEach { lineStat ->
       val rId = lineStat.routeInfo.routeId
@@ -247,7 +234,7 @@ private fun LineCompletionCard(stats: SubwayStatsSnapshot, onLineSelect: (String
 @Composable
 private fun BoroughCard(stats: SubwayStatsSnapshot) {
   SectionCard(spacing = 8.dp) {
-    CardTitle("Borough Coverage & Mileage")
+    CardTitle("Boroughs")
     stats.boroughStats.forEach { boro ->
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -271,9 +258,9 @@ private fun BoroughCard(stats: SubwayStatsSnapshot) {
 }
 
 @Composable
-private fun TopStationsAndTrendsCard(stats: SubwayStatsSnapshot) {
+private fun TopStationsCard(stats: SubwayStatsSnapshot) {
   SectionCard(spacing = 8.dp) {
-    CardTitle("Top Stations & Monthly Mileage Trends")
+    CardTitle("Top stations")
     stats.topStations.forEach { fav ->
       Text(
         text =
@@ -283,7 +270,13 @@ private fun TopStationsAndTrendsCard(stats: SubwayStatsSnapshot) {
         style = MaterialTheme.typography.bodyMedium,
       )
     }
-    Spacer(modifier = Modifier.height(4.dp))
+  }
+}
+
+@Composable
+private fun MonthlyMilesCard(stats: SubwayStatsSnapshot) {
+  SectionCard(spacing = 8.dp) {
+    CardTitle("Monthly miles")
     stats.monthlyTrends.forEach { trend ->
       Text(
         text =
@@ -300,42 +293,67 @@ private fun TopStationsAndTrendsCard(stats: SubwayStatsSnapshot) {
 private fun AchievementsCard(stats: SubwayStatsSnapshot) {
   SectionCard(spacing = 10.dp) {
     val unlocked = stats.achievements.count { it.isUnlocked }
-    CardTitle("Subway Achievements ($unlocked/${stats.achievements.size} Unlocked)")
-    stats.achievements.forEach { ach ->
-      Row(
-        modifier =
-          Modifier.fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .background(
-              if (ach.isUnlocked) MtaColors.SuccessContainer
-              else MaterialTheme.colorScheme.surfaceContainerHigh,
-            )
-            .padding(10.dp)
-            .testTag("achievement_${ach.id}"),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            text = "${if (ach.isUnlocked) "✓ " else ""}${ach.title}",
-            color = if (ach.isUnlocked) MtaColors.Success else MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-          )
-          Text(
-            text = ach.description,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      CardTitle("Achievements")
+      Text(
+        text = "$unlocked of ${stats.achievements.size}",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.labelLarge,
+      )
+    }
+    stats.achievements.forEach { AchievementRow(it) }
+  }
+}
+
+@Composable
+private fun AchievementRow(ach: SubwayAchievement) {
+  Row(
+    modifier =
+      Modifier.fillMaxWidth()
+        .clip(MaterialTheme.shapes.small)
+        .background(
+          if (ach.isUnlocked) MtaColors.SuccessContainer
+          else MaterialTheme.colorScheme.surfaceContainerHigh,
+        )
+        .padding(10.dp)
+        .semantics(mergeDescendants = true) { if (ach.isUnlocked) stateDescription = "Unlocked" }
+        .testTag("achievement_${ach.id}"),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Column(modifier = Modifier.weight(1f)) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        if (ach.isUnlocked) {
+          // Decorative; the green card and the title carry the unlocked state.
+          Icon(
+            painterResource(Res.drawable.ic_check),
+            contentDescription = null,
+            tint = MtaColors.Success,
+            modifier = Modifier.padding(end = Spacing.xs).size(18.dp),
           )
         }
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
-          text = "${ach.currentValue.toInt()}/${ach.targetValue.toInt()}",
-          color =
-            if (ach.isUnlocked) MtaColors.Success else MaterialTheme.colorScheme.onSurfaceVariant,
-          style = MaterialTheme.typography.labelLarge.tabular(),
+          text = ach.title,
+          color = if (ach.isUnlocked) MtaColors.Success else MaterialTheme.colorScheme.onSurface,
+          style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
         )
       }
+      Text(
+        text = ach.description,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+      )
     }
+    Spacer(modifier = Modifier.width(8.dp))
+    Text(
+      text = "${ach.currentValue.toInt()}/${ach.targetValue.toInt()}",
+      color = if (ach.isUnlocked) MtaColors.Success else MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.labelLarge.tabular(),
+    )
   }
 }
 

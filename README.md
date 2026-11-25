@@ -10,7 +10,7 @@ The code is Kotlin Multiplatform with Compose Multiplatform UI. The Android app 
 
 | Feature | Android | iOS | Notes |
 | --- | --- | --- | --- |
-| Subway map with ridden lines, frequency heatmap, line filter | Works | Partial | Shared Compose code; never built for iOS. |
+| Subway map with ridden lines, "Line colors" / "Heatmap" modes, line filter chips | Works | Partial | Shared Compose code; never built for iOS. |
 | Basemap under the subway map (land, parks, highways, major streets) | Works | Partial | Bundled NYC Open Data, drawn offline with no tiles, keys or network requests; it is always shown. Shared code; never built for iOS. |
 | Manual ride logging, including transfers | Works | Partial | The Log ride button on the Rides tab opens a sheet: From, an optional change and To, each chosen by searching, plus one-tap chips for your own most frequent and recent trips. The app picks express or local; Edit on the ride changes it. Swiping a ride away deletes it, with Undo. Shared code; never built for iOS. |
 | Statistics, achievements, stations vs. complexes toggle | Works | Partial | Shared code; never built for iOS. |

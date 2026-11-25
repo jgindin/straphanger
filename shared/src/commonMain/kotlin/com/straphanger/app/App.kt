@@ -420,10 +420,12 @@ private fun TabContent(
         onStationSelect = viewModel::selectStationOnMap,
         // The Rides tab opens with the log sheet, that station filled in.
         onStartRideFromStation = { stId ->
+          viewModel.selectStationOnMap(null)
           viewModel.selectTab(AppTab.RIDES)
           viewModel.openLogRideSheet(originId = stId)
         },
         onEndRideAtStation = { stId ->
+          viewModel.selectStationOnMap(null)
           viewModel.selectTab(AppTab.RIDES)
           viewModel.openLogRideSheet(destinationId = stId)
         },

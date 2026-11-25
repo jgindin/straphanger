@@ -4,12 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import com.straphanger.app.data.commute.CommuteTap
 import com.straphanger.app.data.commute.StationComplex
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.delay
 
 private const val CLOCK_TICK_MS = 10_000L
+private const val REFRESH_MS = 30_000L
 
 /** What the Status screen last learned from the MTA, and whether the last try worked. */
 internal data class StatusState(
@@ -71,4 +73,40 @@ internal fun rememberClock(nowEpochSeconds: () -> Long): Long {
     }
   }
   return now.longValue
+}
+
+/**
+ * Fetches the feeds for [selected]'s routes now, again whenever it or [refreshRequests] change, and
+ * every 30 seconds, handing each result to [onState], with the request count it was fetched for
+ * ([state] is what the last fetch left).
+ */
+@Composable
+internal fun RefreshFeedEffect(
+  selected: StationComplex?,
+  refreshRequests: Long,
+  fetch: suspend (Collection<String>) -> RealtimeSnapshot,
+  nowEpochSeconds: () -> Long,
+  state: () -> StatusState,
+  onState: (StatusState, Long) -> Unit,
+) {
+  LaunchedEffect(selected, refreshRequests) {
+    while (true) {
+      onState(
+        refreshStatus(state(), selected?.routes.orEmpty(), fetch, nowEpochSeconds()),
+        refreshRequests,
+      )
+      delay(REFRESH_MS)
+    }
+  }
+}
+
+/** Applies a commute notification's [tap] once through [onTap], then reports it consumed. */
+@Composable
+internal fun TapEffect(tap: CommuteTap?, onTapConsumed: () -> Unit, onTap: (CommuteTap) -> Unit) {
+  LaunchedEffect(tap) {
+    if (tap != null) {
+      onTap(tap)
+      onTapConsumed()
+    }
+  }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -25,6 +26,8 @@ import com.straphanger.app.data.commute.StationComplex
 import com.straphanger.app.ui.theme.Spacing
 import org.jetbrains.compose.resources.painterResource
 import straphanger.shared.generated.resources.Res
+import straphanger.shared.generated.resources.ic_close
+import straphanger.shared.generated.resources.ic_search
 import straphanger.shared.generated.resources.ic_star_filled
 
 /**
@@ -75,6 +78,17 @@ private fun StationSearch(query: String, onQueryChange: (String) -> Unit) {
     value = query,
     onValueChange = onQueryChange,
     label = { Text("Find a station") },
+    leadingIcon = { Icon(painterResource(Res.drawable.ic_search), contentDescription = null) },
+    trailingIcon = {
+      if (query.isNotEmpty()) {
+        IconButton(
+          onClick = { onQueryChange("") },
+          modifier = Modifier.testTag("status_search_clear"),
+        ) {
+          Icon(painterResource(Res.drawable.ic_close), contentDescription = "Clear search")
+        }
+      }
+    },
     singleLine = true,
     modifier = Modifier.fillMaxWidth().testTag("status_search"),
   )

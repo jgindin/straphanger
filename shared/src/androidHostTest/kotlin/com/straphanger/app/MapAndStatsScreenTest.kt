@@ -149,10 +149,12 @@ class MapAndStatsScreenTest : AppScreenTest() {
     assertEquals(selected, vm.uiState.value.logOriginStationId)
     assertEquals(null, vm.uiState.value.logTransferStationId)
 
-    // Closing the sheet leaves the station chosen on the map.
+    // Back on the map the station sheet is closed; choose the station again.
     closeLogRideSheet()
     composeRule.onNodeWithTag("log_ride_sheet").assertDoesNotExist()
     openTab("MAP")
+    composeRule.onNodeWithTag("station_detail_sheet").assertDoesNotExist()
+    composeRule.runOnUiThread { vm.selectStationOnMap(selected) }
     composeRule.onNodeWithText("Log Ride To Here").performClick()
     composeRule.onNodeWithTag("log_ride_sheet").assertIsDisplayed()
     assertEquals(selected, vm.uiState.value.logDestinationStationId)
