@@ -90,7 +90,10 @@ internal fun RideHistoryItem(
     )
     if (expanded) RideLegBreakdown(rec, graphEngine)
     if (needsReview || next != null) {
-      ReviewButtons(rec, if (needsReview) reviewFor(rec.ride) else null, next, graphEngine, actions)
+      val review =
+        if (needsReview) reviewFor(rec.ride, rec.legs.size) { graphEngine.stationName(it) }
+        else null
+      ReviewButtons(rec, review, next, graphEngine, actions)
     }
     RideDetailRow(rec, onEdit = { actions.onEditStations(rec.ride.rideId) }, onDelete = onDelete)
   }

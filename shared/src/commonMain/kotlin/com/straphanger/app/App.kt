@@ -54,6 +54,7 @@ import com.straphanger.app.ui.permissions.BackgroundLocationDisclosure
 import com.straphanger.app.ui.permissions.NotificationAccessDisclosure
 import com.straphanger.app.ui.rides.LogRideFab
 import com.straphanger.app.ui.rides.RidesHistoryAndLoggerScreen
+import com.straphanger.app.ui.rides.rememberLegChoiceSelections
 import com.straphanger.app.ui.settings.SettingsScreen
 import com.straphanger.app.ui.stats.StatsDashboardScreen
 import com.straphanger.app.ui.status.CommuteAccess
@@ -162,6 +163,31 @@ fun App(
   )
 }
 
+/**
+ * The Rides tab's hooks: delete with Undo in [snackbarHostState], [onListAtTopChange], and the
+ * express-or-local choices in progress, kept here above the tabs so switching tabs keeps them.
+ */
+@Composable
+private fun rememberRidesTabHooks(
+  viewModel: StraphangerViewModel,
+  snackbarHostState: SnackbarHostState,
+  onListAtTopChange: (Boolean) -> Unit,
+): RidesTabHooks {
+  val scope = rememberCoroutineScope()
+  val legSelections = rememberLegChoiceSelections()
+  return remember(viewModel, snackbarHostState, scope, legSelections) {
+    RidesTabHooks(
+      onRideDeleted = { rec ->
+        viewModel.deleteRide(rec.ride.rideId).also { deleted ->
+          if (deleted) scope.launch { offerUndo(viewModel, rec, snackbarHostState) }
+        }
+      },
+      onListAtTopChange = onListAtTopChange,
+      legSelections = legSelections,
+    )
+  }
+}
+
 /** The app around a given [viewModel]; tests use it to supply one with a fake clock. */
 @Composable
 internal fun App(
@@ -177,17 +203,7 @@ internal fun App(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
   var ridesListAtTop by remember { mutableStateOf(true) }
-  val ridesTab =
-    remember(viewModel, snackbarHostState, scope) {
-      RidesTabHooks(
-        onRideDeleted = { rec ->
-          viewModel.deleteRide(rec.ride.rideId).also { deleted ->
-            if (deleted) scope.launch { offerUndo(viewModel, rec, snackbarHostState) }
-          }
-        },
-        onListAtTopChange = { ridesListAtTop = it },
-      )
-    }
+  val ridesTab = rememberRidesTabHooks(viewModel, snackbarHostState) { ridesListAtTop = it }
   BackStackHandler(backStack)
 
   StraphangerTheme {
@@ -465,7 +481,7 @@ private fun RidesTab(
       viewModel.updateLogForm(orig, trans, dest, route, exp)
     },
     onSubmitQuickRide = { viewModel.submitQuickRide() },
-    onConfirmAmbiguousRide = { id, r, exp -> viewModel.confirmAmbiguousRide(id, r, exp) },
+    onConfirmAmbiguousRide = viewModel::confirmAmbiguousRide,
     onKeepRideAsIs = viewModel::keepRideAsIs,
     onDeleteRide = hooks.onRideDeleted,
     onChangeRideStations = viewModel::changeRideStations,
@@ -473,6 +489,7 @@ private fun RidesTab(
     onClearRouteFilter = { viewModel.showRidesOnRoute(null) },
     onCloseLogRideSheet = viewModel::closeLogRideSheet,
     onListAtTopChange = hooks.onListAtTopChange,
+    legSelections = hooks.legSelections,
   )
 }
 

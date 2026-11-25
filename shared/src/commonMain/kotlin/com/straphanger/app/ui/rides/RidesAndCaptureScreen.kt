@@ -31,6 +31,8 @@ import kotlinx.datetime.toLocalDateTime
  * @param onDeleteRide deletes the ride at once and the app offers to undo it; false when the
  *   deletion could not be saved, and the ride stays.
  * @param now the time the day headings ("Today", "Yesterday") are relative to.
+ * @param legSelections the trains chosen so far on rides with a change that are not yet confirmed;
+ *   pass one kept outside the tab for the choices to survive switching tabs.
  */
 @Composable
 fun RidesHistoryAndLoggerScreen(
@@ -38,15 +40,18 @@ fun RidesHistoryAndLoggerScreen(
   graphEngine: SubwayGraphEngine,
   onUpdateLogForm: (String?, String?, String?, String?, Boolean?) -> Unit,
   onSubmitQuickRide: () -> Unit,
-  onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
+  onConfirmAmbiguousRide: (String, Map<Int, RouteChoice>) -> Unit,
   onKeepRideAsIs: (String) -> Unit = {},
   onDeleteRide: (CompleteRideRecord) -> Boolean = { false },
-  onChangeRideStations: (String, String, String, RouteChoice?) -> Boolean = { _, _, _, _ -> false },
+  onChangeRideStations: (String, String, String, Map<Int, RouteChoice>) -> Boolean = { _, _, _, _ ->
+    false
+  },
   onCombineRides: (String, String) -> Boolean = { _, _ -> false },
   onClearRouteFilter: () -> Unit = {},
   onCloseLogRideSheet: () -> Unit = {},
   onListAtTopChange: (Boolean) -> Unit = {},
   now: () -> Instant = { Clock.System.now() },
+  legSelections: LegChoiceSelections = rememberLegChoiceSelections(),
 ) {
   val pendingReviewRides = uiState.rides.filter { it.ride.needsReview }
   val nextRides = remember(uiState.rides, graphEngine) { nextRidesOf(uiState.rides, graphEngine) }
@@ -60,6 +65,7 @@ fun RidesHistoryAndLoggerScreen(
       onKeepRideAsIs = onKeepRideAsIs,
       onEditStations = { rideIdToEdit = it },
       onCombine = { first, second -> ridesToCombine = first to second },
+      legSelections = legSelections,
     )
 
   EditStationsHost(
@@ -177,23 +183,23 @@ private fun CombineRidesHost(
 private fun EditStationsHost(
   rec: CompleteRideRecord?,
   graphEngine: SubwayGraphEngine,
-  onChange: (String, String, String, RouteChoice?) -> Boolean,
+  onChange: (String, String, String, Map<Int, RouteChoice>) -> Boolean,
   onDone: () -> Unit,
 ) {
   if (rec != null) {
     val ride = rec.ride
-    // The line the ride is on, once nothing is left to ask about it.
-    val currentRoute =
+    // The line each leg is on, once nothing is left to ask about that leg.
+    val stillAsking = ride.ambiguousCandidates.map { it.legIndex }.toSet()
+    val currentRoutes =
       rec.legs
-        .singleOrNull()
-        ?.takeIf { ride.ambiguousCandidates.isEmpty() }
-        ?.let { RouteChoice(it.routeId, it.isExpress) }
+        .filter { it.legIndex !in stillAsking }
+        .associate { it.legIndex to RouteChoice(it.routeId, it.isExpress) }
     EditStationsDialog(
       ride = ride,
       graphEngine = graphEngine,
-      currentRoute = currentRoute,
-      onSave = { origin, destination, choice ->
-        onChange(ride.rideId, origin, destination, choice).also { saved -> if (saved) onDone() }
+      currentRoutes = currentRoutes,
+      onSave = { origin, destination, choices ->
+        onChange(ride.rideId, origin, destination, choices).also { saved -> if (saved) onDone() }
       },
       onDismiss = onDone,
     )

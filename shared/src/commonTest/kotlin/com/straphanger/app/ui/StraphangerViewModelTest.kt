@@ -10,6 +10,7 @@ import com.straphanger.app.data.capture.SchedulerClock
 import com.straphanger.app.data.gtfs.SubwayNetworkData
 import com.straphanger.app.data.local.InMemoryPersistenceBackend
 import com.straphanger.app.data.local.RideSource
+import com.straphanger.app.data.local.RouteChoice
 import com.straphanger.app.domain.stats.StationGroupingMode
 import com.straphanger.app.domain.stats.StationVisitFilterMode
 import com.straphanger.app.testutil.FixedClock
@@ -62,7 +63,7 @@ class StraphangerViewModelTest {
     assertTrue(ambigRide.ride.needsReview)
 
     // 3. Confirm ambiguous ride as 6 Local
-    vm.confirmAmbiguousRide(ambigRide.ride.rideId, "6", false)
+    vm.confirmAmbiguousRide(ambigRide.ride.rideId, mapOf(0 to RouteChoice("6", false)))
     assertEquals(0, vm.uiState.value.stats.pendingReviewCount)
     assertFalse(vm.dao.getRideById(ambigRide.ride.rideId)!!.ride.needsReview)
 

@@ -124,13 +124,15 @@ class RideCombineTest {
   fun choosingALineWhenChangingStationsStoresThatLine() {
     val dao = daoWith(ride("r", "A24", "A31", startMinute = 0, endMinute = 12))
 
-    val local = dao.changeRideStations("r", "A15", "A31", engine, RouteChoice("C", false))!!
+    val local =
+      dao.changeRideStations("r", "A15", "A31", engine, mapOf(0 to RouteChoice("C", false)))!!
     assertEquals("C", local.legs.single().routeId)
     assertFalse(local.legs.single().isExpress)
     assertFalse(local.ride.needsReview)
     assertEquals(TestNetwork.eighthAvLocal.size, local.stationStops.size)
 
-    val express = dao.changeRideStations("r", "A15", "A31", engine, RouteChoice("A", true))!!
+    val express =
+      dao.changeRideStations("r", "A15", "A31", engine, mapOf(0 to RouteChoice("A", true)))!!
     assertEquals("A", express.legs.single().routeId)
     assertTrue(express.legs.single().isExpress)
     assertFalse(express.ride.needsReview)

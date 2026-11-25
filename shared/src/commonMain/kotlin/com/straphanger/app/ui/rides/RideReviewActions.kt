@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.local.CompleteRideRecord
+import com.straphanger.app.data.local.RouteChoice
 import com.straphanger.app.ui.SectionCard
 import com.straphanger.app.ui.countOf
 import com.straphanger.app.ui.theme.MtaColors
@@ -25,16 +26,18 @@ import com.straphanger.app.ui.theme.confirmButtonColors
 import com.straphanger.app.ui.theme.quietButtonColors
 
 /**
- * What a ride's review buttons do, wherever they are shown: confirm a line, say the ride looks
- * right, edit its stations (the banner's "Edit stations" and a row's "Edit"), or ask to combine it
- * with the ride after it.
+ * What a ride's review buttons do, wherever they are shown: confirm a line for each leg that asks
+ * (by leg index), say the ride looks right, edit its stations (the banner's "Edit stations" and a
+ * row's "Edit"), or ask to combine it with the ride after it.
  */
 internal class RideReviewActions(
-  val onConfirmAmbiguousRide: (String, String, Boolean) -> Unit,
+  val onConfirmAmbiguousRide: (String, Map<Int, RouteChoice>) -> Unit,
   val onKeepRideAsIs: (String) -> Unit,
   val onEditStations: (String) -> Unit,
   /** Asks whether to combine the first ride with the next; nothing changes until confirmed. */
   val onCombine: (CompleteRideRecord, CompleteRideRecord) -> Unit,
+  /** The trains chosen so far on rides with a change, shared by the banner and the rows. */
+  val legSelections: LegChoiceSelections = LegChoiceSelections(),
 )
 
 /** Every ride that needs review, each with when it happened, what to check, and its buttons. */
@@ -57,7 +60,7 @@ internal fun NeedsReviewBanner(
       style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
     )
     rides.forEach { rec ->
-      val review = reviewFor(rec.ride)
+      val review = reviewFor(rec.ride, rec.legs.size) { graphEngine.stationName(it) }
       Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
           text = rideWhen(rec.ride.startTimeEpochMs, rec.ride.endTimeEpochMs),
@@ -88,8 +91,8 @@ internal fun NeedsReviewBanner(
 
 /**
  * The buttons for [rec], wrapping onto more lines as needed so none is cut off: [review]'s choices
- * when there is one, "Edit stations" when [offerEditStations], and combining with [next] when there
- * is a ride to combine with.
+ * when there is one (grouped by leg, above the others, on a ride with a change), "Edit stations"
+ * when [offerEditStations], and combining with [next] when there is a ride to combine with.
  */
 @Composable
 internal fun ReviewButtons(
@@ -101,6 +104,11 @@ internal fun ReviewButtons(
   offerEditStations: Boolean = false,
 ) {
   val rideId = rec.ride.rideId
+  if (review != null && review.legHeadings.isNotEmpty()) {
+    LegChoiceGroups(rideId, review, actions.legSelections) { choices ->
+      actions.onConfirmAmbiguousRide(rideId, choices)
+    }
+  }
   FlowRow(
     modifier = Modifier.fillMaxWidth(),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -138,12 +146,16 @@ private fun ReviewActionButton(
 ) {
   when (action) {
     is ReviewAction.ConfirmCandidate ->
-      ReviewButton(
-        action.label,
-        if (action.index == 0) confirmButtonColors() else quietButtonColors(),
-        "confirm_candidate_${rideId}_${action.index}",
-      ) {
-        actions.onConfirmAmbiguousRide(rideId, action.routeId, action.isExpress)
+      // On a ride with a change, the leg groups show the candidates.
+      if (review.legHeadings.isEmpty()) {
+        ReviewButton(
+          action.label,
+          if (action.index == 0) confirmButtonColors() else quietButtonColors(),
+          "confirm_candidate_${rideId}_${action.index}",
+        ) {
+          val choice = RouteChoice(action.routeId, action.isExpress)
+          actions.onConfirmAmbiguousRide(rideId, mapOf(action.legIndex to choice))
+        }
       }
     ReviewAction.KeepAsIs -> {
       // The only choice when there is no line to confirm, so it is the main one.

@@ -3,6 +3,12 @@
 Newest first. The version matches `version.properties`. The Play release notes for each version go
 in `androidApp/src/main/play/release-notes/en-US/default.txt` (500 characters at most).
 
+## 0.37 (not yet released)
+
+- Fix: a ride with a change no longer guesses the local for its first leg. Each leg's express or local guess now uses that leg's own share of the ride's time, not the whole ride's, so 14 St to 242 St by the A and then the 1 is stored on the A, not the C.
+- Express or local is asked on every leg of a ride, not only on rides with one leg. In the review banner and the ride's row, each leg that asks has its own choices under where it starts ("From 14 St:"), such as "A Express · 22 min" and "C Local · 40 min". Tap one per leg; the ride is saved when every leg has a choice, so a ride with one such leg still takes one tap. "Looks right" keeps the app's guesses.
+- Edit stations offers "Which train?" for each leg that has an express and a local, headed by the station the leg starts from.
+
 ## 0.32 (not yet released)
 
 - Status: pull the list down to refresh the arrivals; the Refresh button is still there.

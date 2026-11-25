@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
-import com.straphanger.app.data.gtfs.AmbiguousRouteCandidate
 import com.straphanger.app.data.gtfs.SubwayGraphEngine
 import com.straphanger.app.data.gtfs.SubwayStation
 import com.straphanger.app.data.local.RideEntity
@@ -54,19 +52,19 @@ private enum class RideEnd(val label: String) {
 }
 
 /**
- * Lets the rider change where [ride] started and ended and, where an express and a local both run
- * between the stations, which one they took. [onSave] gets the stations and the chosen line, or
- * null to let the app decide; it returns false when the pair of stations cannot be used, in which
- * case the dialog stays open and says so. [currentRoute] is the line the ride is on, chosen at the
- * start while the stations are unchanged.
+ * Lets the rider change where [ride] started and ended and, for each leg where an express and a
+ * local both run, which one they took. [onSave] gets the stations and the chosen lines by leg index
+ * (a leg left to the app is missing); it returns false when the pair of stations cannot be used, in
+ * which case the dialog stays open and says so. [currentRoutes] are the lines the ride's legs are
+ * on, by leg index, chosen at the start while the stations are unchanged.
  */
 @Composable
 internal fun EditStationsDialog(
   ride: RideEntity,
   graphEngine: SubwayGraphEngine,
-  onSave: (origin: String, destination: String, choice: RouteChoice?) -> Boolean,
+  onSave: (origin: String, destination: String, choices: Map<Int, RouteChoice>) -> Boolean,
   onDismiss: () -> Unit,
-  currentRoute: RouteChoice? = null,
+  currentRoutes: Map<Int, RouteChoice> = emptyMap(),
 ) {
   var origin by remember { mutableStateOf(ride.originStationId) }
   var destination by remember { mutableStateOf(ride.destinationStationId) }
@@ -81,9 +79,9 @@ internal fun EditStationsDialog(
   val routes =
     remember(origin, destination) { routeChoices(graphEngine, ride, origin, destination) }
   val unchanged = origin == ride.originStationId && destination == ride.destinationStationId
-  var route by
+  var chosenRoutes by
     remember(origin, destination) {
-      mutableStateOf(currentRoute?.takeIf { unchanged && it in routes.map(::routeOf) })
+      mutableStateOf(if (unchanged) routes.offered(currentRoutes) else emptyMap())
     }
 
   AlertDialog(
@@ -102,7 +100,12 @@ internal fun EditStationsDialog(
           choosing = end
           query = ""
         }
-        if (routes.isNotEmpty()) RouteChips(routes, route) { route = it }
+        if (routes.byLeg.isNotEmpty()) {
+          LegRouteChips(routes, graphEngine, chosenRoutes) { legIndex, choice ->
+            chosenRoutes =
+              if (choice == null) chosenRoutes - legIndex else chosenRoutes + (legIndex to choice)
+          }
+        }
         SearchField(choosing, query) { query = it }
         if (failed) {
           Text(
@@ -118,7 +121,7 @@ internal fun EditStationsDialog(
         }
       }
     },
-    confirmButton = { SaveButton { failed = !onSave(origin, destination, route) } },
+    confirmButton = { SaveButton { failed = !onSave(origin, destination, chosenRoutes) } },
     dismissButton = {
       TextButton(onClick = onDismiss, modifier = Modifier.testTag("edit_stations_cancel")) {
         Text("Cancel")
@@ -283,103 +286,5 @@ private fun StationMatches(
 internal fun StationBullets(routes: List<String>) {
   Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
     bulletRoutes(routes).forEach { MtaRouteBullet(routeId = it, size = 20.dp, fontSize = 10.sp) }
-  }
-}
-
-/**
- * The ways to ride from [origin] to [destination] at [ride]'s time, when there is more than one (an
- * express and a local); empty otherwise.
- */
-private fun routeChoices(
-  graphEngine: SubwayGraphEngine,
-  ride: RideEntity,
-  origin: String,
-  destination: String,
-): List<AmbiguousRouteCandidate> =
-  if (origin == destination) emptyList()
-  else
-    graphEngine
-      .resolveOriginToDestinationAuto(
-        originStationId = origin,
-        destinationStationId = destination,
-        timestampEpochMs = ride.startTimeEpochMs,
-        actualDurationMinutes = ride.durationMinutes,
-      )
-      .ambiguousCandidates
-
-private fun routeOf(candidate: AmbiguousRouteCandidate) =
-  RouteChoice(candidate.routeId, candidate.isExpress)
-
-/** "Let the app decide", then one chip per line; [chosen] is null for the app to decide. */
-@Composable
-private fun RouteChips(
-  routes: List<AmbiguousRouteCandidate>,
-  chosen: RouteChoice?,
-  onChoose: (RouteChoice?) -> Unit,
-) {
-  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Text(
-      "Which train?",
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      style = MaterialTheme.typography.labelLarge,
-    )
-    FlowRow(
-      modifier = Modifier.selectableGroup(),
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-      verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-      RouteChip("Let the app decide", null, chosen == null, "edit_stations_route_auto") {
-        onChoose(null)
-      }
-      routes.forEachIndexed { index, candidate ->
-        val choice = routeOf(candidate)
-        RouteChip(
-          candidate.label,
-          candidate.routeId,
-          chosen == choice,
-          "edit_stations_route_$index",
-        ) {
-          onChoose(choice)
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun RouteChip(
-  label: String,
-  routeId: String?,
-  selected: Boolean,
-  tag: String,
-  onClick: () -> Unit,
-) {
-  Row(
-    modifier =
-      Modifier.clip(MaterialTheme.shapes.small)
-        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .border(
-          width = if (selected) 2.dp else 1.dp,
-          color =
-            if (selected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant,
-          shape = MaterialTheme.shapes.small,
-        )
-        .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-        .padding(horizontal = 10.dp, vertical = 7.dp)
-        .testTag(tag),
-    verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    routeId?.let { MtaRouteBullet(routeId = it, size = 20.dp, fontSize = 10.sp) }
-    Text(
-      label,
-      color =
-        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-      style =
-        MaterialTheme.typography.bodyMedium.copy(
-          fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        ),
-    )
   }
 }

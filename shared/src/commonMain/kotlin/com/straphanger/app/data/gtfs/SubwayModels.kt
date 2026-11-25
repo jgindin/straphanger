@@ -138,6 +138,11 @@ data class ResolvedLegPath(
   val distanceMiles: Double,
 )
 
+/**
+ * One way to ride leg [legIndex] of a ride, express or local, offered for the rider to confirm.
+ * [legIndex] and [fromStationId] default so that rides stored before they existed still load (those
+ * rides only had candidates on their first leg).
+ */
 @Serializable
 data class AmbiguousRouteCandidate(
   val routeId: String,
@@ -145,6 +150,8 @@ data class AmbiguousRouteCandidate(
   val label: String,
   val estimatedMinutes: Double,
   val stoppedStationCount: Int,
+  val legIndex: Int = 0,
+  val fromStationId: String? = null,
 )
 
 @Serializable

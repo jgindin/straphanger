@@ -11,16 +11,16 @@ import kotlinx.coroutines.flow.StateFlow
 /** Correcting a recorded ride: its stations, its line, or a ride the app split in two. */
 interface RideEditing : StraphangerScreenState {
   /**
-   * Changes where [rideId] started and ended, finding the lines again. With a [choice] of express
-   * or local the ride is stored on that line; without one the app decides. Returns false, leaving
-   * the ride as it was, when the stations are the same, no route joins them, or the ride could not
-   * be saved.
+   * Changes where [rideId] started and ended, finding the lines again. [choices] holds express or
+   * local for some legs, by leg index; each leg is stored on its choice, and the app decides the
+   * others. Returns false, leaving the ride as it was, when the stations are the same, no route
+   * joins them, or the ride could not be saved.
    */
   fun changeRideStations(
     rideId: String,
     originStationId: String,
     destinationStationId: String,
-    choice: RouteChoice? = null,
+    choices: Map<Int, RouteChoice> = emptyMap(),
   ): Boolean
 
   /**
@@ -45,9 +45,9 @@ internal class RideEditController(private val session: StraphangerSession) : Rid
     rideId: String,
     originStationId: String,
     destinationStationId: String,
-    choice: RouteChoice?,
+    choices: Map<Int, RouteChoice>,
   ): Boolean = savedWithStatus { engine ->
-    dao.changeRideStations(rideId, originStationId, destinationStationId, engine, choice)
+    dao.changeRideStations(rideId, originStationId, destinationStationId, engine, choices)
   }
 
   override fun combineRides(firstId: String, secondId: String): Boolean =

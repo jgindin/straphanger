@@ -79,6 +79,67 @@ class RideReviewTest {
     assertTrue(review.prompt.contains("express or local", ignoreCase = true), review.prompt)
   }
 
+  private fun candidate(routeId: String, express: Boolean, legIndex: Int, from: String?) =
+    AmbiguousRouteCandidate(
+      routeId,
+      isExpress = express,
+      label = "$routeId ${if (express) "Express" else "Local"}",
+      estimatedMinutes = if (express) 2.6 else 4.5,
+      stoppedStationCount = 3,
+      legIndex = legIndex,
+      fromStationId = from,
+    )
+
+  @Test
+  fun aRideWithAChangeGroupsItsCandidatesByLeg() {
+    val names = mapOf("A24" to "59 St-Columbus Circle", "R16" to "Times Sq-42 St")
+    val oneLeg =
+      reviewFor(ride(listOf(candidate("A", true, 0, "A24"), candidate("C", false, 0, "A24"))), 2) {
+        names.getValue(it)
+      }
+    assertEquals(mapOf(0 to "From 59 St-Columbus Circle:"), oneLeg.legHeadings)
+    assertEquals(
+      "Express or local? A Express or C Local both serve the leg from 59 St-Columbus Circle.",
+      oneLeg.prompt,
+    )
+    assertEquals(
+      ReviewAction.ConfirmCandidate(1, "C", false, "C Local · 5 min", legIndex = 0),
+      oneLeg.actions[1],
+    )
+
+    val twoLegs =
+      reviewFor(
+        ride(
+          listOf(
+            candidate("A", true, 0, "A24"),
+            candidate("C", false, 0, "A24"),
+            candidate("N", true, 1, "R16"),
+            candidate("R", false, 1, null),
+          ),
+        ),
+        2,
+      ) {
+        names.getValue(it)
+      }
+    assertEquals(
+      mapOf(0 to "From 59 St-Columbus Circle:", 1 to "From Times Sq-42 St:"),
+      twoLegs.legHeadings,
+    )
+    assertEquals("Express or local? Choose the train for each leg.", twoLegs.prompt)
+    // Rides stored before 0.37 have no start station on their candidates.
+    val unnamed =
+      reviewFor(ride(listOf(candidate("N", true, 1, null), candidate("R", false, 1, null))), 2)
+    assertEquals(mapOf(1 to "Leg 2:"), unnamed.legHeadings)
+    assertEquals("Express or local? N Express or R Local both serve leg 2.", unnamed.prompt)
+    assertEquals(
+      listOf(0 to 0, 0 to 1, 1 to 0, 1 to 1),
+      twoLegs.actions.filterIsInstance<ReviewAction.ConfirmCandidate>().map {
+        it.legIndex to it.index
+      },
+    )
+    assertEquals(ReviewAction.KeepAsIs, twoLegs.actions.last())
+  }
+
   @Test
   fun aRideWithoutCandidatesOffersOnlyKeepAsIs() {
     val review = reviewFor(ride(emptyList(), source = RideSource.GMAPS_SHARE))

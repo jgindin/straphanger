@@ -109,18 +109,17 @@ class SubwayDao(
   }
 
   /**
-   * Resolves an ambiguous Express vs. Local passive ride when the user taps Confirm in the "Needs
-   * Review" banner or notification.
+   * Resolves an ambiguous Express vs. Local ride when the user confirms it in the "Needs Review"
+   * banner or ride row: each leg in [choices] (by leg index) is stored on its chosen train, and the
+   * other legs keep theirs.
    */
   fun confirmAmbiguousRide(
     rideId: String,
-    confirmedRouteId: String,
-    confirmedIsExpress: Boolean,
+    choices: Map<Int, RouteChoice>,
     graphEngine: SubwayGraphEngine,
   ): CompleteRideRecord? {
     val existing = getRideById(rideId) ?: return null
-    val updatedRecord =
-      existing.confirmedOn(RouteChoice(confirmedRouteId, confirmedIsExpress), graphEngine)
+    val updatedRecord = existing.confirmedOn(choices, graphEngine)
     insertOrReplaceRide(updatedRecord)
     return updatedRecord
   }
@@ -275,41 +274,54 @@ private fun stopEntities(
   }
 
 /**
- * This ride resolved again with its first leg on [choice], no longer asking express or local. The
- * other legs keep their routes.
+ * This ride resolved again with each leg in [choices] (by leg index) on its chosen train, no longer
+ * asking express or local for it. The other legs keep their routes; the express-or-local question
+ * of any of them that had one stays open, and the ride needs review only while one does and it
+ * needed review before; a ride that did not (a manual one, say) is never made to.
  */
 internal fun CompleteRideRecord.confirmedOn(
-  choice: RouteChoice,
+  choices: Map<Int, RouteChoice>,
   graphEngine: SubwayGraphEngine,
 ): CompleteRideRecord {
   val resolved =
     graphEngine.resolveTrip(
-      legs = confirmedLegRequests(this, choice.routeId, choice.isExpress),
+      legs = confirmedLegRequests(this, choices),
       timestampEpochMs = ride.startTimeEpochMs,
       actualDurationMinutes = ride.durationMinutes,
     )
+  val stillOpen = ride.ambiguousCandidates.filter { it.legIndex !in choices }
   return SubwayDao.buildCompleteRideRecord(
     rideId = ride.rideId,
     startTimeEpochMs = ride.startTimeEpochMs,
     endTimeEpochMs = ride.endTimeEpochMs,
     source = ride.source,
-    resolved = resolved.copy(isAmbiguous = false, ambiguousCandidates = emptyList()),
+    resolved = resolved.copy(isAmbiguous = stillOpen.isNotEmpty(), ambiguousCandidates = stillOpen),
     graphEngine = graphEngine,
     notes = ride.notes,
+    forceNeedsReview = keptReviewPolicy(),
   )
 }
 
-// The first leg takes the confirmed route; the others keep theirs.
+/**
+ * The review flag for this ride resolved again: left to the new resolution (review while a leg asks
+ * express or local) when the ride needed review, and false when it did not, so an edit never makes
+ * a reviewed ride ask again.
+ */
+internal fun CompleteRideRecord.keptReviewPolicy(): Boolean? = if (ride.needsReview) null else false
+
+// Each chosen leg takes its confirmed route; the others keep theirs.
 private fun confirmedLegRequests(
   existing: CompleteRideRecord,
-  confirmedRouteId: String,
-  confirmedIsExpress: Boolean,
+  choices: Map<Int, RouteChoice>,
 ): List<TripLegRequest> =
-  existing.legs.mapIndexed { idx, leg ->
-    TripLegRequest(
-      fromStationId = leg.fromStationId,
-      toStationId = leg.toStationId,
-      preferredRouteId = if (idx == 0) confirmedRouteId else leg.routeId,
-      forceExpress = if (idx == 0) confirmedIsExpress else leg.isExpress,
-    )
-  }
+  existing.legs
+    .sortedBy { it.legIndex }
+    .map { leg ->
+      val choice = choices[leg.legIndex]
+      TripLegRequest(
+        fromStationId = leg.fromStationId,
+        toStationId = leg.toStationId,
+        preferredRouteId = choice?.routeId ?: leg.routeId,
+        forceExpress = choice?.isExpress ?: leg.isExpress,
+      )
+    }

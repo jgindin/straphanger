@@ -9,6 +9,12 @@ private const val LOCAL_MPH = 15.5
 private const val EXPRESS_DWELL_MINUTES = 0.45
 private const val LOCAL_DWELL_MINUTES = 0.55
 
+/**
+ * Minutes allowed for each change of trains when a ride's time is shared out between its legs: the
+ * walk between platforms and the wait for the next train.
+ */
+private const val TRANSFER_ALLOWANCE_MINUTES = 4.0
+
 private fun roundToHundredths(value: Double): Double = (value * 100.0).roundToInt() / 100.0
 
 private fun roundToTenths(value: Double): Double = (value * 10.0).roundToInt() / 10.0
@@ -31,6 +37,27 @@ private class LegCorridor(
   fun estimatedMinutes(stopCount: Int, express: Boolean): Double =
     if (express) (distanceMiles / EXPRESS_MPH) * 60.0 + (stopCount - 1) * EXPRESS_DWELL_MINUTES
     else (distanceMiles / LOCAL_MPH) * 60.0 + (stopCount - 1) * LOCAL_DWELL_MINUTES
+
+  /** This leg's estimated minutes when its train stops as [plan] says. */
+  fun minutesFor(plan: StopPlan): Double =
+    estimatedMinutes(plan.stopped.size, express = plan.skipped.isNotEmpty())
+}
+
+/**
+ * The part of a ride's [actualMinutes] spent on leg [legIdx], given every leg's estimate in
+ * [estimates] (see [TripResolver.resolveTrip]). On a ride with one leg it is the whole time.
+ * Otherwise it is the time less the other legs' estimates and [TRANSFER_ALLOWANCE_MINUTES] per
+ * change; null when that leaves no time or the time is not known.
+ */
+private fun legShareMinutes(
+  actualMinutes: Double?,
+  legIdx: Int,
+  estimates: List<Double>,
+): Double? {
+  if (actualMinutes == null || estimates.size <= 1) return actualMinutes
+  val otherLegs = estimates.withIndex().filter { it.index != legIdx }.sumOf { it.value }
+  val share = actualMinutes - otherLegs - TRANSFER_ALLOWANCE_MINUTES * (estimates.size - 1)
+  return share.takeIf { it > 0.0 }
 }
 
 /** The route chosen for a leg, where it stops, and the alternatives to offer the user. */
@@ -47,11 +74,7 @@ private data class LegResolution(
 )
 
 /** What every leg of one trip shares. */
-private class TripContext(
-  val servicePeriod: ServicePeriod,
-  val lastLegIndex: Int,
-  val actualDurationMinutes: Double?,
-)
+private class TripContext(val servicePeriod: ServicePeriod, val lastLegIndex: Int)
 
 /**
  * Turns leg requests into resolved legs: the track each leg rides, the route that served it, and
@@ -68,9 +91,19 @@ internal class TripResolver(
     timestampEpochMs: Long,
     actualDurationMinutes: Double?,
   ): ResolvedTripResult {
-    val trip = TripContext(servicePeriodAt(timestampEpochMs), legs.lastIndex, actualDurationMinutes)
-    val resolutions =
-      legs.withIndex().mapNotNull { (legIdx, legReq) -> resolveLeg(legIdx, legReq, trip) }
+    val period = servicePeriodAt(timestampEpochMs)
+    // A leg no track joins is left out, and the legs kept are numbered 0 until their count.
+    val kept = legs.mapNotNull { req -> corridorFor(req, period)?.let { req to it } }
+    val trip = TripContext(period, kept.lastIndex)
+    // Each leg's minutes before the ride's time is shared out: the train it is pinned to, if any;
+    // else its express, or its only route (what the app guesses with no time to go on).
+    val estimates = kept.map { (req, corridor) ->
+      corridor.minutesFor(chooseRoute(corridor, req, null, null).plan)
+    }
+    val resolutions = kept.mapIndexed { legIdx, (legReq, corridor) ->
+      val share = legShareMinutes(actualDurationMinutes, legIdx, estimates)
+      resolveLeg(legIdx, legReq, corridor, trip, share)
+    }
     val resolvedLegs = resolutions.map { it.leg }
     val candidates = resolutions.flatMap { it.candidates }
     return ResolvedTripResult(
@@ -83,16 +116,16 @@ internal class TripResolver(
     )
   }
 
-  private fun resolveLeg(legIdx: Int, legReq: TripLegRequest, trip: TripContext): LegResolution? {
-    val trackSteps =
-      pathFinder
-        .findShortestPath(legReq.fromStationId, legReq.toStationId, legReq.preferredRouteId)
-        .filter { it.segment != null }
-    if (trackSteps.isEmpty()) return null
-    val corridor = corridorFor(trackSteps, trip.servicePeriod)
-    // Express and local alternatives are offered only for a single-leg trip with no chosen route.
-    val offerCandidates = trip.lastLegIndex == 0 && legReq.preferredRouteId == null
-    val choice = chooseRoute(corridor, legReq, trip.actualDurationMinutes, offerCandidates)
+  private fun resolveLeg(
+    legIdx: Int,
+    legReq: TripLegRequest,
+    corridor: LegCorridor,
+    trip: TripContext,
+    legMinutes: Double?,
+  ): LegResolution {
+    // Express and local alternatives are offered on every leg with no chosen route.
+    val candidateLeg = legIdx.takeIf { legReq.preferredRouteId == null }
+    val choice = chooseRoute(corridor, legReq, legMinutes, candidateLeg)
     val leg =
       ResolvedLegPath(
         legIndex = legIdx,
@@ -110,7 +143,13 @@ internal class TripResolver(
     return LegResolution(leg, stationStops(legIdx, trip.lastLegIndex, leg), choice.candidates)
   }
 
-  private fun corridorFor(trackSteps: List<PathStep>, servicePeriod: ServicePeriod): LegCorridor {
+  // The track [legReq] rides, or null when no track joins its stations.
+  private fun corridorFor(legReq: TripLegRequest, servicePeriod: ServicePeriod): LegCorridor? {
+    val trackSteps =
+      pathFinder
+        .findShortestPath(legReq.fromStationId, legReq.toStationId, legReq.preferredRouteId)
+        .filter { it.segment != null }
+    if (trackSteps.isEmpty()) return null
     val segments = trackSteps.mapNotNull { it.segment }
     val orderedStations =
       listOf(trackSteps.first().fromStationId) + trackSteps.map { it.toStationId }
@@ -129,8 +168,8 @@ internal class TripResolver(
   private fun chooseRoute(
     corridor: LegCorridor,
     legReq: TripLegRequest,
-    actualDurationMinutes: Double?,
-    offerCandidates: Boolean,
+    legMinutes: Double?,
+    candidateLeg: Int?,
   ): RouteChoice {
     val preferred = legReq.preferredRouteId
     val forceExpress = legReq.forceExpress
@@ -139,7 +178,7 @@ internal class TripResolver(
         RouteChoice(preferred, preferredRoutePlan(corridor, preferred, forceExpress))
       forceExpress != null -> forcedServiceChoice(corridor, forceExpress)
       corridor.expressRoutes.isNotEmpty() && corridor.localRoutes.isNotEmpty() ->
-        choiceByDuration(corridor, actualDurationMinutes, offerCandidates)
+        choiceByDuration(corridor, legMinutes, candidateLeg)
       else -> {
         val routeId =
           corridor.expressRoutes.firstOrNull()
@@ -174,11 +213,12 @@ internal class TripResolver(
       )
     }
 
-  // Both an express and a local serve this stretch: use the ride's duration if known.
+  // Both an express and a local serve this stretch: use the leg's share of the ride's time if
+  // known. With a [candidateLeg], both are offered to the rider as that leg's alternatives.
   private fun choiceByDuration(
     corridor: LegCorridor,
-    actualDurationMinutes: Double?,
-    offerCandidates: Boolean,
+    legMinutes: Double?,
+    candidateLeg: Int?,
   ): RouteChoice {
     val expRoute = corridor.expressRoutes.first()
     val locRoute = corridor.localRoutes.first()
@@ -186,7 +226,8 @@ internal class TripResolver(
     val estExpressMinutes = corridor.estimatedMinutes(expPlan.stopped.size, express = true)
     val estLocalMinutes = corridor.estimatedMinutes(corridor.orderedStations.size, express = false)
     val candidates =
-      if (offerCandidates) {
+      if (candidateLeg != null) {
+        val from = corridor.orderedStations.first()
         listOf(
           AmbiguousRouteCandidate(
             routeId = expRoute,
@@ -194,6 +235,8 @@ internal class TripResolver(
             label = "$expRoute Express",
             estimatedMinutes = roundToTenths(estExpressMinutes),
             stoppedStationCount = expPlan.stopped.size,
+            legIndex = candidateLeg,
+            fromStationId = from,
           ),
           AmbiguousRouteCandidate(
             routeId = locRoute,
@@ -201,15 +244,15 @@ internal class TripResolver(
             label = "$locRoute Local",
             estimatedMinutes = roundToTenths(estLocalMinutes),
             stoppedStationCount = corridor.orderedStations.size,
+            legIndex = candidateLeg,
+            fromStationId = from,
           ),
         )
       } else {
         emptyList()
       }
     val preferLocalByDuration =
-      actualDurationMinutes != null &&
-        abs(actualDurationMinutes - estLocalMinutes) <
-          abs(actualDurationMinutes - estExpressMinutes)
+      legMinutes != null && abs(legMinutes - estLocalMinutes) < abs(legMinutes - estExpressMinutes)
     return if (preferLocalByDuration) {
       RouteChoice(locRoute, corridor.allStops, candidates)
     } else {
