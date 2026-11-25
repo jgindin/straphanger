@@ -1,11 +1,13 @@
 package com.straphanger.app
 
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -27,20 +29,20 @@ import org.junit.Test
 /** The Rides tab: logging, review and deleting rides. */
 class RidesScreenTest : AppScreenTest() {
   @Test
-  fun loggingAPresetRideAddsItToTheListAndHeader() {
+  fun loggingAPresetRideAddsItToTheListAndStats() {
     val vm = launchApp()
+    assertEquals(0, statsRideCount())
     openTab("RIDES")
     composeRule.onNodeWithTag("rides_history_screen").assertIsDisplayed()
-    assertEquals(0, headerRideCount())
 
     composeRule.onNodeWithTag("preset_42_shuttle").performClick()
     composeRule.onNodeWithTag("submit_log_ride_btn").performClick()
 
-    assertEquals(1, headerRideCount())
     val ride = vm.uiState.value.rides.single().ride
     // The fixed clock's time, not the wall clock's.
     assertEquals(Instant.parse("2026-11-11T14:00:00Z").toEpochMilliseconds(), ride.startTimeEpochMs)
     composeRule.onNodeWithTag("ride_item_${ride.rideId}").performScrollTo().assertIsDisplayed()
+    assertEquals(1, statsRideCount())
   }
 
   @Test
@@ -125,7 +127,9 @@ class RidesScreenTest : AppScreenTest() {
 
     composeRule.runOnUiThread { vm.simulateAmbiguousPassiveRide() }
     composeRule.onNodeWithTag("needs_review_banner").assertIsDisplayed()
-    composeRule.onNodeWithTag("nav_tab_RIDES").assert(hasText("(1)", substring = true))
+    composeRule
+      .onNodeWithTag("nav_badge_RIDES", useUnmergedTree = true)
+      .assertContentDescriptionEquals("1 ride needs review")
     val inBanner = hasAnyAncestor(hasTestTag("needs_review_banner"))
     composeRule
       .onNode(hasTestTagPrefix("confirm_candidate_") and hasTestTagSuffix("_1") and inBanner)
@@ -159,7 +163,7 @@ class RidesScreenTest : AppScreenTest() {
     composeRule.onNodeWithTag("delete_ride_dialog").assertDoesNotExist()
     composeRule.onNodeWithTag("ride_item_$rideId").assertDoesNotExist()
     assertEquals(0, vm.uiState.value.rides.size)
-    assertEquals(0, headerRideCount())
+    assertEquals(0, statsRideCount())
   }
 
   @Test
@@ -170,7 +174,7 @@ class RidesScreenTest : AppScreenTest() {
     composeRule.onNodeWithTag("simulate_passive_ride_btn").assertDoesNotExist()
     composeRule.onNodeWithTag("load_demo_rides_btn").assertDoesNotExist()
 
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("sources_sync_screen").assertIsDisplayed()
     composeRule.onNodeWithTag("import_sample_timeline_btn").assertDoesNotExist()
     composeRule.onNodeWithTag("pick_timeline_file_btn").performScrollTo().assertIsDisplayed()

@@ -1,5 +1,10 @@
 package com.straphanger.app
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -42,4 +47,27 @@ abstract class CommuteScreenTestBase : AppScreenTest() {
   }
 
   protected fun count(tag: String) = composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().size
+
+  /**
+   * Opens the time picker behind [buttonTag], taps [hour] then [minute] on its clock face, as their
+   * descriptions such as "18 hours", "5 o'clock" and "30 minutes", then [period] ("AM" or "PM")
+   * when given, and taps OK.
+   */
+  protected fun pickTime(buttonTag: String, hour: String, minute: String, period: String? = null) {
+    composeRule.onNodeWithTag(buttonTag).performClick()
+    clockNumber(hour).performClick()
+    // A tap on the clock face leaves it on the hours, so switch to the minutes first.
+    composeRule.onNode(hasContentDescription("Select minutes")).performClick()
+    clockNumber(minute).performClick()
+    period?.let { composeRule.onNode(hasText(it) and hasClickAction()).performClick() }
+    composeRule.onNodeWithTag("commute_time_ok").performClick()
+  }
+
+  // Only a number on the clock face has just this description; the selector above it also says
+  // "Select hour".
+  private fun clockNumber(description: String) =
+    composeRule.onNode(
+      SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf(description)) and
+        hasClickAction()
+    )
 }

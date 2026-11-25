@@ -17,7 +17,7 @@ class DisclosureScreensTest : AppScreenTest() {
   @Test
   fun backgroundLocationDisclosureNotNowLeavesCaptureOff() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
     composeRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
     composeRule
@@ -33,7 +33,7 @@ class DisclosureScreensTest : AppScreenTest() {
   @Test
   fun backgroundLocationDisclosureContinueRequestsCapture() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
     composeRule.onNodeWithTag("disclosure_continue").performClick()
     composeRule.onNodeWithTag("background_location_disclosure").assertDoesNotExist()
@@ -44,7 +44,7 @@ class DisclosureScreensTest : AppScreenTest() {
   @Test
   fun notificationAccessDisclosureNotNowDoesNotOpenSettings() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
     composeRule.onNodeWithTag("notification_access_disclosure").assertIsDisplayed()
     composeRule
@@ -58,7 +58,7 @@ class DisclosureScreensTest : AppScreenTest() {
   @Test
   fun notificationAccessDisclosureContinueOpensSettings() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
     composeRule.onNodeWithTag("disclosure_continue").performClick()
     composeRule.onNodeWithTag("notification_access_disclosure").assertDoesNotExist()
@@ -68,7 +68,7 @@ class DisclosureScreensTest : AppScreenTest() {
   @Test
   fun tabTapClearsDisclosure() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("notification_access_toggle").performScrollTo().performClick()
     composeRule.onNodeWithTag("notification_access_disclosure").assertIsDisplayed()
     openTab("MAP")
@@ -79,7 +79,7 @@ class DisclosureScreensTest : AppScreenTest() {
   @Test
   fun systemBackDismissesDisclosureLikeNotNow() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("passive_capture_toggle").performScrollTo().performClick()
     composeRule.onNodeWithTag("background_location_disclosure").assertIsDisplayed()
 

@@ -2,12 +2,14 @@ package com.straphanger.app
 
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onChildAt
@@ -23,6 +25,7 @@ import com.straphanger.app.data.local.RidePersistenceBackend
 import com.straphanger.app.testutil.BundledBasemap
 import com.straphanger.app.testutil.BundledNetwork
 import com.straphanger.app.testutil.FixedClock
+import com.straphanger.app.ui.AppTab
 import com.straphanger.app.ui.CaptureAccessState
 import com.straphanger.app.data.realtime.RealtimeSnapshot
 import com.straphanger.app.ui.StraphangerViewModel
@@ -61,6 +64,8 @@ abstract class AppScreenTest {
   @get:Rule val composeRule = createAndroidComposeRule<ComponentActivity>()
 
   protected var passiveCaptureRequests = 0
+  /** What the platform does when asked to turn ride notifications on; nothing by default. */
+  protected var onRideNotificationsRequested: () -> Unit = {}
   protected var notificationAccessRequests = 0
   protected var passiveCaptureDisables = 0
   protected var rideNotificationRequests = 0
@@ -106,13 +111,16 @@ abstract class AppScreenTest {
   protected var firstCommuteCreations = 0
   protected var exactAlarmSettingsOpens = 0
   protected var commuteAccess = CommuteAccess()
+  /** The phone's 12/24-hour setting as the commutes see it; 24-hour unless a test says not. */
+  protected var use24Hour = true
 
   protected fun launchApp(
     viewModel: StraphangerViewModel = newViewModel(),
     withLicenses: Boolean = true,
     awaitNetwork: Boolean = true,
+    restoration: StateRestorationTester? = null,
   ): StraphangerViewModel {
-    composeRule.setContent {
+    val content: @Composable () -> Unit = {
       App(
         viewModel = viewModel,
         captureAccess = captureAccess,
@@ -121,7 +129,10 @@ abstract class AppScreenTest {
             onRequestPassiveCapture = { passiveCaptureRequests++ },
             onDisablePassiveCapture = { passiveCaptureDisables++ },
             onRequestNotificationAccess = { notificationAccessRequests++ },
-            onRequestRideNotifications = { rideNotificationRequests++ },
+            onRequestRideNotifications = {
+              rideNotificationRequests++
+              onRideNotificationsRequested()
+            },
             onDisableRideNotifications = { rideNotificationDisables++ },
             onOpenNotificationSettings = { notificationSettingsOpens++ },
             appVersion = "9.8.7",
@@ -137,10 +148,12 @@ abstract class AppScreenTest {
                 { firstCommuteCreations++ },
                 { exactAlarmSettingsOpens++ },
                 { notificationSettingsOpens++ },
+                use24Hour = use24Hour,
               ),
           ),
       )
     }
+    if (restoration != null) restoration.setContent(content) else composeRule.setContent(content)
     if (awaitNetwork) {
       composeRule.waitUntil(timeoutMillis = 5_000) {
         composeRule.onAllNodesWithTag("network_loading").fetchSemanticsNodes().isEmpty()
@@ -153,19 +166,38 @@ abstract class AppScreenTest {
     composeRule.onNodeWithTag("nav_tab_$name").performClick()
   }
 
+  /** Taps the top bar's gear, which pushes Settings over the current tab. */
+  protected fun openSettings() {
+    composeRule.onNodeWithTag("top_bar_settings").performClick()
+  }
+
   protected fun pressBack() {
     composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
     composeRule.waitForIdle()
   }
 
-  protected fun headerRideCount(): Int =
-    composeRule
-      .onNodeWithTag("header_total_rides")
-      .onChildAt(0)
-      .fetchSemanticsNode()
-      .config
-      .getOrNull(SemanticsProperties.Text)!!
-      .first()
-      .text
-      .toInt()
+  /** Opens the Stats tab, reads its Total Rides card, then goes back to the tab it was on. */
+  protected fun statsRideCount(): Int {
+    val startTab =
+      AppTab.entries.first { tab ->
+        composeRule
+          .onNodeWithTag("nav_tab_${tab.name}")
+          .fetchSemanticsNode()
+          .config
+          .getOrNull(SemanticsProperties.Selected) == true
+      }
+    openTab("STATS")
+    val count =
+      composeRule
+        .onNodeWithTag("stat_card_total_rides")
+        .onChildAt(1)
+        .fetchSemanticsNode()
+        .config
+        .getOrNull(SemanticsProperties.Text)!!
+        .first()
+        .text
+        .toInt()
+    openTab(startTab.name)
+    return count
+  }
 }

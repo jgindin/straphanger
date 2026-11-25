@@ -102,6 +102,7 @@ internal class TimelineImportController(
       it.copy(
         lastImportSummary = summary.copy(importedRecords = emptyList()),
         statusMessage = if (saved) importedMessage(summary) else it.statusMessage,
+        statusIsFailure = if (saved) false else it.statusIsFailure,
       )
     }
     return summary
@@ -109,7 +110,9 @@ internal class TimelineImportController(
 
   private fun reject(outcome: TimelineFileOutcome.Rejected): TimelineImportSummary {
     DiagnosticsLog.warn(LOG_TAG, outcome.message, outcome.cause)
-    session.update { it.copy(lastImportSummary = null, statusMessage = outcome.message) }
+    session.update {
+      it.copy(lastImportSummary = null, statusMessage = outcome.message, statusIsFailure = true)
+    }
     return emptyImportSummary()
   }
 
@@ -118,7 +121,9 @@ internal class TimelineImportController(
       catchingFileFailure(readBytes)
         .fold(
           onSuccess = { bytes -> importTimelineFile(bytes) },
-          onFailure = { e -> session.setStatus("Could not read the file: ${e.reason}") },
+          onFailure = { e ->
+            session.setStatus("Could not read the file: ${e.reason}", failure = true)
+          },
         )
     }
 }

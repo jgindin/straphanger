@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * A recurring trip the rider wants a departure alert for: the [routeId] train toward [direction] at
- * station [complexId], on [days] at the local wall-clock [hour]:[minute].
+ * station [complexId], on [days] at the local wall-clock [hour]:[minute]. With an end time
+ * ([endHour]:[endMinute], both or neither) it also shows on a widget until then.
  */
 @Serializable
 data class Commute(
@@ -19,6 +20,8 @@ data class Commute(
   val hour: Int,
   val minute: Int,
   val enabled: Boolean = true,
+  val endHour: Int? = null,
+  val endMinute: Int? = null,
 )
 
 private const val ID_RADIX = 36

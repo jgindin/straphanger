@@ -66,7 +66,7 @@ class CommuteAlerts(
    * loads, and both share one [COMMUTE_FETCH_TIMEOUT_MS] limit from the start.
    */
   private suspend fun post(commute: Commute) = coroutineScope {
-    val snapshot = async { withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) { fetchOrNull(commute) } }
+    val snapshot = async { fetchCommute(commute, fetch) }
     val all = withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) { complexes() }
     val complex = all?.firstOrNull { it.complexId == commute.complexId }
     if (complex == null) snapshot.cancel()
@@ -126,8 +126,17 @@ class CommuteAlerts(
     val next = commute.nextOccurrenceMs(now, tz)
     if (next == null) scheduler.cancel(commute.id) else scheduler.schedule(commute.id, next)
   }
+}
 
-  private suspend fun fetchOrNull(commute: Commute): RealtimeSnapshot? =
+/**
+ * [commute]'s line and its express variant through [fetch], or null when that fails or takes longer
+ * than [COMMUTE_FETCH_TIMEOUT_MS]; a failure is logged.
+ */
+internal suspend fun fetchCommute(
+  commute: Commute,
+  fetch: suspend (Collection<String>) -> RealtimeSnapshot,
+): RealtimeSnapshot? =
+  withTimeoutOrNull(COMMUTE_FETCH_TIMEOUT_MS) {
     try {
       fetch(listOf(commute.routeId, commute.routeId + "X"))
     } catch (e: CancellationException) {
@@ -137,4 +146,4 @@ class CommuteAlerts(
       DiagnosticsLog.warn(COMMUTE_LOG_TAG, "Train times could not be fetched for a commute", e)
       null
     }
-}
+  }

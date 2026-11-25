@@ -104,7 +104,7 @@ class StatusFilterScreenTest : AppScreenTest() {
   @Test
   fun seeTrainsClosesTheAboutScreen() {
     launchApp()
-    openTab("SOURCES")
+    openSettings()
     composeRule.onNodeWithTag("open_about_btn").performScrollTo().performClick()
     composeRule.onNodeWithTag("about_screen").assertExists()
 

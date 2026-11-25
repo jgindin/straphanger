@@ -5,13 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,21 +19,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.straphanger.app.data.commute.Commute
+import com.straphanger.app.data.commute.commuteTimeText
 import com.straphanger.app.data.realtime.Direction
-import com.straphanger.app.ui.theme.MtaColors
 import kotlinx.datetime.DayOfWeek
 
 private const val WORK_WEEK_DAYS = 5
-private const val MAX_HOUR = 23
-private const val MAX_MINUTE = 59
 private const val DEFAULT_HOUR = 8
-private const val TIME_FIELD_WIDTH_DP = 80
+private const val HOURS_PER_DAY = 24
 
 /** What the editor's fields hold right now. */
 private class CommuteForm(draft: CommuteDraft) {
@@ -42,16 +36,19 @@ private class CommuteForm(draft: CommuteDraft) {
   var line by mutableStateOf(draft.routeId)
   var direction by mutableStateOf(draft.direction)
   var days by mutableStateOf(existing?.days ?: DayOfWeek.entries.take(WORK_WEEK_DAYS).toSet())
-  var hour by mutableStateOf((existing?.hour ?: DEFAULT_HOUR).toString())
-  var minute by mutableStateOf((existing?.minute ?: 0).toString().padStart(2, '0'))
-  val parsedHour: Int?
-    get() = hour.toIntOrNull()?.takeIf { it in 0..MAX_HOUR }
+  var hour by mutableStateOf(existing?.hour ?: DEFAULT_HOUR)
+  var minute by mutableStateOf(existing?.minute ?: 0)
 
-  val parsedMinute: Int?
-    get() = minute.toIntOrNull()?.takeIf { it in 0..MAX_MINUTE }
+  /** The end time, or null for none; the store only keeps both or neither. */
+  var end by
+    mutableStateOf(
+      existing?.endHour?.let { endHour -> existing.endMinute?.let { endHour to it } },
+    )
+  var pickingStart by mutableStateOf(false)
+  var pickingEnd by mutableStateOf(false)
 
   val valid: Boolean
-    get() = days.isNotEmpty() && parsedHour != null && parsedMinute != null && line.isNotEmpty()
+    get() = days.isNotEmpty() && line.isNotEmpty()
 
   fun toggleDay(day: DayOfWeek) {
     days = if (day in days) days - day else days + day
@@ -64,27 +61,30 @@ private class CommuteForm(draft: CommuteDraft) {
       complexId = draft.complexId,
       direction = direction,
       days = days,
-      hour = parsedHour ?: 0,
-      minute = parsedMinute ?: 0,
+      hour = hour,
+      minute = minute,
+      endHour = end?.first,
+      endMinute = end?.second,
       enabled = existing?.enabled ?: true,
     )
 }
 
-/** The add / edit dialog for one commute; Save is off until the days and time are valid. */
+/** The add / edit dialog for one commute; Save is off while no day is chosen. */
 @Composable
 internal fun CommuteEditorDialog(draft: CommuteDraft, ui: CommuteUi) {
   val form = remember { CommuteForm(draft) }
+  val use24Hour = ui.controls.use24Hour
   AlertDialog(
     onDismissRequest = ui::closeEditor,
-    containerColor = MtaColors.CardBg,
+    containerColor = MaterialTheme.colorScheme.surfaceContainer,
     modifier = Modifier.testTag("commute_editor"),
     title = {
       Text(
         if (form.existing == null) "Add commute alert" else "Edit commute alert",
-        color = Color.White,
+        color = MaterialTheme.colorScheme.onSurface,
       )
     },
-    text = { CommuteFields(form, draft.routes) },
+    text = { CommuteFields(form, draft.routes, use24Hour) },
     confirmButton = {
       Row {
         form.existing?.let {
@@ -107,11 +107,12 @@ internal fun CommuteEditorDialog(draft: CommuteDraft, ui: CommuteUi) {
       }
     },
   )
+  TimeDialogs(form, use24Hour)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CommuteFields(form: CommuteForm, routes: List<String>) {
+private fun CommuteFields(form: CommuteForm, routes: List<String>, use24Hour: Boolean) {
   Column(
     modifier = Modifier.verticalScroll(rememberScrollState()),
     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -132,15 +133,55 @@ private fun CommuteFields(form: CommuteForm, routes: List<String>) {
         ChoiceChip(label, day in form.days, "commute_day_${day.name}") { form.toggleDay(day) }
       }
     }
-    Row(
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-      modifier = Modifier.testTag("commute_time"),
-    ) {
-      TimeField("Hour", form.hour, form.parsedHour == null, "commute_hour") { form.hour = it }
-      TimeField("Minute", form.minute, form.parsedMinute == null, "commute_minute") {
-        form.minute = it
-      }
+    TimeButton("Time", commuteTimeText(form.hour, form.minute, use24Hour), "commute_time") {
+      form.pickingStart = true
     }
+    val end = form.end
+    TimeButton(
+      "Show on widget until",
+      if (end == null) "Not set" else commuteTimeText(end.first, end.second, use24Hour),
+      "commute_end_time",
+    ) {
+      form.pickingEnd = true
+    }
+  }
+}
+
+/** The picker for whichever of the start and end times is being chosen. */
+@Composable
+private fun TimeDialogs(form: CommuteForm, use24Hour: Boolean) {
+  if (form.pickingStart) {
+    CommuteTimeDialog(
+      "Time",
+      form.hour,
+      form.minute,
+      use24Hour,
+      onPick = { hour, minute ->
+        form.hour = hour
+        form.minute = minute
+        form.pickingStart = false
+      },
+      onDismiss = { form.pickingStart = false },
+    )
+  }
+  if (form.pickingEnd) {
+    // With no end time yet, the picker starts an hour after the start.
+    val end = form.end ?: ((form.hour + 1) % HOURS_PER_DAY to form.minute)
+    CommuteTimeDialog(
+      "Show on widget until",
+      end.first,
+      end.second,
+      use24Hour,
+      onPick = { hour, minute ->
+        form.end = hour to minute
+        form.pickingEnd = false
+      },
+      onDismiss = { form.pickingEnd = false },
+      onClear = {
+        form.end = null
+        form.pickingEnd = false
+      },
+    )
   }
 }
 
@@ -149,26 +190,20 @@ private fun ChoiceChip(label: String, selected: Boolean, tag: String, onClick: (
   FilterChip(
     selected = selected,
     onClick = onClick,
-    label = { Text(label, fontSize = 12.sp) },
+    label = { Text(label) },
     modifier = Modifier.testTag(tag),
   )
 }
 
+/** A time's [label] over a button showing [value]; the button carries [tag]. */
 @Composable
-private fun TimeField(
-  label: String,
-  value: String,
-  invalid: Boolean,
-  tag: String,
-  onChange: (String) -> Unit,
-) {
-  OutlinedTextField(
-    value = value,
-    onValueChange = { onChange(it.filter(Char::isDigit).take(2)) },
-    label = { Text(label, fontSize = 12.sp) },
-    isError = invalid,
-    singleLine = true,
-    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-    modifier = Modifier.width(TIME_FIELD_WIDTH_DP.dp).testTag(tag),
-  )
+private fun TimeButton(label: String, value: String, tag: String, onClick: () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Text(
+      label,
+      color = MaterialTheme.colorScheme.onSurface,
+      style = MaterialTheme.typography.bodySmall,
+    )
+    OutlinedButton(onClick = onClick, modifier = Modifier.testTag(tag)) { Text(value) }
+  }
 }
